@@ -1,0 +1,192 @@
+"""
+Schema definitions for product master data.
+"""
+
+from pydantic import BaseModel, Field, validator
+from typing import Optional, Literal
+from datetime import date
+import pandas as pd
+
+class ProductMasterRecord(BaseModel):
+    """Schema for a single product master record"""
+    product_id: str = Field(..., description="Unique product identifier")
+    location_id: str = Field(..., description="Unique location identifier")
+    product_category: str = Field(..., description="Product category")
+    demand_frequency: Literal['d', 'w', 'm'] = Field(..., description="Demand frequency: 'd'=daily, 'w'=weekly, 'm'=monthly")
+    risk_period: int = Field(..., gt=0, description="Risk period as integer multiple of demand frequency")
+    outlier_method: Optional[str] = Field('iqr', description="Outlier detection method: 'iqr', 'zscore', 'mad', 'rolling'")
+    outlier_threshold: Optional[float] = Field(1.5, description="Outlier detection threshold")
+    forecast_window_length: int = Field(..., description="Forecasting window length in risk periods")
+    forecast_horizon: int = Field(..., description="Forecasting horizon in risk periods")
+    forecast_method: Optional[str] = Field('moving_average', description="Forecasting method: 'moving_average', 'prophet', 'arima'")
+    distribution: Optional[str] = Field('kde', description="Safety stock distribution type: 'kde', 'normal'")
+    service_level: Optional[float] = Field(0.95, ge=0.0, le=1.0, description="Service level percentage (0.0 to 1.0)")
+    ss_window_length: Optional[int] = Field(180, gt=0, description="Rolling window length for safety stock calculation in demand frequency units")
+    leadtime: int = Field(..., gt=0, description="Lead time in demand frequency units")
+    inventory_cost: Optional[float] = Field(0.0, ge=0.0, description="Unit cost of inventory")
+    
+    @validator('risk_period')
+    def validate_risk_period(cls, v, values):
+        """Validate risk period based on frequency"""
+        frequency = values.get('demand_frequency')
+        if frequency == 'd' and v > 365:
+            raise ValueError("Daily risk period cannot exceed 365 days")
+        elif frequency == 'w' and v > 52:
+            raise ValueError("Weekly risk period cannot exceed 52 weeks")
+        elif frequency == 'm' and v > 12:
+            raise ValueError("Monthly risk period cannot exceed 12 months")
+        return v
+
+class ProductMasterSchema:
+    """Schema validation and conversion utilities for product master data"""
+    
+    REQUIRED_COLUMNS = ['product_id', 'location_id', 'product_category', 'demand_frequency', 'risk_period', 'leadtime', 'inventory_cost']
+    VALID_FREQUENCIES = ['d', 'w', 'm']
+    
+    @staticmethod
+    def validate_dataframe(df: pd.DataFrame) -> bool:
+        """Validate that a dataframe matches the required schema"""
+        # Check required columns exist
+        missing_cols = set(ProductMasterSchema.REQUIRED_COLUMNS) - set(df.columns)
+        if missing_cols:
+            raise ValueError(f"Missing required columns: {missing_cols}")
+        
+        # Check data types
+        if not pd.api.types.is_object_dtype(df['product_id']):
+            raise ValueError("'product_id' column must be string type")
+        
+        if not pd.api.types.is_object_dtype(df['location_id']):
+            raise ValueError("'location_id' column must be string type")
+            
+        if not pd.api.types.is_object_dtype(df['product_category']):
+            raise ValueError("'product_category' column must be string type")
+        
+        if not pd.api.types.is_object_dtype(df['demand_frequency']):
+            raise ValueError("'demand_frequency' column must be string type")
+            
+        if not pd.api.types.is_numeric_dtype(df['risk_period']):
+            raise ValueError("'risk_period' column must be numeric")
+            
+        if not pd.api.types.is_numeric_dtype(df['leadtime']):
+            raise ValueError("'leadtime' column must be numeric")
+        
+        # Check for valid frequencies
+        invalid_frequencies = set(df['demand_frequency'].unique()) - set(ProductMasterSchema.VALID_FREQUENCIES)
+        if invalid_frequencies:
+            raise ValueError(f"Invalid demand frequencies: {invalid_frequencies}")
+        
+        # Check for positive risk periods
+        if (df['risk_period'] <= 0).any():
+            raise ValueError("Risk period values must be positive")
+            
+        # Check for positive leadtimes
+        if (df['leadtime'] <= 0).any():
+            raise ValueError("Leadtime values must be positive")
+            
+        # Check for non-negative inventory costs
+        if 'inventory_cost' in df.columns and (df['inventory_cost'] < 0).any():
+            raise ValueError("Inventory cost values must be non-negative")
+        
+        # Check for reasonable risk period limits
+        daily_risk = df[df['demand_frequency'] == 'd']['risk_period']
+        if (daily_risk > 365).any():
+            raise ValueError("Daily risk period cannot exceed 365 days")
+        
+        weekly_risk = df[df['demand_frequency'] == 'w']['risk_period']
+        if (weekly_risk > 52).any():
+            raise ValueError("Weekly risk period cannot exceed 52 weeks")
+        
+        monthly_risk = df[df['demand_frequency'] == 'm']['risk_period']
+        if (monthly_risk > 12).any():
+            raise ValueError("Monthly risk period cannot exceed 12 months")
+        
+        return True
+    
+    @staticmethod
+    def standardize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+        """Convert dataframe to standard format"""
+        # Ensure string columns are string
+        df['product_id'] = df['product_id'].astype(str)
+        df['location_id'] = df['location_id'].astype(str)
+        df['product_category'] = df['product_category'].astype(str)
+        df['demand_frequency'] = df['demand_frequency'].astype(str)
+        
+        # Ensure numeric columns are integer
+        df['risk_period'] = df['risk_period'].astype(int)
+        df['leadtime'] = df['leadtime'].astype(int)
+        
+        # Handle optional outlier columns
+        if 'outlier_method' not in df.columns:
+            df['outlier_method'] = 'iqr'
+        else:
+            df['outlier_method'] = df['outlier_method'].fillna('iqr').astype(str)
+        
+        if 'outlier_threshold' not in df.columns:
+            df['outlier_threshold'] = 1.5
+        else:
+            df['outlier_threshold'] = df['outlier_threshold'].fillna(1.5).astype(float)
+        
+        # Ensure forecast columns are integer
+        if 'forecast_window_length' in df.columns:
+            df['forecast_window_length'] = df['forecast_window_length'].astype(int)
+        
+        if 'forecast_horizon' in df.columns:
+            df['forecast_horizon'] = df['forecast_horizon'].astype(int)
+        
+        # Handle optional forecast method column
+        if 'forecast_method' not in df.columns:
+            df['forecast_method'] = 'moving_average'
+        else:
+            df['forecast_method'] = df['forecast_method'].fillna('moving_average').astype(str)
+        
+        # Handle optional safety stock columns
+        if 'distribution' not in df.columns:
+            df['distribution'] = 'kde'
+        else:
+            df['distribution'] = df['distribution'].fillna('kde').astype(str)
+        
+        if 'service_level' not in df.columns:
+            df['service_level'] = 0.95
+        else:
+            df['service_level'] = df['service_level'].fillna(0.95).astype(float)
+        
+        if 'ss_window_length' not in df.columns:
+            df['ss_window_length'] = 180
+        else:
+            df['ss_window_length'] = df['ss_window_length'].fillna(180).astype(int)
+        
+        # Sort for consistency
+        df = df.sort_values(['product_id', 'location_id', 'demand_frequency']).reset_index(drop=True)
+        
+        return df
+    
+    @staticmethod
+    def get_risk_period_days(frequency: str, risk_period: int) -> int:
+        """
+        Convert frequency and risk period to total days
+        
+        Args:
+            frequency: 'd', 'w', or 'm'
+            risk_period: Integer multiple of frequency
+            
+        Returns:
+            Total days
+        """
+        if frequency == 'd':
+            return risk_period
+        elif frequency == 'w':
+            return risk_period * 7
+        elif frequency == 'm':
+            return risk_period * 30  # Approximate
+        else:
+            raise ValueError(f"Invalid frequency: {frequency}")
+    
+    @staticmethod
+    def get_frequency_description(frequency: str) -> str:
+        """Get human-readable frequency description"""
+        descriptions = {
+            'd': 'Daily',
+            'w': 'Weekly', 
+            'm': 'Monthly'
+        }
+        return descriptions.get(frequency, 'Unknown') 

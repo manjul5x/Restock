@@ -1,0 +1,241 @@
+/* Base Styles */
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Container */
+.main-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    margin: 20px;
+    padding: 30px;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #2c3e50;
+}
+.header h1 {
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+.header p {
+    color: #7f8c8d;
+    font-size: 1.1em;
+}
+
+/* Navigation */
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.nav-link {
+    color: #667eea;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+.nav-link:hover {
+    color: #764ba2;
+    transform: translateY(-2px);
+}
+.nav-link.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+.card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px 15px 0 0 !important;
+    font-weight: 600;
+}
+
+/* Forms */
+.form-control, .form-select {
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+.form-control:focus, .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+.form-check-input:checked {
+    background-color: #667eea;
+    border-color: #667eea;
+}
+
+/* Buttons */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 12px 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* Plot Container */
+.plot-container {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: 20px 0;
+}
+.plot-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading */
+.loading {
+    display: none;
+    text-align: center;
+    padding: 20px;
+}
+.spinner-border {
+    color: #667eea;
+}
+
+/* Error Messages */
+.error-message {
+    color: #dc3545;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px 0;
+    display: none;
+}
+
+/* Stats Cards */
+.stats-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+    text-align: center;
+}
+.stats-number {
+    font-size: 2em;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+.stats-label {
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+/* Multi-select */
+.multi-select {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Info Card */
+.info-card {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.info-card h4 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+}
+.info-card ul {
+    margin-bottom: 0;
+}
+.info-card li {
+    margin-bottom: 5px;
+    color: #6c757d;
+}
+
+/* Metric Cards */
+.metric-card {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+.metric-value {
+    font-size: 2.5em;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+.metric-label {
+    font-size: 1.1em;
+    color: #7f8c8d;
+    margin-bottom: 5px;
+}
+.metric-description {
+    font-size: 0.9em;
+    color: #95a5a6;
+}
+
+/* Comparison Row */
+.comparison-row {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.comparison-label {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+.comparison-value {
+    font-size: 2em;
+    font-weight: 700;
+}
+
+/* Filter Section */
+.filter-section {
+    background: #f8f9fa;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.filter-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 15px;
+}
+.checkbox-group {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 10px;
+}
+.form-check {
+    margin-bottom: 8px;
+} 

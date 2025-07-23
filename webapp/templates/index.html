@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Demand Visualization Dashboard{% endblock %}
+
+{% block content %}
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .error-message {
+            display: none;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .form-check-input:checked {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+        .multi-select {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>
+                Forecaster Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link active" href="/">
+                    <i class="fas fa-home me-1"></i>
+                    Demand Visualization
+                </a>
+                <a class="nav-link" href="/forecast_visualization">
+                    <i class="fas fa-chart-line me-1"></i>
+                    Forecast Visualization
+                </a>
+                <a class="nav-link" href="/safety_stocks">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Safety Stocks
+                </a>
+                <a class="nav-link" href="/simulation_visualization">
+                    <i class="fas fa-warehouse me-1"></i>
+                    Simulation
+                </a>
+                <a class="nav-link" href="/inventory_comparison">
+                    <i class="fas fa-balance-scale me-1"></i>
+                    Inventory Comparison
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+            <!-- Header -->
+            <div class="header">
+                <h1><i class="fas fa-chart-line"></i> Demand Visualization Dashboard</h1>
+                <p>Explore demand patterns with interactive filtering and time aggregation</p>
+            </div>
+
+            <!-- Data Summary -->
+            <div class="row" id="data-summary">
+                <div class="col-md-2">
+                    <div class="stats-card text-center">
+                        <div class="stats-number" id="total-records">-</div>
+                        <div class="stats-label">Total Records</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card text-center">
+                        <div class="stats-number" id="total-demand">-</div>
+                        <div class="stats-label">Total Demand</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card text-center">
+                        <div class="stats-number" id="avg-demand">-</div>
+                        <div class="stats-label">Avg Demand</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card text-center">
+                        <div class="stats-number" id="unique-products">-</div>
+                        <div class="stats-label">Products</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card text-center">
+                        <div class="stats-number" id="unique-locations">-</div>
+                        <div class="stats-label">Locations</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="stats-card text-center">
+                        <div class="stats-number" id="unique-categories">-</div>
+                        <div class="stats-label">Categories</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Controls Panel -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-sliders-h"></i> Visualization Controls
+                        </div>
+                        <div class="card-body">
+                            <form id="plot-form">
+                                <!-- Plot Type -->
+                                <div class="mb-3">
+                                    <label for="plot-type" class="form-label">Plot Type</label>
+                                    <select class="form-select" id="plot-type" name="plot_type">
+                                        <option value="demand_trend">Demand Trend</option>
+                                        <option value="category_comparison">Category Comparison</option>
+                                        <option value="location_comparison">Location Comparison</option>
+                                    </select>
+                                </div>
+
+                                <!-- Time Aggregation -->
+                                <div class="mb-3">
+                                    <label for="time-aggregation" class="form-label">Time Aggregation</label>
+                                    <select class="form-select" id="time-aggregation" name="time_aggregation">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
+                                </div>
+
+                                <!-- Date Range -->
+                                <div class="mb-3">
+                                    <label for="start-date" class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" id="start-date" name="start_date">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="end-date" class="form-label">End Date</label>
+                                    <input type="date" class="form-control" id="end-date" name="end_date">
+                                </div>
+
+                                <!-- Locations -->
+                                <div class="mb-3">
+                                    <label class="form-label">Locations</label>
+                                    <div class="multi-select">
+                                        {% for location in locations %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="locations" value="{{ location }}" id="loc-{{ location }}">
+                                            <label class="form-check-label" for="loc-{{ location }}">
+                                                {{ location }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Categories -->
+                                <div class="mb-3">
+                                    <label class="form-label">Categories</label>
+                                    <div class="multi-select">
+                                        {% for category in categories %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="categories" value="{{ category }}" id="cat-{{ category }}">
+                                            <label class="form-check-label" for="cat-{{ category }}">
+                                                {{ category }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Products -->
+                                <div class="mb-3">
+                                    <label class="form-label">Products (for Demand Trend only)</label>
+                                    <div class="multi-select">
+                                        {% for product in products %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="products" value="{{ product }}" id="prod-{{ product }}">
+                                            <label class="form-check-label" for="prod-{{ product }}">
+                                                {{ product }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Generate Button -->
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-chart-line"></i> Generate Plot
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plot Display -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area"></i> Visualization
+                        </div>
+                        <div class="card-body">
+                            <div class="plot-container" id="plot-container">
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                    <p>Select your filters and click "Generate Plot" to create a visualization</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Loading Spinner -->
+                            <div class="loading" id="loading">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-3">Generating plot...</p>
+                            </div>
+
+                            <!-- Error Message -->
+                            <div class="error-message" id="error-message"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load data summary on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDataSummary();
+    });
+
+    // Handle form submission
+    document.getElementById('plot-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        generatePlot();
+    });
+
+    function loadDataSummary() {
+        fetch('/get_data_summary')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error loading data summary:', data.error);
+                    return;
+                }
+                
+                document.getElementById('total-records').textContent = data.total_records.toLocaleString();
+                document.getElementById('total-demand').textContent = data.total_demand;
+                document.getElementById('avg-demand').textContent = data.avg_demand;
+                document.getElementById('unique-products').textContent = data.unique_products;
+                document.getElementById('unique-locations').textContent = data.unique_locations;
+                document.getElementById('unique-categories').textContent = data.unique_categories;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    }
+
+    function generatePlot() {
+        showLoading('loading');
+        document.getElementById('error-message').style.display = 'none';
+        document.getElementById('plot-container').innerHTML = '';
+
+        const formData = new FormData(document.getElementById('plot-form'));
+
+        fetch('/generate_plot', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('loading');
+
+            if (data.error) {
+                showError(data.error, 'error-message');
+                return;
+            }
+
+            const plotContainer = document.getElementById('plot-container');
+            plotContainer.innerHTML = `
+                <img src="data:image/png;base64,${data.image}" alt="Demand Plot" class="plot-image">
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        ${data.plot_type.replace('_', ' ').toUpperCase()} - ${data.time_aggregation.toUpperCase()} Aggregation
+                    </small>
+                </div>
+            `;
+        })
+        .catch(error => {
+            hideLoading('loading');
+            showError('An error occurred while generating the plot: ' + error.message, 'error-message');
+        });
+    }
+
+    // Set default date range (last 6 months)
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date();
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(today.getMonth() - 6);
+        
+        document.getElementById('end-date').value = formatDate(today);
+        document.getElementById('start-date').value = formatDate(sixMonthsAgo);
+    });
+</script>
+{% endblock %} 

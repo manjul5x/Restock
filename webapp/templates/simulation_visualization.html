@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Simulation Visualization{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1><i class="fas fa-warehouse"></i> Inventory Simulation Visualization</h1>
+    <p>Explore how inventory levels would have performed with our forecasting and safety stock recommendations</p>
+</div>
+
+{% if error %}
+<div class="error-message">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong>Error:</strong> {{ error }}
+</div>
+{% else %}
+
+<!-- Info Card -->
+<div class="info-card">
+    <h4><i class="fas fa-info-circle"></i> About This Visualization</h4>
+    <ul>
+        <li><strong>Actual Inventory:</strong> Light blue bars showing historical inventory levels</li>
+        <li><strong>Simulated Stock on Hand:</strong> Blue line showing what inventory would be if following our recommendations</li>
+        <li><strong>Actual Demand:</strong> Orange line showing actual customer demand</li>
+        <li><strong>Safety Stock:</strong> Red dashed line showing recommended safety stock levels</li>
+        <li><strong>Min/Max Levels:</strong> Green and purple dotted lines showing inventory targets</li>
+        <li><strong>Orders Placed:</strong> Cyan bars showing when orders would be placed</li>
+    </ul>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-filter"></i> Filter Options</h5>
+            </div>
+            <div class="card-body">
+                <form id="simulationForm">
+                    <div class="mb-3">
+                        <label for="product" class="form-label">Product:</label>
+                        <select class="form-select" id="product" name="product" required>
+                            <option value="">Select Product</option>
+                            {% for product in products %}
+                            <option value="{{ product }}">{{ product }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Location:</label>
+                        <select class="form-select" id="location" name="location" required>
+                            <option value="">Select Location</option>
+                            {% for location in locations %}
+                            <option value="{{ location }}">{{ location }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-chart-bar"></i> Generate Simulation Plot
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <!-- Plot Container -->
+        <div class="plot-container" id="plotContainer" style="display: none;">
+            <div id="plot"></div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading" style="display: none;">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <h4>Generating Simulation Plot...</h4>
+            <p>This may take a few moments as we process the data.</p>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('simulationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const product = document.getElementById('product').value;
+        const location = document.getElementById('location').value;
+        
+        if (!product || !location) {
+            showError('Please select both product and location.', 'errorMessage');
+            return;
+        }
+        
+        showLoading('loading');
+        document.getElementById('plotContainer').style.display = 'none';
+        
+        const formData = new FormData();
+        formData.append('product', product);
+        formData.append('location', location);
+        
+        fetch('/get_simulation_plot', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('loading');
+            
+            if (data.error) {
+                showError(data.error, 'errorMessage');
+                return;
+            }
+            
+            if (data.success && data.image) {
+                const plotContainer = document.getElementById('plotContainer');
+                plotContainer.innerHTML = `<img src="data:image/png;base64,${data.image}" class="img-fluid" alt="Simulation Plot">`;
+                plotContainer.style.display = 'block';
+            } else {
+                showError('No image data received', 'errorMessage');
+            }
+        })
+        .catch(error => {
+            hideLoading('loading');
+            console.error('Error:', error);
+            showError('An error occurred while generating the plot.', 'errorMessage');
+        });
+    });
+</script>
+{% endblock %} 

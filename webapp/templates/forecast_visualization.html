@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Forecast Visualization{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Forecast Visualization</h1>
+        
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% else %}
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Filter Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="forecastForm">
+                            <div class="mb-3">
+                                <label for="product" class="form-label">Product:</label>
+                                <select class="form-select" id="product" name="product" required>
+                                    <option value="">Select Product</option>
+                                    {% for product in products %}
+                                    <option value="{{ product }}">{{ product }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="location" class="form-label">Location:</label>
+                                <select class="form-select" id="location" name="location" required>
+                                    <option value="">Select Location</option>
+                                    {% for location in locations %}
+                                    <option value="{{ location }}">{{ location }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="analysis_date" class="form-label">Analysis Date:</label>
+                                <select class="form-select" id="analysis_date" name="analysis_date" required>
+                                    <option value="">Select Analysis Date</option>
+                                    {% for date in analysis_dates %}
+                                    <option value="{{ date }}">{{ date }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Generate Plot</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating forecast visualization plot...</p>
+                </div>
+                
+                <div id="plotContainer" style="display: none;">
+                    <div class="plot-container">
+                        <img id="plotImage" class="plot-image" alt="Forecast Visualization">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Total Historical Demand</h6>
+                                <p class="h4 text-primary" id="totalHistoricalDemand">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Total Actual Demand</h6>
+                                <p class="h4 text-success" id="totalActualDemand">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Total Forecast Demand</h6>
+                                <p class="h4 text-danger" id="totalForecastDemand">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="stats-card">
+                                <h6>Historical Periods</h6>
+                                <p class="h6 text-secondary" id="historicalPeriods">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="stats-card">
+                                <h6>Forecast Periods</h6>
+                                <p class="h6 text-secondary" id="forecastPeriods">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="errorContainer" style="display: none;">
+                    <div class="error-message" id="errorMessage"></div>
+                </div>
+            </div>
+        </div>
+        
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('forecastForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const loading = document.getElementById('loading');
+        const plotContainer = document.getElementById('plotContainer');
+        const errorContainer = document.getElementById('errorContainer');
+        
+        showLoading('loading');
+        plotContainer.style.display = 'none';
+        errorContainer.style.display = 'none';
+        
+        fetch('/get_forecast_visualization_plot', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('loading');
+            
+            if (data.success) {
+                document.getElementById('plotImage').src = 'data:image/png;base64,' + data.image;
+                document.getElementById('totalHistoricalDemand').textContent = formatNumber(data.total_historical_demand, 2);
+                document.getElementById('totalActualDemand').textContent = formatNumber(data.total_actual_demand, 2);
+                document.getElementById('totalForecastDemand').textContent = formatNumber(data.total_forecast_demand, 2);
+                document.getElementById('historicalPeriods').textContent = data.historical_periods;
+                document.getElementById('forecastPeriods').textContent = data.forecast_periods;
+                
+                plotContainer.style.display = 'block';
+            } else {
+                showError(data.error, 'errorMessage');
+                errorContainer.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            hideLoading('loading');
+            showError('An error occurred while generating the plot.', 'errorMessage');
+            errorContainer.style.display = 'block';
+            console.error('Error:', error);
+        });
+    });
+</script>
+{% endblock %} 

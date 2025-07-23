@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Comparison Dashboard{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="header">
+    <h1><i class="fas fa-balance-scale"></i> Inventory Comparison Dashboard</h1>
+    <p>Compare actual vs simulated inventory performance metrics</p>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    <i class="fas fa-exclamation-triangle"></i> {{ error }}
+</div>
+{% endif %}
+
+<!-- Filters Section -->
+<div class="filter-section">
+    <div class="filter-title">
+        <i class="fas fa-filter"></i> Filter Options
+    </div>
+    <form id="comparison-form">
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Products</label>
+                <div class="checkbox-group">
+                    {% for product in products %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="products[]" value="{{ product }}" id="product_{{ product }}">
+                        <label class="form-check-label" for="product_{{ product }}">
+                            {{ product }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Locations</label>
+                <div class="checkbox-group">
+                    {% for location in locations %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="locations[]" value="{{ location }}" id="location_{{ location }}">
+                        <label class="form-check-label" for="location_{{ location }}">
+                            {{ location }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Update Comparison
+                </button>
+                <button type="button" class="btn btn-secondary ms-2" onclick="selectAll()">
+                    <i class="fas fa-check-double"></i> Select All
+                </button>
+                <button type="button" class="btn btn-secondary ms-2" onclick="clearAll()">
+                    <i class="fas fa-times"></i> Clear All
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Loading Indicator -->
+<div id="loading" class="loading">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Generating comparison data...</p>
+</div>
+
+<!-- Summary Information -->
+<div id="summary-info" style="display: none;">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value" id="product-count">-</div>
+                <div class="metric-label">Products Analyzed</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value" id="date-range">-</div>
+                <div class="metric-label">Analysis Period</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value" id="filtered-products">-</div>
+                <div class="metric-label">Filtered Products</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value" id="filtered-locations">-</div>
+                <div class="metric-label">Filtered Locations</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Performance Metrics Comparison -->
+<div id="metrics-section" style="display: none;">
+    <h3 class="mb-4"><i class="fas fa-balance-scale"></i> Actual vs Simulated Performance Comparison</h3>
+    
+    <!-- Stockout Rate Comparison -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="comparison-row" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                <div class="comparison-label">Actual Stockout Rate</div>
+                <div class="comparison-value" id="actual-stockout-rate">-</div>
+                <small>Historical stockout rate</small>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="comparison-row" style="background: linear-gradient(135deg, #27ae60 0%, #229954 100%);">
+                <div class="comparison-label">Simulated Stockout Rate</div>
+                <div class="comparison-value" id="simulated-stockout-rate">-</div>
+                <small>Predicted stockout rate with our policy</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Level Comparison -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="comparison-row" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                <div class="comparison-label">Actual Service Level</div>
+                <div class="comparison-value" id="actual-service-level">-</div>
+                <small>Historical service level</small>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="comparison-row" style="background: linear-gradient(135deg, #27ae60 0%, #229954 100%);">
+                <div class="comparison-label">Simulated Service Level</div>
+                <div class="comparison-value" id="simulated-service-level">-</div>
+                <small>Predicted service level with our policy</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Average On-Hand Comparison -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="metric-card" style="border-left: 5px solid #e74c3c;">
+                <div class="metric-value" id="actual-avg-on-hand">-</div>
+                <div class="metric-label">Actual Average On-Hand</div>
+                <div class="metric-description">Historical average inventory in stock</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="metric-card" style="border-left: 5px solid #27ae60;">
+                <div class="metric-value" id="simulated-avg-on-hand">-</div>
+                <div class="metric-label">Simulated Average On-Hand</div>
+                <div class="metric-description">Predicted average inventory with our policy</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Turns Comparison -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="metric-card" style="border-left: 5px solid #e74c3c;">
+                <div class="metric-value" id="actual-inventory-turns">-</div>
+                <div class="metric-label">Actual Inventory Turns</div>
+                <div class="metric-description">Historical inventory turnover</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="metric-card" style="border-left: 5px solid #27ae60;">
+                <div class="metric-value" id="simulated-inventory-turns">-</div>
+                <div class="metric-label">Simulated Inventory Turns</div>
+                <div class="metric-description">Predicted inventory turnover with our policy</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Working Capital Comparison -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="comparison-row" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                <div class="comparison-label">Actual Working Capital</div>
+                <div class="comparison-value" id="actual-working-capital">-</div>
+                <small>Capital tied up in historical inventory</small>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="comparison-row" style="background: linear-gradient(135deg, #27ae60 0%, #229954 100%);">
+                <div class="comparison-label">Simulated Working Capital</div>
+                <div class="comparison-value" id="simulated-working-capital">-</div>
+                <small>Capital tied up with our policy</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Metrics -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="metric-card">
+                <div class="metric-value" id="actual-avg-order-size">-</div>
+                <div class="metric-label">Actual Avg Order Size</div>
+                <div class="metric-description">Historical average order quantity</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="metric-card">
+                <div class="metric-value" id="simulated-avg-order-size">-</div>
+                <div class="metric-label">Simulated Avg Order Size</div>
+                <div class="metric-description">Predicted average order quantity</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="metric-card">
+                <div class="metric-value" id="improvement-percentage">-</div>
+                <div class="metric-label">Improvement</div>
+                <div class="metric-description">Service level improvement</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Select all checkboxes
+    function selectAll() {
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    }
+
+    // Clear all checkboxes
+    function clearAll() {
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+
+    // Format numbers for display
+    function formatNumber(num) {
+        if (num === null || num === undefined) return '-';
+        if (typeof num === 'string') return num;
+        
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        } else {
+            return num.toFixed(2);
+        }
+    }
+
+    // Format percentage
+    function formatPercentage(num) {
+        if (num === null || num === undefined) return '-';
+        return (num * 100).toFixed(2) + '%';
+    }
+
+    // Format currency
+    function formatCurrency(num) {
+        if (num === null || num === undefined) return '-';
+        if (num >= 1000000) {
+            return '$' + (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return '$' + (num / 1000).toFixed(1) + 'K';
+        } else {
+            return '$' + num.toFixed(2);
+        }
+    }
+
+    // Handle form submission
+    document.getElementById('comparison-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        showLoading('loading');
+        document.getElementById('summary-info').style.display = 'none';
+        document.getElementById('metrics-section').style.display = 'none';
+        
+        const formData = new FormData(this);
+        
+        fetch('/get_comparison_data', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading('loading');
+            
+            if (data.error) {
+                showError(data.error, 'errorMessage');
+                return;
+            }
+            
+            // Update summary info
+            document.getElementById('product-count').textContent = data.product_count;
+            document.getElementById('date-range').textContent = data.date_range;
+            document.getElementById('filtered-products').textContent = 
+                Array.isArray(data.filtered_products) ? data.filtered_products.join(', ') : data.filtered_products;
+            document.getElementById('filtered-locations').textContent = 
+                Array.isArray(data.filtered_locations) ? data.filtered_locations.join(', ') : data.filtered_locations;
+            
+            // Update actual vs simulated metrics
+            const actualMetrics = data.actual_metrics;
+            const simulatedMetrics = data.simulated_metrics;
+            
+            // Actual metrics (red theme)
+            document.getElementById('actual-stockout-rate').textContent = formatPercentage(actualMetrics.stockout_rate);
+            document.getElementById('actual-service-level').textContent = formatPercentage(actualMetrics.service_level);
+            document.getElementById('actual-avg-on-hand').textContent = formatNumber(actualMetrics.avg_on_hand);
+            document.getElementById('actual-inventory-turns').textContent = formatNumber(actualMetrics.inventory_turns);
+            document.getElementById('actual-avg-order-size').textContent = formatNumber(actualMetrics.avg_order_size);
+            document.getElementById('actual-working-capital').textContent = formatCurrency(actualMetrics.working_capital);
+            
+            // Simulated metrics (green theme)
+            document.getElementById('simulated-stockout-rate').textContent = formatPercentage(simulatedMetrics.stockout_rate);
+            document.getElementById('simulated-service-level').textContent = formatPercentage(simulatedMetrics.service_level);
+            document.getElementById('simulated-avg-on-hand').textContent = formatNumber(simulatedMetrics.avg_on_hand);
+            document.getElementById('simulated-inventory-turns').textContent = formatNumber(simulatedMetrics.inventory_turns);
+            document.getElementById('simulated-avg-order-size').textContent = formatNumber(simulatedMetrics.avg_order_size);
+            document.getElementById('simulated-working-capital').textContent = formatCurrency(simulatedMetrics.working_capital);
+            
+            // Calculate improvement percentage
+            const serviceImprovement = ((simulatedMetrics.service_level - actualMetrics.service_level) / actualMetrics.service_level * 100);
+            document.getElementById('improvement-percentage').textContent = 
+                serviceImprovement > 0 ? `+${serviceImprovement.toFixed(1)}%` : `${serviceImprovement.toFixed(1)}%`;
+            
+            // Color code the improvement
+            const improvementElement = document.getElementById('improvement-percentage');
+            if (serviceImprovement > 0) {
+                improvementElement.style.color = '#27ae60';
+                improvementElement.style.fontWeight = 'bold';
+            } else if (serviceImprovement < 0) {
+                improvementElement.style.color = '#e74c3c';
+                improvementElement.style.fontWeight = 'bold';
+            }
+            
+            // Show sections
+            document.getElementById('summary-info').style.display = 'block';
+            document.getElementById('metrics-section').style.display = 'block';
+        })
+        .catch(error => {
+            hideLoading('loading');
+            showError('Error: ' + error.message, 'errorMessage');
+        });
+    });
+
+    // Load initial data on page load
+    window.addEventListener('load', function() {
+        // Select all by default
+        selectAll();
+        // Trigger form submission
+        document.getElementById('comparison-form').dispatchEvent(new Event('submit'));
+    });
+</script>
+{% endblock %} 
