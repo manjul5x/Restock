@@ -42,10 +42,10 @@ pip install -r requirements.txt
 ## Step 3: Run the Pipeline (3 commands)
 ```bash
 # 1. Run backtesting
-python run_customer_backtest.py #loki set your analysis start and end date here. Ask cursor how. 
+python run_customer_backtest.py #loki set your analysis start and end date here. Ask cursor how. Give enough extra buffer on this analysis start so that there history that the safety stock analysis start can use. i.e. keep it 10 months before the analysis start below
 
 # 2. Calculate safety stocks  
-python run_safety_stock_calculation.py #loki pass your review s here. a list of the first of every month for the analysis period.
+python run_safety_stock_calculation.py #loki pass your review days here. a list of the first of every month for the analysis period.
 
 # 3. Run simulation
 python run_simulation.py
