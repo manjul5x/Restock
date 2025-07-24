@@ -110,11 +110,20 @@ class SeasonalityAnalyzer:
         if hasattr(model, "seasonalities") and model.seasonalities:
             for name, seasonality in model.seasonalities.items():
                 try:
-                    seasonalities[name] = {
-                        "period": seasonality.period,
-                        "fourier_order": seasonality.fourier_order,
-                        "type": "custom",
-                    }
+                    # Handle case where seasonality is a dictionary
+                    if isinstance(seasonality, dict):
+                        seasonalities[name] = {
+                            "period": seasonality.get("period", 365.25),
+                            "fourier_order": seasonality.get("fourier_order", 10),
+                            "type": "custom",
+                        }
+                    else:
+                        # Handle case where seasonality is an object with attributes
+                        seasonalities[name] = {
+                            "period": seasonality.period,
+                            "fourier_order": seasonality.fourier_order,
+                            "type": "custom",
+                        }
                 except AttributeError as e:
                     logger.warning(
                         f"Could not access attributes for seasonality {name}: {e}"
