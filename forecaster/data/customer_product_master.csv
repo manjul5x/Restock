@@ -1,3 +1,3 @@
 product_id,location_id,product_category,demand_frequency,risk_period,forecast_window_length,forecast_horizon,forecast_method,outlier_method,outlier_threshold,distribution,service_level,ss_window_length,leadtime,inventory_cost
-RSWQ,WB,General,d,14,25,1,moving_average,iqr,2.0,kde,0.95,180,7,0
-IBWQ,WB,,d,14,25,1,moving_average,iqr,2.0,kde,0.95,180,7,0
+RSWQ,WB,General,d,13,25,1,moving_average,no,2.0,kde,0.95,180,6,0
+IBWQ,WB,General,d,11,25,1,moving_average,no,2.0,kde,0.95,180,4,0

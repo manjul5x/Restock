@@ -51,6 +51,16 @@
                                 </select>
                             </div>
                             
+                            <div class="mb-3">
+                                <label for="data_source" class="form-label">Data Source:</label>
+                                <select class="form-select" id="data_source" name="data_source">
+                                    <option value="All">All Sources (Compare)</option>
+                                    {% for source in data_sources %}
+                                    <option value="{{ source }}">{{ source }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
                             <button type="submit" class="btn btn-primary w-100">Generate Plot</button>
                         </form>
                     </div>
@@ -105,6 +115,15 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="stats-card">
+                                <h6>Data Source</h6>
+                                <p class="h6 text-success" id="dataSource">-</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="errorContainer" style="display: none;">
@@ -147,6 +166,7 @@
                 document.getElementById('totalForecastDemand').textContent = formatNumber(data.total_forecast_demand, 2);
                 document.getElementById('historicalPeriods').textContent = data.historical_periods;
                 document.getElementById('forecastPeriods').textContent = data.forecast_periods;
+                document.getElementById('dataSource').textContent = data.data_source;
                 
                 plotContainer.style.display = 'block';
             } else {

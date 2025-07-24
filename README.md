@@ -32,15 +32,20 @@ A comprehensive tool for demand forecasting, safety stock calculation, and inven
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/yourusername/forecaster.git
-   cd forecaster
+   git clone https://github.com/yourusername/restock.git
+   cd restock
    ```
 
-2. **Set Up Environment**
+2. **Set Up Environment with uv**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   # Install uv if you haven't already
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   
+   # Install dependencies
+   uv sync
+   
+   # For development with additional tools
+   uv sync --extra dev
    ```
 
 3. **Prepare Your Data**
@@ -52,16 +57,24 @@ A comprehensive tool for demand forecasting, safety stock calculation, and inven
 4. **Run the Pipeline**
    ```bash
    # Run backtesting
-   python run_customer_backtest.py
+   uv run python run_customer_backtest.py
 
    # Calculate safety stocks
-   python run_safety_stock_calculation.py
+   uv run python run_safety_stock_calculation.py
 
    # Run simulation
-   python run_simulation.py
+   uv run python run_simulation.py
 
    # Start web interface
-   python webapp/app.py
+   uv run python webapp/app.py
+   ```
+
+   **Or use the Makefile shortcuts:**
+   ```bash
+   make run-backtest
+   make run-safety-stocks
+   make run-simulation
+   make run-webapp
    ```
 
 ## Data Requirements
@@ -86,6 +99,46 @@ A comprehensive tool for demand forecasting, safety stock calculation, and inven
   - `forecast_window_length`: Forecasting window length
   - `forecast_horizon`: Forecast horizon
   - `leadtime`: Lead time in days
+
+## Development
+
+### Code Quality
+This project uses modern Python development tools:
+
+- **uv**: Fast Python package manager and installer
+- **black**: Code formatting
+- **isort**: Import sorting
+- **flake8**: Linting
+- **mypy**: Type checking
+- **pytest**: Testing framework
+- **pre-commit**: Git hooks for code quality
+
+### Development Commands
+```bash
+# Install development dependencies
+make install-dev
+
+# Format code
+make format
+
+# Run linting
+make lint
+
+# Run tests
+make test
+
+# Run all checks
+make check
+
+# Show all available commands
+make help
+```
+
+### Pre-commit Setup
+```bash
+# Install pre-commit hooks
+make dev
+```
 
 ## Output Files
 

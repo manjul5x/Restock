@@ -31,7 +31,7 @@ Your product master must have the following columns:
 - `risk_period` (integer): Risk period as integer multiple of demand frequency
 - `forecast_window_length` (integer): Forecasting window length in risk periods
 - `forecast_horizon` (integer): Forecasting horizon in risk periods
-- `outlier_method` (string, optional): 'iqr', 'zscore', 'mad', or 'rolling' (default: 'iqr')
+- `outlier_method` (string, optional): 'iqr', 'zscore', 'mad', 'rolling', or 'no' (default: 'iqr')
 - `outlier_threshold` (float, optional): Outlier detection threshold (default: 1.5)
 
 **Example:**
@@ -39,6 +39,7 @@ Your product master must have the following columns:
 product_id,location_id,product_category,demand_frequency,risk_period,forecast_window_length,forecast_horizon,outlier_method,outlier_threshold
 PROD_001,LOC_001,Electronics,d,7,100,10,iqr,1.5
 PROD_002,LOC_002,Clothing,d,7,80,8,zscore,2.0
+PROD_003,LOC_003,Food,d,7,60,5,no,1.5
 ```
 
 ## 2. Data Validation Rules

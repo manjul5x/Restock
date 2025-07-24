@@ -1,0 +1,559 @@
+{% extends "base.html" %}
+
+{% block title %}Seasonality Analysis - Prophet Components{% endblock %}
+
+{% block extra_css %}
+<style>
+    .analysis-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .analysis-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 8px 8px 0 0;
+    }
+    
+    .analysis-body {
+        padding: 20px;
+    }
+    
+    .seasonality-item {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-left: 4px solid #007bff;
+    }
+    
+    .strength-indicator {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    .strength-very-strong { background: #dc3545; color: white; }
+    .strength-strong { background: #fd7e14; color: white; }
+    .strength-moderate { background: #ffc107; color: black; }
+    .strength-weak { background: #28a745; color: white; }
+    .strength-very-weak { background: #6c757d; color: white; }
+    
+    .fourier-terms {
+        max-height: 200px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        border-radius: 4px;
+        padding: 10px;
+        margin-top: 10px;
+    }
+    
+    .recommendation-item {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    
+    .summary-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .stat-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 15px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+    
+    .error {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 6px;
+        margin: 20px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-chart-wave me-2"></i>Prophet Seasonality Analysis</h2>
+        <p class="text-muted">Comprehensive analysis of seasonality components and Fourier terms for optimal Prophet model configuration.</p>
+    </div>
+</div>
+
+<!-- Filter Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-filter me-2"></i>Data Filters</h5>
+            </div>
+            <div class="card-body">
+                <form id="seasonalityAnalysisForm">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="locations" class="form-label">Locations</label>
+                            <select class="form-select" id="locations" name="locations" multiple>
+                                {% for location in locations %}
+                                <option value="{{ location }}">{{ location }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="categories" class="form-label">Categories</label>
+                            <select class="form-select" id="categories" name="categories" multiple>
+                                {% for category in categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="products" class="form-label">Products</label>
+                            <select class="form-select" id="products" name="products" multiple>
+                                {% for product in products %}
+                                <option value="{{ product }}">{{ product }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-play me-2"></i>Run Seasonality Analysis
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div id="resultsSection" style="display: none;">
+    <div class="row">
+        <div class="col-12">
+            <div class="analysis-card">
+                <div class="analysis-header">
+                    <h4><i class="fas fa-chart-line me-2"></i>Seasonality Analysis Results</h4>
+                </div>
+                <div class="analysis-body">
+                    <!-- Summary Statistics -->
+                    <div id="summaryStats" class="summary-stats"></div>
+                    
+                    <!-- Seasonality Components -->
+                    <div id="seasonalityComponents"></div>
+                    
+                    <!-- Recommendations -->
+                    <div id="recommendations"></div>
+                    
+                    <!-- Best Model Parameters -->
+                    <div id="bestModelParameters"></div>
+                    
+                    <!-- Model Parameters -->
+                    <div id="modelParameters"></div>
+                    
+                    <!-- Forecast Chart -->
+                    <div id="forecastChart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Section -->
+<div id="loadingSection" style="display: none;">
+    <div class="loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Analyzing seasonality components and Fourier terms...</p>
+    </div>
+</div>
+
+<!-- Error Section -->
+<div id="errorSection" style="display: none;">
+    <div class="error">
+        <h5><i class="fas fa-exclamation-triangle me-2"></i>Analysis Error</h5>
+        <p id="errorMessage"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#seasonalityAnalysisForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        // Show loading
+        $('#loadingSection').show();
+        $('#resultsSection').hide();
+        $('#errorSection').hide();
+        
+        // Get form data
+        var formData = new FormData(this);
+        
+        // Make AJAX request
+        $.ajax({
+            url: '/run_seasonality_analysis',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $('#loadingSection').hide();
+                
+                if (response.success) {
+                    displayResults(response.results);
+                    $('#resultsSection').show();
+                } else {
+                    showError(response.error);
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#loadingSection').hide();
+                showError('Request failed: ' + error);
+            }
+        });
+    });
+    
+    function displayResults(results) {
+        // Display summary statistics
+        displaySummaryStats(results.summary);
+        
+        // Display seasonality components
+        displaySeasonalityComponents(results.seasonalities);
+        
+        // Display recommendations
+        displayRecommendations(results.recommendations);
+        
+        // Display best model parameters
+        displayBestModelParameters(results.recommendations);
+        
+        // Display model parameters
+        displayModelParameters(results.model_parameters);
+        
+        // Display forecast chart
+        displayForecastChart(results.forecast_data);
+    }
+    
+    function displaySummaryStats(summary) {
+        var html = '<h5><i class="fas fa-chart-bar me-2"></i>Summary Statistics</h5>';
+        
+        if (summary.strongest) {
+            html += '<div class="stat-card">';
+            html += '<div class="stat-value">' + summary.strongest.name + '</div>';
+            html += '<div class="stat-label">Strongest Seasonality</div>';
+            html += '</div>';
+        }
+        
+        if (summary.weakest) {
+            html += '<div class="stat-card">';
+            html += '<div class="stat-value">' + summary.weakest.name + '</div>';
+            html += '<div class="stat-label">Weakest Seasonality</div>';
+            html += '</div>';
+        }
+        
+        if (summary.mean_max_magnitude !== undefined) {
+            html += '<div class="stat-card">';
+            html += '<div class="stat-value">' + summary.mean_max_magnitude.toFixed(4) + '</div>';
+            html += '<div class="stat-label">Mean Max Magnitude</div>';
+            html += '</div>';
+        }
+        
+        if (summary.total_seasonalities !== undefined) {
+            html += '<div class="stat-card">';
+            html += '<div class="stat-value">' + summary.total_seasonalities + '</div>';
+            html += '<div class="stat-label">Total Seasonalities</div>';
+            html += '</div>';
+        }
+        
+        $('#summaryStats').html(html);
+    }
+    
+    function displaySeasonalityComponents(seasonalities) {
+        var html = '<h5 class="mt-4"><i class="fas fa-layer-group me-2"></i>Seasonality Components</h5>';
+        
+        for (var seasonalityName in seasonalities) {
+            var seasonality = seasonalities[seasonalityName];
+            var strengthClass = 'strength-' + seasonality.strength.toLowerCase().replace('_', '-');
+            
+            html += '<div class="seasonality-item">';
+            html += '<h6>' + seasonalityName.charAt(0).toUpperCase() + seasonalityName.slice(1) + ' Seasonality</h6>';
+            html += '<div class="row">';
+            html += '<div class="col-md-6">';
+            html += '<p><strong>Period:</strong> ' + seasonality.period + ' days</p>';
+            html += '<p><strong>Fourier Order:</strong> ' + seasonality.fourier_order + '</p>';
+            html += '<p><strong>Number of Terms:</strong> ' + seasonality.num_terms + '</p>';
+            html += '</div>';
+            html += '<div class="col-md-6">';
+            html += '<p><strong>Max Magnitude:</strong> ' + seasonality.max_magnitude.toFixed(6) + '</p>';
+            html += '<p><strong>Mean Magnitude:</strong> ' + seasonality.mean_magnitude.toFixed(6) + '</p>';
+            html += '<p><strong>Strength:</strong> <span class="strength-indicator ' + strengthClass + '">' + seasonality.strength + '</span></p>';
+            html += '</div>';
+            html += '</div>';
+            
+            // Display significant Fourier terms
+            if (seasonality.significant_terms && seasonality.significant_terms.length > 0) {
+                html += '<div class="fourier-terms">';
+                html += '<strong>Significant Fourier Terms (magnitude > 0.01):</strong><br>';
+                seasonality.significant_terms.forEach(function(term) {
+                    html += 'Term ' + term.term + ': ' + term.value.toFixed(6) + ' (magnitude: ' + term.magnitude.toFixed(6) + ')<br>';
+                });
+                html += '</div>';
+            }
+            
+            html += '</div>';
+        }
+        
+        $('#seasonalityComponents').html(html);
+    }
+    
+    function displayRecommendations(recommendations) {
+        var html = '<h5 class="mt-4"><i class="fas fa-lightbulb me-2"></i>Recommendations</h5>';
+        
+        if (recommendations.very_strong_seasonalities && recommendations.very_strong_seasonalities.length > 0) {
+            html += '<div class="recommendation-item">';
+            html += '<strong>Very Strong Seasonalities:</strong> ' + recommendations.very_strong_seasonalities.join(', ');
+            html += '</div>';
+        }
+        
+        if (recommendations.regularization_needed && recommendations.regularization_needed.length > 0) {
+            html += '<div class="recommendation-item">';
+            html += '<strong>Regularization Needed:</strong> ' + recommendations.regularization_needed.join(', ');
+            html += '</div>';
+        }
+        
+        if (recommendations.weak_seasonalities && recommendations.weak_seasonalities.length > 0) {
+            html += '<div class="recommendation-item" style="background: #fff3cd; border-left-color: #ffc107;">';
+            html += '<strong>Weak Seasonalities (Consider Disabling):</strong> ' + recommendations.weak_seasonalities.join(', ');
+            html += '</div>';
+        }
+        
+        if (recommendations.unused_seasonalities && recommendations.unused_seasonalities.length > 0) {
+            html += '<div class="recommendation-item" style="background: #e2e3e5; border-left-color: #6c757d;">';
+            html += '<strong>Unused Seasonalities (Potential Components):</strong> ' + recommendations.unused_seasonalities.join(', ');
+            html += '</div>';
+        }
+        
+        if (recommendations.component_suggestions && recommendations.component_suggestions.length > 0) {
+            recommendations.component_suggestions.forEach(function(suggestion) {
+                html += '<div class="recommendation-item">';
+                html += suggestion;
+                html += '</div>';
+            });
+        }
+        
+        if (Object.keys(recommendations).length === 0 || 
+            (recommendations.very_strong_seasonalities && recommendations.very_strong_seasonalities.length === 0 &&
+             recommendations.regularization_needed && recommendations.regularization_needed.length === 0 &&
+             recommendations.component_suggestions && recommendations.component_suggestions.length === 0)) {
+            html += '<div class="recommendation-item">';
+            html += '<strong>No specific recommendations:</strong> Seasonality patterns appear to be well-balanced.';
+            html += '</div>';
+        }
+        
+        $('#recommendations').html(html);
+    }
+    
+    function displayBestModelParameters(recommendations) {
+        if (!recommendations.best_model_parameters) {
+            return;
+        }
+        
+        var html = '<h5 class="mt-4"><i class="fas fa-cogs me-2"></i>Best Model Parameters</h5>';
+        html += '<div class="row">';
+        
+        var bestParams = recommendations.best_model_parameters;
+        var paramGroups = {
+            'Core Parameters': {
+                'changepoint_prior_scale': 'Changepoint Prior Scale',
+                'seasonality_prior_scale': 'Seasonality Prior Scale',
+                'holidays_prior_scale': 'Holidays Prior Scale',
+                'seasonality_mode': 'Seasonality Mode'
+            },
+            'Seasonality Settings': {
+                'weekly_seasonality': 'Weekly Seasonality',
+                'daily_seasonality': 'Daily Seasonality',
+                'include_quarterly_effects': 'Include Quarterly Effects',
+                'include_monthly_effects': 'Include Monthly Effects'
+            },
+            'Indian Market Features': {
+                'include_indian_holidays': 'Include Indian Holidays',
+                'include_festival_seasons': 'Include Festival Seasons',
+                'include_monsoon_effect': 'Include Monsoon Effect'
+            },
+            'Model Settings': {
+                'n_changepoints': 'Number of Changepoints',
+                'changepoint_range': 'Changepoint Range'
+            }
+        };
+        
+        for (var groupName in paramGroups) {
+            html += '<div class="col-md-6 mb-3">';
+            html += '<h6>' + groupName + '</h6>';
+            html += '<ul class="list-unstyled">';
+            
+            for (var param in paramGroups[groupName]) {
+                if (bestParams[param] !== undefined) {
+                    var value = bestParams[param];
+                    if (typeof value === 'boolean') {
+                        value = value ? 'Yes' : 'No';
+                    }
+                    html += '<li><strong>' + paramGroups[groupName][param] + ':</strong> ' + value + '</li>';
+                }
+            }
+            
+            html += '</ul>';
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        
+        // Add a note about the recommendations
+        html += '<div class="alert alert-info mt-3">';
+        html += '<i class="fas fa-info-circle me-2"></i>';
+        html += '<strong>Note:</strong> These parameters are optimized based on the seasonality analysis. ';
+        html += 'Consider using these settings for improved model performance.';
+        html += '</div>';
+        
+        $('#bestModelParameters').html(html);
+    }
+    
+    function displayModelParameters(parameters) {
+        var html = '<h5 class="mt-4"><i class="fas fa-cogs me-2"></i>Model Parameters</h5>';
+        html += '<div class="row">';
+        
+        var paramGroups = {
+            'Core Parameters': ['changepoint_range', 'n_changepoints', 'changepoint_prior_scale', 'seasonality_prior_scale', 'holidays_prior_scale'],
+            'Seasonality Settings': ['seasonality_mode', 'weekly_seasonality', 'daily_seasonality'],
+            'Indian Market Features': ['include_indian_holidays', 'include_quarterly_effects', 'include_monthly_effects', 'include_festival_seasons', 'include_monsoon_effect'],
+            'Data Settings': ['min_data_points', 'window_length', 'risk_period_days']
+        };
+        
+        for (var groupName in paramGroups) {
+            html += '<div class="col-md-6 mb-3">';
+            html += '<h6>' + groupName + '</h6>';
+            html += '<ul class="list-unstyled">';
+            
+            paramGroups[groupName].forEach(function(param) {
+                if (parameters[param] !== undefined) {
+                    var value = parameters[param];
+                    if (typeof value === 'boolean') {
+                        value = value ? 'Yes' : 'No';
+                    }
+                    html += '<li><strong>' + param.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ':</strong> ' + value + '</li>';
+                }
+            });
+            
+            html += '</ul>';
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        $('#modelParameters').html(html);
+    }
+    
+    function displayForecastChart(forecastData) {
+        if (!forecastData) {
+            $('#forecastChart').html('<div class="alert alert-warning mt-4"><i class="fas fa-exclamation-triangle me-2"></i>Forecast data not available</div>');
+            return;
+        }
+        
+        var html = '<h5 class="mt-4"><i class="fas fa-chart-line me-2"></i>Demand Forecast with Best Parameters</h5>';
+        html += '<p class="text-muted">Showing historical demand and 4-month forecast using optimized model parameters</p>';
+        html += '<div id="forecastChartContainer" style="height: 500px;"></div>';
+        
+        $('#forecastChart').html(html);
+        
+        // Create the forecast chart using Plotly
+        var trace1 = {
+            x: forecastData.historical_dates,
+            y: forecastData.historical_demands,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Historical Demand',
+            line: {color: '#007bff', width: 2},
+            marker: {size: 6}
+        };
+        
+        var trace2 = {
+            x: forecastData.forecast_dates,
+            y: forecastData.forecast_values,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Forecast (4 months)',
+            line: {color: '#dc3545', width: 2, dash: 'dash'},
+            marker: {size: 6}
+        };
+        
+        var layout = {
+            title: 'Demand Series and Forecast',
+            xaxis: {
+                title: 'Date',
+                showgrid: true,
+                gridcolor: '#f0f0f0'
+            },
+            yaxis: {
+                title: 'Demand',
+                showgrid: true,
+                gridcolor: '#f0f0f0'
+            },
+            hovermode: 'closest',
+            legend: {
+                x: 0,
+                y: 1,
+                orientation: 'h'
+            },
+            margin: {l: 60, r: 30, t: 60, b: 60}
+        };
+        
+        var config = {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+        };
+        
+        Plotly.newPlot('forecastChartContainer', [trace1, trace2], layout, config);
+    }
+    
+    function showError(message) {
+        $('#errorMessage').text(message);
+        $('#errorSection').show();
+    }
+});
+</script>
+{% endblock %} 

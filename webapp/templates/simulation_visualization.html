@@ -25,6 +25,8 @@
         <li><strong>Safety Stock:</strong> Red dashed line showing recommended safety stock levels</li>
         <li><strong>Min/Max Levels:</strong> Green and purple dotted lines showing inventory targets</li>
         <li><strong>Orders Placed:</strong> Cyan bars showing when orders would be placed</li>
+        <li><strong>Comparison Mode:</strong> Select "All Sources (Compare)" to see regular vs enhanced backtest results side-by-side</li>
+        <li><strong>Enhanced Safety Stock Note:</strong> Enhanced safety stock may show 0 values for early dates due to insufficient historical data for the enhanced calculation method</li>
     </ul>
 </div>
 
@@ -52,6 +54,16 @@
                             <option value="">Select Location</option>
                             {% for location in locations %}
                             <option value="{{ location }}">{{ location }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="data_source" class="form-label">Data Source:</label>
+                        <select class="form-select" id="data_source" name="data_source">
+                            <option value="All">All Sources (Compare)</option>
+                            {% for source in data_sources %}
+                            <option value="{{ source }}">{{ source }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -89,6 +101,7 @@
         
         const product = document.getElementById('product').value;
         const location = document.getElementById('location').value;
+        const dataSource = document.getElementById('data_source').value;
         
         if (!product || !location) {
             showError('Please select both product and location.', 'errorMessage');
@@ -101,6 +114,7 @@
         const formData = new FormData();
         formData.append('product', product);
         formData.append('location', location);
+        formData.append('data_source', dataSource);
         
         fetch('/get_simulation_plot', {
             method: 'POST',

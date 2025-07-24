@@ -51,6 +51,16 @@
                                 </select>
                             </div>
                             
+                            <div class="mb-3">
+                                <label for="data_source" class="form-label">Data Source:</label>
+                                <select class="form-select" id="data_source" name="data_source">
+                                    <option value="All">All Sources</option>
+                                    {% for source in data_sources %}
+                                    <option value="{{ source }}">{{ source }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
                             <button type="submit" class="btn btn-primary w-100">Generate Plot</button>
                         </form>
                     </div>
@@ -99,6 +109,15 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="stats-card">
+                                <h6>Data Source</h6>
+                                <p class="h6 text-success" id="dataSource">-</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="errorContainer" style="display: none;">
@@ -136,10 +155,33 @@
             
             if (data.success) {
                 document.getElementById('plotImage').src = 'data:image/png;base64,' + data.image;
-                document.getElementById('safetyStockValue').textContent = formatNumber(data.safety_stock, 2);
-                document.getElementById('errorCount').textContent = data.error_count;
-                document.getElementById('distributionType').textContent = data.distribution_type.toUpperCase();
-                document.getElementById('serviceLevel').textContent = formatNumber(data.service_level * 100, 1) + '%';
+                
+                // Handle statistics - they might not be present in comparison mode
+                if (data.safety_stock !== undefined) {
+                    document.getElementById('safetyStockValue').textContent = formatNumber(data.safety_stock, 2);
+                } else {
+                    document.getElementById('safetyStockValue').textContent = 'Multiple Sources';
+                }
+                
+                if (data.error_count !== undefined) {
+                    document.getElementById('errorCount').textContent = data.error_count;
+                } else {
+                    document.getElementById('errorCount').textContent = 'Multiple Sources';
+                }
+                
+                if (data.distribution_type !== undefined) {
+                    document.getElementById('distributionType').textContent = data.distribution_type.toUpperCase();
+                } else {
+                    document.getElementById('distributionType').textContent = 'Multiple Sources';
+                }
+                
+                if (data.service_level !== undefined) {
+                    document.getElementById('serviceLevel').textContent = formatNumber(data.service_level * 100, 1) + '%';
+                } else {
+                    document.getElementById('serviceLevel').textContent = 'Multiple Sources';
+                }
+                
+                document.getElementById('dataSource').textContent = data.data_source;
                 
                 plotContainer.style.display = 'block';
             } else {
