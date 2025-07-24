@@ -45,7 +45,7 @@ build: ## Build the package
 	uv build
 
 run-backtest: ## Run backtesting
-	uv run python run_customer_backtest.py
+	uv run python run_unified_backtest.py
 
 run-safety-stocks: ## Run safety stock calculation
 	uv run python run_safety_stock_calculation.py

@@ -271,12 +271,12 @@ class ForecastingPipeline:
                     # Create forecaster based on product-specific method
                     if forecast_method == 'moving_average':
                         forecaster = MovingAverageForecaster(
-                            window_length=product_record['forecast_window_length'],
+                            window_length=product_record['forecast_window_length'] * product_record['risk_period'],
                             horizon=product_record['forecast_horizon']
                         )
                     elif forecast_method == 'prophet':
                         forecaster = ProphetForecaster(
-                            window_length=product_record['forecast_window_length'],
+                            window_length=product_record['forecast_window_length'] * product_record['risk_period'],
                             horizon=product_record['forecast_horizon'],
                             yearly_seasonality=True,
                             weekly_seasonality=True,
@@ -286,7 +286,7 @@ class ForecastingPipeline:
                         # TODO: Implement ARIMA forecaster
                         self.logger.warning(f"ARIMA forecasting not yet implemented for {product_id}-{location_id}, falling back to moving_average")
                         forecaster = MovingAverageForecaster(
-                            window_length=product_record['forecast_window_length'],
+                            window_length=product_record['forecast_window_length'] * product_record['risk_period'],
                             horizon=product_record['forecast_horizon']
                         )
                     else:
@@ -304,7 +304,7 @@ class ForecastingPipeline:
                         'location_id': location_id,
                         'forecast_date': self.config.run_date,
                         'model': forecast_method,
-                        'window_length': product_record['forecast_window_length'],
+                        'window_length': product_record['forecast_window_length'] * product_record['risk_period'],
                         'horizon': product_record['forecast_horizon'],
                         'forecast_values': forecast_series.tolist(),
                         'forecast_mean': forecast_series.mean()

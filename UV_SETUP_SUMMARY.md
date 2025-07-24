@@ -59,7 +59,7 @@ The repository has been successfully restructured to use `uv` for dependency man
 uv sync
 
 # Run scripts
-uv run python run_customer_backtest.py
+uv run python run_unified_backtest.py
 uv run python run_safety_stock_calculation.py
 uv run python run_simulation.py
 uv run python webapp/app.py

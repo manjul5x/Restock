@@ -28,13 +28,41 @@ class SafetyStockCalculator:
         self.logger = ForecasterLogger(__name__)
         self.models = SafetyStockModels()
     
+    def _expand_product_master_by_methods(self) -> pd.DataFrame:
+        """
+        Expand product master data to create separate entries for each forecast method.
+        
+        Returns:
+            Expanded product master DataFrame with forecast_method column
+        """
+        expanded_data = []
+        
+        for _, row in self.product_master_data.iterrows():
+            # Get forecast methods from the row
+            forecast_methods_str = row.get('forecast_methods', '')
+            if not forecast_methods_str:
+                self.logger.warning(f"No forecast_methods found for {row['product_id']} at {row['location_id']}")
+                continue
+                
+            # Split methods and create separate rows for each
+            methods = [m.strip() for m in forecast_methods_str.split(',')]
+            
+            for method in methods:
+                expanded_row = row.copy()
+                expanded_row['forecast_method'] = method
+                expanded_data.append(expanded_row)
+        
+        expanded_df = pd.DataFrame(expanded_data)
+        self.logger.info(f"Expanded product master from {len(self.product_master_data)} to {len(expanded_df)} entries")
+        return expanded_df
+    
     def calculate_safety_stocks(
         self, 
         forecast_comparison_data: pd.DataFrame,
         review_dates: List[date]
     ) -> pd.DataFrame:
         """
-        Calculate safety stocks for all product-location combinations.
+        Calculate safety stocks for all product-location-method combinations.
         
         Args:
             forecast_comparison_data: Forecast comparison data with errors
@@ -46,24 +74,29 @@ class SafetyStockCalculator:
         self.logger.info("Starting safety stock calculations")
         self.logger.info(f"Processing {len(review_dates)} review dates")
         
+        # Expand product master data by forecast methods
+        expanded_product_master = self._expand_product_master_by_methods()
+        
         # Initialize results list
         safety_stock_results = []
         
-        # Process each product-location combination
-        for _, product_row in self.product_master_data.iterrows():
+        # Process each product-location-method combination
+        for _, product_row in expanded_product_master.iterrows():
             product = product_row['product_id']
             location = product_row['location_id']
+            forecast_method = product_row['forecast_method']
             distribution_type = product_row.get('distribution', 'kde')
             service_level = product_row.get('service_level', 0.95)
             ss_window_length = product_row.get('ss_window_length', 180)
             
-            self.logger.info(f"Processing {product} at {location}")
+            self.logger.info(f"Processing {product} at {location} with method {forecast_method}")
             
-            # Calculate safety stocks for this product-location
+            # Calculate safety stocks for this product-location-method
             product_safety_stocks = self._calculate_product_safety_stocks(
                 forecast_comparison_data=forecast_comparison_data,
                 product=product,
                 location=location,
+                forecast_method=forecast_method,
                 review_dates=review_dates,
                 distribution_type=distribution_type,
                 service_level=service_level,
@@ -83,18 +116,20 @@ class SafetyStockCalculator:
         forecast_comparison_data: pd.DataFrame,
         product: str,
         location: str,
+        forecast_method: str,
         review_dates: List[date],
         distribution_type: str,
         service_level: float,
         ss_window_length: int
     ) -> List[Dict[str, Any]]:
         """
-        Calculate safety stocks for a specific product-location combination.
+        Calculate safety stocks for a specific product-location-method combination.
         
         Args:
             forecast_comparison_data: Forecast comparison data
             product: Product name
             location: Location name
+            forecast_method: Forecast method used
             review_dates: List of review dates
             distribution_type: Type of distribution to use
             service_level: Service level percentage
@@ -105,14 +140,15 @@ class SafetyStockCalculator:
         """
         results = []
         
-        # Filter data for this product-location
+        # Filter data for this product-location-method
         product_data = forecast_comparison_data[
             (forecast_comparison_data['product_id'] == product) &
-            (forecast_comparison_data['location_id'] == location)
+            (forecast_comparison_data['location_id'] == location) &
+            (forecast_comparison_data['forecast_method'] == forecast_method)
         ].copy()
         
         if product_data.empty:
-            self.logger.warning(f"No forecast comparison data found for {product} at {location}")
+            self.logger.warning(f"No forecast comparison data found for {product} at {location} with method {forecast_method}")
             return results
         
         # Convert ss_window_length to timedelta (assuming daily frequency for now)
@@ -129,7 +165,7 @@ class SafetyStockCalculator:
             
             if len(errors) < 10:  # Need minimum data points for reliable calculation
                 self.logger.warning(
-                    f"Insufficient error data for {product} at {location} on {review_date}: {len(errors)} points"
+                    f"Insufficient error data for {product} at {location} with method {forecast_method} on {review_date}: {len(errors)} points"
                 )
                 safety_stock = 0.0
             else:
@@ -143,6 +179,7 @@ class SafetyStockCalculator:
             results.append({
                 'product_id': product,
                 'location_id': location,
+                'forecast_method': forecast_method,
                 'review_date': review_date,
                 'errors': errors,
                 'safety_stock': safety_stock,
@@ -201,6 +238,6 @@ class SafetyStockCalculator:
         ]
         
         # Extract errors
-        errors = relevant_data['error'].tolist()
+        errors = relevant_data['forecast_error'].tolist()
         
         return errors 

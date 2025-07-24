@@ -31,17 +31,51 @@ class SimulationDataLoader:
     - Determining simulation periods and frequencies
     """
     
-    def __init__(self, data_dir: str = "forecaster/data"):
+    def __init__(self, data_dir: str = "forecaster/data",
+                 safety_stock_file: str = None,
+                 forecast_comparison_file: str = None):
         """
         Initialize the data loader.
         
         Args:
             data_dir: Directory containing data files
+            safety_stock_file: Path to safety stock results file (optional)
+            forecast_comparison_file: Path to forecast comparison file (optional)
         """
         self.data_dir = Path(data_dir)
+        self.safety_stock_file = safety_stock_file
+        self.forecast_comparison_file = forecast_comparison_file
         
         # Load all required data
         self._load_data()
+        
+    def _expand_product_master_by_methods(self) -> pd.DataFrame:
+        """
+        Expand product master data to create separate entries for each forecast method.
+        
+        Returns:
+            Expanded product master DataFrame with forecast_method column
+        """
+        expanded_data = []
+        
+        for _, row in self.product_master.iterrows():
+            # Get forecast methods from the row
+            forecast_methods_str = row.get('forecast_methods', '')
+            if not forecast_methods_str:
+                logger.warning(f"No forecast_methods found for {row['product_id']} at {row['location_id']}")
+                continue
+                
+            # Split methods and create separate rows for each
+            methods = [m.strip() for m in forecast_methods_str.split(',')]
+            
+            for method in methods:
+                expanded_row = row.copy()
+                expanded_row['forecast_method'] = method
+                expanded_data.append(expanded_row)
+        
+        expanded_df = pd.DataFrame(expanded_data)
+        logger.info(f"Expanded product master from {len(self.product_master)} to {len(expanded_df)} entries")
+        return expanded_df
         
     def _load_data(self):
         """Load all required data files."""
@@ -61,22 +95,30 @@ class SimulationDataLoader:
                 raise FileNotFoundError(f"Product master file not found: {product_master_file}")
             
             # Load safety stock results
-            safety_stock_file = Path("output/safety_stocks/safety_stock_results.csv")
+            if self.safety_stock_file:
+                safety_stock_file = Path(self.safety_stock_file)
+            else:
+                safety_stock_file = Path("output/safety_stocks/safety_stock_results.csv")
+            
             if safety_stock_file.exists():
                 self.safety_stocks = pd.read_csv(safety_stock_file)
                 # Convert review_date to datetime
                 self.safety_stocks['review_date'] = pd.to_datetime(self.safety_stocks['review_date'])
             else:
-                raise FileNotFoundError("Safety stock results not found. Please run safety stock calculation first.")
+                raise FileNotFoundError(f"Safety stock results not found: {safety_stock_file}. Please run safety stock calculation first.")
             
             # Load forecast comparison data
-            forecast_file = Path("output/customer_backtest/forecast_comparison.csv")
+            if self.forecast_comparison_file:
+                forecast_file = Path(self.forecast_comparison_file)
+            else:
+                forecast_file = Path("output/customer_backtest/forecast_comparison.csv")
+            
             if forecast_file.exists():
                 self.forecast_comparison = pd.read_csv(forecast_file)
                 # Convert analysis_date to datetime
                 self.forecast_comparison['analysis_date'] = pd.to_datetime(self.forecast_comparison['analysis_date'])
             else:
-                raise FileNotFoundError("Forecast comparison data not found. Please run backtest first.")
+                raise FileNotFoundError(f"Forecast comparison data not found: {forecast_file}. Please run backtest first.")
             
             logger.info("Successfully loaded all simulation data")
             
@@ -86,22 +128,27 @@ class SimulationDataLoader:
     
     def get_simulation_periods(self) -> Dict[str, Dict]:
         """
-        Get simulation periods for all product-location combinations.
+        Get simulation periods for all product-location-method combinations.
         
         Returns:
-            Dictionary mapping product-location keys to simulation period info
+            Dictionary mapping product-location-method keys to simulation period info
         """
         periods = {}
         
-        for _, product_record in self.product_master.iterrows():
+        # Expand product master by forecast methods
+        expanded_product_master = self._expand_product_master_by_methods()
+        
+        for _, product_record in expanded_product_master.iterrows():
             product_id = product_record['product_id']
             location_id = product_record['location_id']
-            key = f"{product_id}_{location_id}"
+            forecast_method = product_record['forecast_method']
+            key = f"{product_id}_{location_id}_{forecast_method}"
             
-            # Get safety stocks for this product-location
+            # Get safety stocks for this product-location-method
             product_safety_stocks = self.safety_stocks[
                 (self.safety_stocks['product_id'] == product_id) &
-                (self.safety_stocks['location_id'] == location_id)
+                (self.safety_stocks['location_id'] == location_id) &
+                (self.safety_stocks['forecast_method'] == forecast_method)
             ]
             
             if len(product_safety_stocks) == 0:
@@ -146,6 +193,7 @@ class SimulationDataLoader:
             periods[key] = {
                 'product_id': product_id,
                 'location_id': location_id,
+                'forecast_method': forecast_method,
                 'first_review_date': first_review_date,
                 'last_review_date': last_review_date,
                 'frequency_days': frequency_days,
@@ -154,15 +202,15 @@ class SimulationDataLoader:
                 'leadtime': product_record['leadtime']
             }
         
-        logger.info(f"Created simulation periods for {len(periods)} product-location combinations")
+        logger.info(f"Created simulation periods for {len(periods)} product-location-method combinations")
         return periods
     
     def create_simulation_arrays(self, product_location_key: str, period_info: Dict) -> Dict[str, np.ndarray]:
         """
-        Create simulation arrays for a specific product-location combination.
+        Create simulation arrays for a specific product-location-method combination.
         
         Args:
-            product_location_key: Key in format "product_id_location_id"
+            product_location_key: Key in format "product_id_location_id_forecast_method"
             period_info: Period information from get_simulation_periods()
             
         Returns:
@@ -170,6 +218,7 @@ class SimulationDataLoader:
         """
         product_id = period_info['product_id']
         location_id = period_info['location_id']
+        forecast_method = period_info['forecast_method']
         date_range = period_info['date_range']
         num_steps = period_info['num_steps']
         leadtime = period_info['leadtime']
@@ -195,7 +244,8 @@ class SimulationDataLoader:
         # Populate decision_day array (1 for review dates, 0 otherwise)
         product_safety_stocks = self.safety_stocks[
             (self.safety_stocks['product_id'] == product_id) &
-            (self.safety_stocks['location_id'] == location_id)
+            (self.safety_stocks['location_id'] == location_id) &
+            (self.safety_stocks['forecast_method'] == forecast_method)
         ]
         review_dates = set(product_safety_stocks['review_date'].dt.date)
         
@@ -220,6 +270,7 @@ class SimulationDataLoader:
         product_forecasts = self.forecast_comparison[
             (self.forecast_comparison['product_id'] == product_id) &
             (self.forecast_comparison['location_id'] == location_id) &
+            (self.forecast_comparison['forecast_method'] == forecast_method) &
             (self.forecast_comparison['step'] == 1)
         ]
         
@@ -301,10 +352,10 @@ class SimulationDataLoader:
     
     def get_all_simulation_data(self) -> Dict[str, Dict]:
         """
-        Get all simulation data for all product-location combinations.
+        Get all simulation data for all product-location-method combinations.
         
         Returns:
-            Dictionary mapping product-location keys to simulation arrays
+            Dictionary mapping product-location-method keys to simulation arrays
         """
         periods = self.get_simulation_periods()
         simulation_data = {}
@@ -320,5 +371,5 @@ class SimulationDataLoader:
                 logger.error(f"Error creating simulation arrays for {key}: {e}")
                 continue
         
-        logger.info(f"Created simulation data for {len(simulation_data)} product-location combinations")
+        logger.info(f"Created simulation data for {len(simulation_data)} product-location-method combinations")
         return simulation_data 

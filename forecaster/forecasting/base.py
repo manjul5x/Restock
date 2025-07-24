@@ -32,6 +32,16 @@ class BaseForecaster(ABC):
         """Get model parameters"""
         pass
 
+    def get_first_date_used(self) -> Optional[date]:
+        """
+        Get the first date of data that was actually used for forecasting
+        (after applying the window).
+        
+        Returns:
+            First date used, or None if no data was used
+        """
+        return None
+
     def validate_data(self, data: pd.DataFrame) -> bool:
         """Validate input data format"""
         required_columns = ["product_id", "location_id", "date", "demand"]

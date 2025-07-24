@@ -32,25 +32,33 @@ class InventorySimulator:
     """
     
     def __init__(self, data_dir: str = "forecaster/data", 
-                 default_policy: str = "review_ordering"):
+                 default_policy: str = "review_ordering",
+                 safety_stock_file: str = None,
+                 forecast_comparison_file: str = None):
         """
         Initialize the inventory simulator.
         
         Args:
             data_dir: Directory containing data files
             default_policy: Default order policy to use
+            safety_stock_file: Path to safety stock results file (optional)
+            forecast_comparison_file: Path to forecast comparison file (optional)
         """
-        self.data_loader = SimulationDataLoader(data_dir)
+        self.data_loader = SimulationDataLoader(
+            data_dir, 
+            safety_stock_file=safety_stock_file,
+            forecast_comparison_file=forecast_comparison_file
+        )
         self.default_policy = default_policy
         self.results = {}
         
     def run_single_simulation(self, product_location_key: str, 
                             order_policy: Optional[OrderPolicy] = None) -> Dict[str, Any]:
         """
-        Run simulation for a single product-location combination.
+        Run simulation for a single product-location-method combination.
         
         Args:
-            product_location_key: Key in format "product_id_location_id"
+            product_location_key: Key in format "product_id_location_id_forecast_method"
             order_policy: Order policy to use (uses default if None)
             
         Returns:
@@ -82,7 +90,8 @@ class InventorySimulator:
                 'period_info': period_info,
                 'arrays': arrays,
                 'metrics': metrics,
-                'order_policy': order_policy.__class__.__name__
+                'order_policy': order_policy.__class__.__name__,
+                'forecast_method': period_info.get('forecast_method', 'unknown')
             }
             
             logger.debug(f"Completed simulation for {product_location_key}")
@@ -96,16 +105,16 @@ class InventorySimulator:
                            order_policy: Optional[OrderPolicy] = None,
                            max_workers: Optional[int] = None) -> Dict[str, Dict]:
         """
-        Run simulations for multiple product-location combinations in parallel.
+        Run simulations for multiple product-location-method combinations in parallel.
         
         Args:
-            product_location_keys: List of product-location keys to simulate
+            product_location_keys: List of product-location-method keys to simulate
                                  (runs all if None)
             order_policy: Order policy to use (uses default if None)
             max_workers: Maximum number of parallel workers (uses CPU count if None)
             
         Returns:
-            Dictionary mapping product-location keys to simulation results
+            Dictionary mapping product-location-method keys to simulation results
         """
         # Get all simulation data first
         simulation_data = self.data_loader.get_all_simulation_data()
@@ -117,10 +126,10 @@ class InventorySimulator:
         available_keys = [key for key in product_location_keys if key in simulation_data]
         
         if len(available_keys) == 0:
-            logger.warning("No valid product-location combinations found")
+            logger.warning("No valid product-location-method combinations found")
             return {}
         
-        logger.info(f"Starting batch simulation for {len(available_keys)} product-location combinations")
+        logger.info(f"Starting batch simulation for {len(available_keys)} product-location-method combinations")
         
         # Set up parallel processing
         if max_workers is None:
@@ -162,7 +171,7 @@ class InventorySimulator:
                           period_info: Dict[str, Any], 
                           order_policy: OrderPolicy) -> Dict[str, np.ndarray]:
         """
-        Execute the simulation logic for a single product-location.
+        Execute the simulation logic for a single product-location-method.
         
         Args:
             arrays: Simulation arrays
@@ -301,6 +310,7 @@ class InventorySimulator:
                 'product_location_key': key,
                 'product_id': period_info['product_id'],
                 'location_id': period_info['location_id'],
+                'forecast_method': result.get('forecast_method', 'unknown'),
                 'order_policy': result['order_policy'],
                 'num_steps': period_info['num_steps'],
                 'leadtime': period_info['leadtime'],
@@ -325,6 +335,7 @@ class InventorySimulator:
             arrays_df['product_location_key'] = key
             arrays_df['product_id'] = result['period_info']['product_id']
             arrays_df['location_id'] = result['period_info']['location_id']
+            arrays_df['forecast_method'] = result.get('forecast_method', 'unknown')
             arrays_df['order_policy'] = result['order_policy']
             
             # Save to file

@@ -1,197 +1,217 @@
-# Inventory Forecasting & Simulation Suite
+# Inventory Forecasting & Analysis System
 
-A comprehensive tool for demand forecasting, safety stock calculation, and inventory simulation with a web interface for visualization.
+A comprehensive, enterprise-grade inventory forecasting and analysis system with unified pipeline, advanced backtesting, safety stock optimization, and interactive web interface for real-time inventory insights.
 
-## Features
+## 🚀 Key Features
 
-- **Demand Forecasting**
-  - Multiple forecasting models (Moving Average, Prophet)
-  - Outlier detection and handling
-  - Parallel processing support
-  - Backtesting capabilities
+### 📊 **Unified Forecasting Pipeline**
+- **Multiple Models**: Prophet, ARIMA, and Moving Average with automatic parameter optimization
+- **Consistent Aggregation**: Unified approach across all forecasters for reliable results
+- **Advanced Backtesting**: Comprehensive performance evaluation with detailed metrics
+- **Data Validation**: Built-in data quality checks and completeness validation
 
-- **Safety Stock Calculation**
-  - Dynamic safety stock levels
-  - Multiple review periods support
-  - Service level optimization
-  - Error-based calculations
+### 📈 **Enhanced Analytics**
+- **Safety Stock Optimization**: Dynamic calculation with multiple distribution methods
+- **Inventory Simulation**: Realistic simulation with order policies and lead time consideration
+- **Performance Metrics**: Service level, stockout rate, inventory days, and total holding costs
+- **Visual Comparison**: Actual vs. simulated performance with highlighting
 
-- **Inventory Simulation**
-  - Order policy simulation
-  - Lead time consideration
-  - Stock level tracking
-  - Performance metrics
+### 🎯 **Interactive Web Interface**
+- **Real-time Filtering**: Dynamic filtering by product, location, and forecast method
+- **Performance Highlighting**: Visual indicators showing improvements and areas for attention
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Comprehensive Views**: Forecast visualization, safety stocks, simulation, and inventory comparison
 
-- **Web Interface**
-  - Interactive visualizations
-  - Forecast comparison
-  - Safety stock analysis
-  - Inventory simulation results
+### 🔧 **Enterprise Features**
+- **Parallel Processing**: Optimized for large datasets with configurable workers
+- **Data Validation**: Comprehensive quality checks and error reporting
+- **Flexible Configuration**: Customizable parameters and review periods
+- **Production Ready**: Robust error handling and logging
 
-## Quick Start
+## 🎉 What's New
 
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/yourusername/restock.git
-   cd restock
-   ```
+### Recent Major Improvements:
+- ✅ **Unified Pipeline**: Consistent forecasting approach across all models
+- ✅ **Performance Highlighting**: Visual indicators for metric improvements
+- ✅ **Inventory Days**: More intuitive metric replacing inventory turns
+- ✅ **Total Inventory Holding**: Complete cost analysis in units and currency
+- ✅ **Streamlined Workflow**: Single command for complete analysis
+- ✅ **Enhanced Web Interface**: Better UX with compact metric display
+- ✅ **Data Validation**: Comprehensive data quality assurance
+- ✅ **Default Optimization**: Sensible defaults for quick setup
 
-2. **Set Up Environment with uv**
-   ```bash
-   # Install uv if you haven't already
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   
-   # Install dependencies
-   uv sync
-   
-   # For development with additional tools
-   uv sync --extra dev
-   ```
+## 📋 Quick Start
 
-3. **Prepare Your Data**
-   - Replace example data in `forecaster/data/` with your data:
-     - `customer_demand.csv`: Your demand data
-     - `customer_product_master.csv`: Your product master data
-   - See [Customer Data Guide](CUSTOMER_DATA_GUIDE.md) for data format requirements
+### 1. **Setup & Installation**
+```bash
+# Install UV (recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-4. **Run the Pipeline**
-   ```bash
-   # Run backtesting
-   uv run python run_customer_backtest.py
+# Clone and setup
+git clone <your-repo-url>
+cd Forecaster
+uv sync
+```
 
-   # Calculate safety stocks
-   uv run python run_safety_stock_calculation.py
+### 2. **Prepare Your Data**
+Replace example data files with your own:
+- `forecaster/data/customer_demand.csv` - Your demand data
+- `forecaster/data/customer_product_master.csv` - Your product master data
 
-   # Run simulation
-   uv run python run_simulation.py
+See [Customer Data Guide](CUSTOMER_DATA_GUIDE.md) for detailed format requirements.
 
-   # Start web interface
-   uv run python webapp/app.py
-   ```
+### 3. **Run Complete Analysis**
+```bash
+# Single command for complete workflow
+python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
+```
 
-   **Or use the Makefile shortcuts:**
-   ```bash
-   make run-backtest
-   make run-safety-stocks
-   make run-simulation
-   make run-webapp
-   ```
+This runs:
+- Data validation
+- Unified backtesting
+- Safety stock calculation
+- Inventory simulation
+- Results generation
 
-## Data Requirements
+### 4. **Explore Results**
+```bash
+python webapp/run.py
+```
+
+Open `http://localhost:5001` to access the interactive web interface.
+
+## 📊 Available Analysis Pages
+
+### 📈 **Forecast Visualization**
+- Historical vs. forecasted demand comparison
+- Multi-model performance analysis
+- Interactive filtering and zoom capabilities
+
+### 🛡️ **Safety Stocks**
+- Dynamic safety stock level analysis
+- Distribution method comparison
+- Trend analysis and optimization
+
+### 🎯 **Simulation Visualization**
+- Inventory simulation results
+- Stock level tracking and analysis
+- Performance metric visualization
+
+### ⚖️ **Inventory Comparison** ⭐ **NEW!**
+- **Actual vs. Simulated Performance** with visual highlighting
+- **Key Metrics**:
+  - Service Level & Stockout Rate
+  - Inventory Days (lower is better)
+  - Total Inventory Holding (units & cost)
+  - Missed Demand & Stockout Days
+  - Overstocking/Understocking percentages
+- **Performance Indicators**: Green checkmarks for improvements, red X for areas needing attention
+
+## 📁 Data Requirements
 
 ### Demand Data (`customer_demand.csv`)
-- Required columns:
-  - `product_id`: Product identifier
-  - `product_category`: Product category
-  - `location_id`: Location identifier
-  - `date`: Date in YYYY-MM-DD format
-  - `demand`: Demand quantity
-  - `stock_level`: Stock level
-  - `incoming_inventory`: Incoming inventory
+Required columns:
+- `product_id`: Product identifier
+- `product_category`: Product category
+- `location_id`: Location identifier
+- `date`: Date in YYYY-MM-DD format
+- `demand`: Demand quantity
+- `stock_level`: Stock level
+- `incoming_inventory`: Incoming inventory
 
 ### Product Master (`customer_product_master.csv`)
-- Required columns:
-  - `product_id`: Product identifier
-  - `location_id`: Location identifier
-  - `product_category`: Product category
-  - `demand_frequency`: 'd' (daily), 'w' (weekly), or 'm' (monthly)
-  - `risk_period`: Risk period length
-  - `forecast_window_length`: Forecasting window length
-  - `forecast_horizon`: Forecast horizon
-  - `leadtime`: Lead time in days
+Required columns:
+- `product_id`: Product identifier
+- `location_id`: Location identifier
+- `product_category`: Product category
+- `demand_frequency`: 'd' (daily), 'w' (weekly), or 'm' (monthly)
+- `risk_period`: Risk period length
+- `forecast_window_length`: Forecasting window length
+- `forecast_horizon`: Forecast horizon
+- `forecast_method`: 'moving_average', 'prophet', 'arima'
+- `service_level`: Service level percentage (0.0 to 1.0)
+- `leadtime`: Lead time in demand frequency units
+- `inventory_cost`: Unit cost of inventory
 
-## Development
+## 🔧 Configuration Options
 
-### Code Quality
-This project uses modern Python development tools:
+### Analysis Period
+- Set custom analysis start and end dates
+- Ensure sufficient historical data (recommend 10+ months before analysis start)
 
-- **uv**: Fast Python package manager and installer
-- **black**: Code formatting
-- **isort**: Import sorting
-- **flake8**: Linting
-- **mypy**: Type checking
-- **pytest**: Testing framework
-- **pre-commit**: Git hooks for code quality
+### Review Dates (Safety Stocks)
+- Default: 1st, 8th, 15th, 22nd of every month in 2024
+- Fully customizable via command line arguments
 
-### Development Commands
+### Parallel Processing
+- Default: 8 workers for optimal performance
+- Adjustable via `--max-workers` parameter
+
+## 📚 Documentation
+
+- **[Quick Start Guide](QUICK_START_GUIDE.md)** - Get up and running quickly
+- **[Customer Data Guide](CUSTOMER_DATA_GUIDE.md)** - Detailed data format requirements
+- **[Migration Guide](MIGRATION_GUIDE.md)** - Technical implementation details
+- **[Data Validation System](DATA_VALIDATION_SYSTEM.md)** - Data quality assurance
+- **[Unified Pipeline Refactor](UNIFIED_PIPELINE_REFACTOR.md)** - Architecture overview
+
+## 🛠️ Development
+
+### Project Structure
+```
+Forecaster/
+├── forecaster/           # Core forecasting modules
+│   ├── forecasting/     # Forecasting models and pipeline
+│   ├── backtesting/     # Backtesting and evaluation
+│   ├── safety_stocks/   # Safety stock calculations
+│   ├── simulation/      # Inventory simulation
+│   ├── validation/      # Data validation system
+│   └── data/           # Data loading and processing
+├── webapp/             # Interactive web interface
+├── examples/           # Example scripts and usage
+├── output/            # Generated results and visualizations
+└── docs/              # Documentation and guides
+```
+
+### Running Tests
+```bash
+# Run all tests
+uv run python -m pytest
+
+# Run specific test categories
+uv run python -m pytest forecaster/tests/ -v
+```
+
+### Development Setup
 ```bash
 # Install development dependencies
-make install-dev
-
-# Format code
-make format
+uv sync --extra dev
 
 # Run linting
-make lint
+uv run ruff check .
 
-# Run tests
-make test
-
-# Run all checks
-make check
-
-# Show all available commands
-make help
+# Run type checking
+uv run mypy forecaster/
 ```
 
-### Pre-commit Setup
-```bash
-# Install pre-commit hooks
-make dev
-```
-
-## Output Files
-
-### Backtesting Results
-- Location: `output/customer_backtest/`
-  - `backtest_results.csv`: Summary of all forecasts
-  - `accuracy_metrics.csv`: Accuracy metrics by product/location
-  - `forecast_comparison.csv`: Detailed forecast vs actual comparison
-
-### Safety Stock Results
-- Location: `output/safety_stocks/`
-  - `safety_stock_results.csv`: Calculated safety stock levels
-
-### Simulation Results
-- Location: `output/simulation/`
-  - `simulation_summary.csv`: Overall simulation metrics
-  - `detailed_results/`: Detailed simulation data by product/location
-
-## Web Interface
-
-The web interface provides interactive visualizations for:
-- Demand patterns and forecasts
-- Safety stock levels and review periods
-- Inventory simulation results
-- Performance metrics
-
-Access at `http://localhost:5000` after starting the webapp.
-
-## Documentation
-
-- [Customer Data Guide](CUSTOMER_DATA_GUIDE.md): Detailed data requirements
-- [Example Data](forecaster/data/dummy/): Sample data format
-- [API Documentation](docs/API.md): Module documentation
-
-## Requirements
-
-- Python 3.9+
-- See `requirements.txt` for package dependencies
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🆘 Support
 
-- Built with Prophet by Facebook Research
-- Visualization powered by Plotly
-- Web interface using Flask
+- **Documentation**: Check the guides in the `docs/` directory
+- **Issues**: Report bugs and feature requests via GitHub Issues
+- **Data Issues**: Use the built-in data validation system for troubleshooting
+
+---
+
+**Ready to optimize your inventory?** Start with the [Quick Start Guide](QUICK_START_GUIDE.md) and transform your inventory management! 🚀

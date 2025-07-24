@@ -133,7 +133,7 @@ def main():
             "3. Run validation: python validate_customer_data.py customer_demand.csv customer_product_master.csv"
         )
         print(
-            "4. Run backtesting: python run_customer_backtest.py forecaster/data customer_demand.csv customer_product_master.csv"
+            "4. Run backtesting: python run_unified_backtest.py --data-dir forecaster/data --demand-file customer_demand.csv --product-master-file customer_product_master.csv"
         )
 
     except Exception as e:

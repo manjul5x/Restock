@@ -76,6 +76,7 @@ class MovingAverageForecaster(BaseForecaster):
         
         Args:
             data: DataFrame with columns ['product_id', 'location_id', 'date', 'demand']
+                  This data is daily data, not pre-aggregated
             
         Returns:
             Self for method chaining
@@ -83,13 +84,19 @@ class MovingAverageForecaster(BaseForecaster):
         # Validate and prepare data
         self.validate_data(data)
         
-        # Prepare data (this data is already aggregated into buckets)
+        # Prepare data (this data is daily, not pre-aggregated)
         self.data = self.prepare_data(data)
+        
+        # Store the first date before applying window (for tracking purposes)
+        self.original_first_date = self.data['date'].min() if len(self.data) > 0 else None
         
         # Apply rolling window if specified (after bucketing)
         if self.window_length is not None and len(self.data) > self.window_length:
             # Sort by date and take the most recent window_length data points
             self.data = self.data.sort_values('date').tail(self.window_length).reset_index(drop=True)
+        
+        # Store the first date of data actually used for forecasting
+        self.first_date_used = self.data['date'].min() if len(self.data) > 0 else None
         
         # Determine risk period if not already set
         if self.risk_period_days is None:
@@ -108,9 +115,10 @@ class MovingAverageForecaster(BaseForecaster):
         
         Args:
             steps: Number of steps to forecast (defaults to self.horizon)
+                  This represents the number of daily forecasts to generate
             
         Returns:
-            Series with forecast values
+            Series with daily forecast values (aggregation to risk periods is handled by core engine)
         """
         if not self.is_fitted:
             raise ForecastingError("Model must be fitted before forecasting")
@@ -124,7 +132,7 @@ class MovingAverageForecaster(BaseForecaster):
         if self.last_values is None or len(self.last_values) == 0:
             raise ForecastingError("No data available for forecasting")
         
-        # Calculate moving average
+        # Calculate moving average of daily values
         if self.window_length is not None and len(self.last_values) >= self.window_length:
             # Use full window
             window_data = self.last_values[-self.window_length:]
@@ -132,20 +140,21 @@ class MovingAverageForecaster(BaseForecaster):
             # Use available data if window is larger than available data or window_length is None
             window_data = self.last_values
         
-        # Calculate moving average
-        forecast_value = np.mean(window_data)
+        # Calculate moving average of daily demand
+        daily_forecast_value = np.mean(window_data)
         
-        # Generate forecast series
-        forecast_series = pd.Series([forecast_value] * steps)
+        # Generate daily forecasts for the requested number of days
+        daily_forecasts = [daily_forecast_value] * steps
         
-        return forecast_series
+        # Return daily forecasts (aggregation will be handled by core engine)
+        return pd.Series(daily_forecasts)
     
     def update(self, new_data: pd.DataFrame) -> 'MovingAverageForecaster':
         """
         Update the model with new data
         
         Args:
-            new_data: New data to add to the model
+            new_data: New data to add to the model (daily data)
             
         Returns:
             Self for method chaining
@@ -162,21 +171,35 @@ class MovingAverageForecaster(BaseForecaster):
         combined_data = combined_data.drop_duplicates(subset=['product_id', 'location_id', 'date'])
         combined_data = combined_data.sort_values('date').reset_index(drop=True)
         
+        # Apply rolling window if specified
+        if self.window_length is not None and len(combined_data) > self.window_length:
+            combined_data = combined_data.tail(self.window_length).reset_index(drop=True)
+        
         # Update stored data and last values
         self.data = combined_data
         if len(self.data) > 0:
-            self.last_values = self.data['demand'].tail(self.window_length).values
+            self.last_values = self.data['demand'].values
         
         return self
     
     def get_parameters(self) -> Dict:
-        """Get model parameters"""
+        """Get current parameters."""
         return {
             'window_length': self.window_length,
             'horizon': self.horizon,
             'risk_period_days': self.risk_period_days,
-            'name': self.name
+            'method_name': self.name
         }
+    
+    def get_first_date_used(self) -> Optional[date]:
+        """
+        Get the first date of data that was actually used for forecasting
+        (after applying the window).
+        
+        Returns:
+            First date used, or None if no data was used
+        """
+        return self.first_date_used
     
     def set_parameters(self, parameters: Dict) -> 'MovingAverageForecaster':
         """

@@ -26,7 +26,7 @@
                                 <select class="form-select" id="product" name="product" required>
                                     <option value="">Select Product</option>
                                     {% for product in products %}
-                                    <option value="{{ product }}">{{ product }}</option>
+                                    <option value="{{ product }}" {% if product == default_product %}selected{% endif %}>{{ product }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -36,7 +36,7 @@
                                 <select class="form-select" id="location" name="location" required>
                                     <option value="">Select Location</option>
                                     {% for location in locations %}
-                                    <option value="{{ location }}">{{ location }}</option>
+                                    <option value="{{ location }}" {% if location == default_location %}selected{% endif %}>{{ location }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -46,17 +46,17 @@
                                 <select class="form-select" id="analysis_date" name="analysis_date" required>
                                     <option value="">Select Analysis Date</option>
                                     {% for date in analysis_dates %}
-                                    <option value="{{ date }}">{{ date }}</option>
+                                    <option value="{{ date }}" {% if date == default_analysis_date %}selected{% endif %}>{{ date }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="data_source" class="form-label">Data Source:</label>
-                                <select class="form-select" id="data_source" name="data_source">
-                                    <option value="All">All Sources (Compare)</option>
-                                    {% for source in data_sources %}
-                                    <option value="{{ source }}">{{ source }}</option>
+                                <label for="forecast_method" class="form-label">Forecast Method:</label>
+                                <select class="form-select" id="forecast_method" name="forecast_method">
+                                    <option value="All" {% if default_forecast_method == "All Methods" %}selected{% endif %}>All Methods</option>
+                                    {% for method in forecast_methods %}
+                                    <option value="{{ method }}" {% if method == default_forecast_method %}selected{% endif %}>{{ method }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -83,51 +83,44 @@
                     <div class="row">
                         <div class="col-md-4">
                             <div class="stats-card">
-                                <h6>Total Historical Demand</h6>
-                                <p class="h4 text-primary" id="totalHistoricalDemand">-</p>
+                                <h6>Mean Absolute Error</h6>
+                                <p class="h4 text-primary" id="mae">-</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="stats-card">
-                                <h6>Total Actual Demand</h6>
-                                <p class="h4 text-success" id="totalActualDemand">-</p>
+                                <h6>Mean Absolute % Error</h6>
+                                <p class="h4 text-info" id="mape">-</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="stats-card">
-                                <h6>Total Forecast Demand</h6>
-                                <p class="h4 text-danger" id="totalForecastDemand">-</p>
+                                <h6>Total Forecasts</h6>
+                                <p class="h4 text-success" id="totalForecasts">-</p>
                             </div>
                         </div>
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="stats-card">
-                                <h6>Historical Periods</h6>
-                                <p class="h6 text-secondary" id="historicalPeriods">-</p>
+                                <h6>Historical Data Points</h6>
+                                <p class="h6 text-secondary" id="historicalPoints">-</p>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="stats-card">
-                                <h6>Forecast Periods</h6>
-                                <p class="h6 text-secondary" id="forecastPeriods">-</p>
+                                <h6>Forecast Horizon</h6>
+                                <p class="h6 text-secondary" id="forecastHorizon">-</p>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-12">
+                        <div class="col-md-4">
                             <div class="stats-card">
-                                <h6>Data Source</h6>
-                                <p class="h6 text-success" id="dataSource">-</p>
+                                <h6>Risk Period</h6>
+                                <p class="h6 text-secondary" id="riskPeriod">-</p>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <div id="errorContainer" style="display: none;">
-                    <div class="error-message" id="errorMessage"></div>
                 </div>
             </div>
         </div>
@@ -135,51 +128,46 @@
         {% endif %}
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
-    document.getElementById('forecastForm').addEventListener('submit', function(e) {
-        e.preventDefault();
+document.getElementById('forecastForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    // Show loading
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('plotContainer').style.display = 'none';
+    
+    fetch('/get_forecast_visualization_plot', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+            return;
+        }
         
-        const formData = new FormData(this);
-        const loading = document.getElementById('loading');
-        const plotContainer = document.getElementById('plotContainer');
-        const errorContainer = document.getElementById('errorContainer');
+        // Display plot
+        document.getElementById('plotImage').src = 'data:image/png;base64,' + data.plot_url;
+        document.getElementById('mae').textContent = data.mae.toFixed(2);
+        document.getElementById('mape').textContent = data.mape.toFixed(2) + '%';
+        document.getElementById('totalForecasts').textContent = data.total_forecasts;
+        document.getElementById('historicalPoints').textContent = data.historical_points;
+        document.getElementById('forecastHorizon').textContent = data.forecast_horizon;
+        document.getElementById('riskPeriod').textContent = data.risk_period + ' days';
         
-        showLoading('loading');
-        plotContainer.style.display = 'none';
-        errorContainer.style.display = 'none';
-        
-        fetch('/get_forecast_visualization_plot', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading('loading');
-            
-            if (data.success) {
-                document.getElementById('plotImage').src = 'data:image/png;base64,' + data.image;
-                document.getElementById('totalHistoricalDemand').textContent = formatNumber(data.total_historical_demand, 2);
-                document.getElementById('totalActualDemand').textContent = formatNumber(data.total_actual_demand, 2);
-                document.getElementById('totalForecastDemand').textContent = formatNumber(data.total_forecast_demand, 2);
-                document.getElementById('historicalPeriods').textContent = data.historical_periods;
-                document.getElementById('forecastPeriods').textContent = data.forecast_periods;
-                document.getElementById('dataSource').textContent = data.data_source;
-                
-                plotContainer.style.display = 'block';
-            } else {
-                showError(data.error, 'errorMessage');
-                errorContainer.style.display = 'block';
-            }
-        })
-        .catch(error => {
-            hideLoading('loading');
-            showError('An error occurred while generating the plot.', 'errorMessage');
-            errorContainer.style.display = 'block';
-            console.error('Error:', error);
-        });
+        // Hide loading and show results
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('plotContainer').style.display = 'block';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error generating plot');
+        document.getElementById('loading').style.display = 'none';
     });
+});
 </script>
 {% endblock %} 

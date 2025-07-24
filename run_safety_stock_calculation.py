@@ -2,16 +2,17 @@
 """
 Safety Stock Calculation Script
 
-This script calculates safety stocks based on forecast comparison results.
+This script calculates safety stock levels based on forecast comparison results.
+It uses the forecast errors to determine appropriate safety stock levels for each product-location.
 """
 
 import pandas as pd
+import numpy as np
+from pathlib import Path
 import sys
 import argparse
-from datetime import date, timedelta
-from pathlib import Path
-from forecaster.safety_stocks import SafetyStockCalculator
-from forecaster.data import DemandDataLoader
+from datetime import date
+from forecaster.safety_stocks.safety_stock_calculator import SafetyStockCalculator
 
 
 def run_safety_stock_calculation(
@@ -22,62 +23,98 @@ def run_safety_stock_calculation(
     review_interval_days: int = 30
 ):
     """
-    Run safety stock calculations.
+    Calculate safety stocks from forecast comparison results.
     
     Args:
-        forecast_comparison_file: Path to forecast comparison CSV
-        product_master_file: Path to product master CSV
+        forecast_comparison_file: Path to forecast comparison CSV file
+        product_master_file: Path to product master CSV file
         output_dir: Output directory for results
         review_dates: Comma-separated list of review dates (YYYY-MM-DD)
-        review_interval_days: Days between review dates if not specified
+        review_interval_days: Days between review dates if not provided
+    
+    Returns:
+        DataFrame with safety stock results
     """
+    
     print("🔍 Safety Stock Calculation")
     print("=" * 50)
+    print(f"Forecast comparison file: {forecast_comparison_file}")
+    print(f"Product master file: {product_master_file}")
+    print(f"Output directory: {output_dir}")
     
-    # Create output directory
+    # Create output directory if it doesn't exist
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     
     # Load data
-    print("📖 Loading data...")
+    print("\n📊 Loading data...")
+    try:
+        forecast_data = pd.read_csv(forecast_comparison_file)
+        product_master_data = pd.read_csv(product_master_file)
+        
+        print(f"✅ Loaded {len(forecast_data)} forecast comparison records")
+        print(f"✅ Loaded {len(product_master_data)} product master records")
+        
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        return None
     
-    # Load forecast comparison data directly
-    forecast_data = pd.read_csv(forecast_comparison_file)
-    print(f"✅ Loaded {len(forecast_data)} forecast comparison records")
+    # Handle column name mapping for different backtesting outputs
+    print("\n🔧 Checking column mappings...")
+    if 'error' in forecast_data.columns and 'forecast_error' not in forecast_data.columns:
+        print("📝 Mapping 'error' column to 'forecast_error' for compatibility")
+        forecast_data['forecast_error'] = forecast_data['error']
+    elif 'forecast_error' not in forecast_data.columns:
+        print("❌ No error column found. Available columns:")
+        print(f"   {list(forecast_data.columns)}")
+        return None
     
-    # Convert datetime columns to date
-    if 'analysis_date' in forecast_data.columns:
-        forecast_data['analysis_date'] = pd.to_datetime(forecast_data['analysis_date']).dt.date
-    if 'risk_period_end' in forecast_data.columns:
-        forecast_data['risk_period_end'] = pd.to_datetime(forecast_data['risk_period_end']).dt.date
+    # Handle product master column mappings
+    if 'leadtime' in product_master_data.columns and 'lead_time' not in product_master_data.columns:
+        print("📝 Mapping 'leadtime' column to 'lead_time' for compatibility")
+        product_master_data['lead_time'] = product_master_data['leadtime']
+    elif 'lead_time' not in product_master_data.columns:
+        print("❌ No lead_time column found. Available columns:")
+        print(f"   {list(product_master_data.columns)}")
+        return None
     
-    # Load product master data directly
-    product_master_data = pd.read_csv(product_master_file)
-    print(f"✅ Loaded {len(product_master_data)} product master records")
+    # Validate required columns
+    required_forecast_columns = ['analysis_date', 'product_id', 'location_id', 'actual_demand', 'forecast_demand', 'forecast_error']
+    missing_forecast_columns = [col for col in required_forecast_columns if col not in forecast_data.columns]
     
-    # Generate review dates
+    if missing_forecast_columns:
+        print(f"❌ Missing required columns in forecast comparison file: {missing_forecast_columns}")
+        print(f"Available columns: {list(forecast_data.columns)}")
+        return None
+    
+    required_product_columns = ['product_id', 'location_id', 'lead_time', 'risk_period']
+    missing_product_columns = [col for col in required_product_columns if col not in product_master_data.columns]
+    
+    if missing_product_columns:
+        print(f"❌ Missing required columns in product master file: {missing_product_columns}")
+        return None
+    
+    # Process review dates
+    print("\n📅 Processing review dates...")
     if review_dates:
-        # Parse provided review dates
         review_date_list = [date.fromisoformat(d.strip()) for d in review_dates.split(',')]
         print(f"📅 Using {len(review_date_list)} provided review dates")
     else:
-        # Use default review dates: 1st, 8th, 15th, 22nd of each month from April 2024 to April 2025
-        default_review_dates = [
-            "2024-04-01", "2024-04-08", "2024-04-15", "2024-04-22",
-            "2024-05-01", "2024-05-08", "2024-05-15", "2024-05-22",
-            "2024-06-01", "2024-06-08", "2024-06-15", "2024-06-22",
-            "2024-07-01", "2024-07-08", "2024-07-15", "2024-07-22",
-            "2024-08-01", "2024-08-08", "2024-08-15", "2024-08-22",
-            "2024-09-01", "2024-09-08", "2024-09-15", "2024-09-22",
-            "2024-10-01", "2024-10-08", "2024-10-15", "2024-10-22",
-            "2024-11-01", "2024-11-08", "2024-11-15", "2024-11-22",
-            "2024-12-01", "2024-12-08", "2024-12-15", "2024-12-22",
-            "2025-01-01", "2025-01-08", "2025-01-15", "2025-01-22",
-            "2025-02-01", "2025-02-08", "2025-02-15", "2025-02-22",
-            "2025-03-01", "2025-03-08", "2025-03-15", "2025-03-22",
-            "2025-04-01"
-        ]
-        review_date_list = [date.fromisoformat(d) for d in default_review_dates]
-        print(f"📅 Using {len(review_date_list)} default review dates (1st, 8th, 15th, 22nd of each month)")
+        # Generate review dates based on interval
+        print(f"📅 Generating review dates with {review_interval_days}-day intervals")
+        
+        # Get date range from forecast data
+        forecast_data['analysis_date'] = pd.to_datetime(forecast_data['analysis_date'])
+        min_date = forecast_data['analysis_date'].min().date()
+        max_date = forecast_data['analysis_date'].max().date()
+        
+        # Generate review dates
+        review_date_list = []
+        current_date = min_date
+        while current_date <= max_date:
+            review_date_list.append(current_date)
+            current_date = current_date.replace(day=current_date.day + review_interval_days)
+        
+        print(f"📅 Generated {len(review_date_list)} review dates from {min_date} to {max_date}")
     
     # Initialize safety stock calculator
     print("🔧 Initializing safety stock calculator...")
@@ -132,26 +169,40 @@ def run_safety_stock_calculation(
 
 def main():
     """Main function."""
-    # Default values for safety stock calculation
-    default_forecast_comparison_file = "output/customer_backtest/forecast_comparison.csv"
-    default_product_master_file = "forecaster/data/customer_product_master.csv"
+    parser = argparse.ArgumentParser(
+        description="Calculate safety stocks from forecast comparison results",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run with required parameters
+  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv
+  
+  # Run with custom review dates
+  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv --review-dates "2024-01-01,2024-02-01,2024-03-01"
+  
+  # Run with custom review interval
+  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv --review-interval 14
+  
+  # Run with custom output directory
+  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv --output-dir output/my_safety_stocks
+        """
+    )
     
-    parser = argparse.ArgumentParser(description="Calculate safety stocks from forecast comparison results")
-    parser.add_argument("forecast_comparison_file", nargs='?', default=default_forecast_comparison_file, 
-                       help=f"Path to forecast comparison CSV file (default: {default_forecast_comparison_file})")
-    parser.add_argument("product_master_file", nargs='?', default=default_product_master_file,
-                       help=f"Path to product master CSV file (default: {default_product_master_file})")
-    parser.add_argument("--output-dir", default="output/safety_stocks", help="Output directory (default: output/safety_stocks)")
-    parser.add_argument("--review-dates", help="Comma-separated list of review dates (YYYY-MM-DD)")
-    parser.add_argument("--review-interval", type=int, default=30, help="Days between review dates (default: 30)")
+    # Required arguments
+    parser.add_argument("forecast_comparison_file", 
+                       help="Path to forecast comparison CSV file")
+    parser.add_argument("product_master_file",
+                       help="Path to product master CSV file")
+    
+    # Optional arguments
+    parser.add_argument("--output-dir", default="output/safety_stocks", 
+                       help="Output directory (default: output/safety_stocks)")
+    parser.add_argument("--review-dates", 
+                       help="Comma-separated list of review dates (YYYY-MM-DD)")
+    parser.add_argument("--review-interval", type=int, default=30, 
+                       help="Days between review dates if not provided (default: 30)")
     
     args = parser.parse_args()
-    
-    # Show which files are being used
-    print("Using default arguments:")
-    print(f"  Forecast comparison file: {args.forecast_comparison_file}")
-    print(f"  Product master file: {args.product_master_file}")
-    print()
     
     # Validate input files
     if not Path(args.forecast_comparison_file).exists():
@@ -162,50 +213,21 @@ def main():
         print(f"❌ Error: Product master file not found: {args.product_master_file}")
         sys.exit(1)
     
-    try:
-        results = run_safety_stock_calculation(
-            forecast_comparison_file=args.forecast_comparison_file,
-            product_master_file=args.product_master_file,
-            output_dir=args.output_dir,
-            review_dates=args.review_dates,
-            review_interval_days=args.review_interval
-        )
-        print("\n✅ Safety stock calculation completed successfully!")
-    except Exception as e:
-        print(f"❌ Error during safety stock calculation: {e}")
+    # Run safety stock calculation
+    result = run_safety_stock_calculation(
+        forecast_comparison_file=args.forecast_comparison_file,
+        product_master_file=args.product_master_file,
+        output_dir=args.output_dir,
+        review_dates=args.review_dates,
+        review_interval_days=args.review_interval
+    )
+    
+    if result is None:
+        print("❌ Safety stock calculation failed")
         sys.exit(1)
+    else:
+        print("\n✅ Safety stock calculation completed successfully!")
 
 
 if __name__ == "__main__":
-    main()
-
-
-# =============================================================================
-# PERIOD REVIEW DATES - HISTORY
-# =============================================================================
-# Review dates have been restored to the original weekly schedule (1st, 8th, 15th, 22nd of each month)
-# on 2025-07-23 after temporarily using monthly review dates (1st of each month)
-#
-# Current active review dates (weekly schedule):
-# [
-#     "2024-04-01", "2024-04-08", "2024-04-15", "2024-04-22",
-#     "2024-05-01", "2024-05-08", "2024-05-15", "2024-05-22",
-#     "2024-06-01", "2024-06-08", "2024-06-15", "2024-06-22",
-#     "2024-07-01", "2024-07-08", "2024-07-15", "2024-07-22",
-#     "2024-08-01", "2024-08-08", "2024-08-15", "2024-08-22",
-#     "2024-09-01", "2024-09-08", "2024-09-15", "2024-09-22",
-#     "2024-10-01", "2024-10-08", "2024-10-15", "2024-10-22",
-#     "2024-11-01", "2024-11-08", "2024-11-15", "2024-11-22",
-#     "2024-12-01", "2024-12-08", "2024-12-15", "2024-12-22",
-#     "2025-01-01", "2025-01-08", "2025-01-15", "2025-01-22",
-#     "2025-02-01", "2025-02-08", "2025-02-15", "2025-02-22",
-#     "2025-03-01", "2025-03-08", "2025-03-15", "2025-03-22",
-#     "2025-04-01"
-# ]
-#
-# Previous monthly review dates (temporarily used):
-# [
-#     "2024-04-01", "2024-05-01", "2024-06-01", "2024-07-01", "2024-08-01", "2024-09-01",
-#     "2024-10-01", "2024-11-01", "2024-12-01", "2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01"
-# ]
-# ============================================================================= 
+    main() 

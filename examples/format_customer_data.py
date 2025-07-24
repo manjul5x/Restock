@@ -153,7 +153,7 @@ def main():
         print("1. Create a product master file with the same product-location combinations")
         print("2. Fill in the product_category column with appropriate categories")
         print("3. Run validation: python validate_customer_data.py customer_demand.csv product_master.csv")
-        print("4. Run backtesting: python run_customer_backtest.py forecaster/data customer_demand.csv product_master.csv")
+        print("4. Run backtesting: python run_unified_backtest.py --data-dir forecaster/data --demand-file customer_demand.csv --product-master-file product_master.csv")
         
     except Exception as e:
         print(f"❌ Error formatting data: {e}")

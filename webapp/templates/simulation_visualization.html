@@ -1,147 +1,159 @@
 {% extends "base.html" %}
 
-{% block title %}Inventory Simulation Visualization{% endblock %}
+{% block title %}Simulation Visualization{% endblock %}
 
 {% block content %}
-<div class="header">
-    <h1><i class="fas fa-warehouse"></i> Inventory Simulation Visualization</h1>
-    <p>Explore how inventory levels would have performed with our forecasting and safety stock recommendations</p>
-</div>
-
-{% if error %}
-<div class="error-message">
-    <i class="fas fa-exclamation-triangle"></i>
-    <strong>Error:</strong> {{ error }}
-</div>
-{% else %}
-
-<!-- Info Card -->
-<div class="info-card">
-    <h4><i class="fas fa-info-circle"></i> About This Visualization</h4>
-    <ul>
-        <li><strong>Actual Inventory:</strong> Light blue bars showing historical inventory levels</li>
-        <li><strong>Simulated Stock on Hand:</strong> Blue line showing what inventory would be if following our recommendations</li>
-        <li><strong>Actual Demand:</strong> Orange line showing actual customer demand</li>
-        <li><strong>Safety Stock:</strong> Red dashed line showing recommended safety stock levels</li>
-        <li><strong>Min/Max Levels:</strong> Green and purple dotted lines showing inventory targets</li>
-        <li><strong>Orders Placed:</strong> Cyan bars showing when orders would be placed</li>
-        <li><strong>Comparison Mode:</strong> Select "All Sources (Compare)" to see regular vs enhanced backtest results side-by-side</li>
-        <li><strong>Enhanced Safety Stock Note:</strong> Enhanced safety stock may show 0 values for early dates due to insufficient historical data for the enhanced calculation method</li>
-    </ul>
-</div>
-
 <div class="row">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-filter"></i> Filter Options</h5>
+    <div class="col-12">
+        <h1 class="mb-4">Inventory Simulation Visualization</h1>
+        
+        <!-- Info Card -->
+        <div class="info-card mb-4">
+            <h4><i class="fas fa-info-circle"></i> About This Visualization</h4>
+            <ul>
+                <li><strong>Simulated Stock on Hand:</strong> Blue line showing what inventory would be if following our recommendations</li>
+                <li><strong>Actual Demand:</strong> Orange dashed line showing actual customer demand</li>
+                <li><strong>Safety Stock:</strong> Red dotted line showing recommended safety stock levels</li>
+                <li><strong>Min/Max Levels:</strong> Green and purple dotted lines showing inventory targets</li>
+                <li><strong>Actual Inventory:</strong> Light blue shaded area showing total inventory including on-order</li>
+                <li><strong>Orders Placed:</strong> Cyan bars showing when orders would be placed</li>
+            </ul>
+        </div>
+        
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% else %}
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Filter Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="simulationForm">
+                            <div class="mb-3">
+                                <label for="products" class="form-label">Products:</label>
+                                <select class="form-select" id="products" name="products" multiple>
+                                    {% for product in products %}
+                                    <option value="{{ product }}" {% if product == default_product %}selected{% endif %}>{{ product }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="locations" class="form-label">Locations:</label>
+                                <select class="form-select" id="locations" name="locations" multiple>
+                                    {% for location in locations %}
+                                    <option value="{{ location }}" {% if location == default_location %}selected{% endif %}>{{ location }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="forecast_methods" class="form-label">Forecast Methods:</label>
+                                <select class="form-select" id="forecast_methods" name="forecast_methods" multiple>
+                                    {% for method in forecast_methods %}
+                                    <option value="{{ method }}" {% if method == default_forecast_method %}selected{% endif %}>{{ method }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Generate Plot</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <form id="simulationForm">
-                    <div class="mb-3">
-                        <label for="product" class="form-label">Product:</label>
-                        <select class="form-select" id="product" name="product" required>
-                            <option value="">Select Product</option>
-                            {% for product in products %}
-                            <option value="{{ product }}">{{ product }}</option>
-                            {% endfor %}
-                        </select>
+            
+            <div class="col-md-8">
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating inventory simulation chart...</p>
+                </div>
+                
+                <div id="plotContainer" style="display: none;">
+                    <div class="plot-container">
+                        <img id="plotImage" class="plot-image" alt="Inventory Simulation">
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="location" class="form-label">Location:</label>
-                        <select class="form-select" id="location" name="location" required>
-                            <option value="">Select Location</option>
-                            {% for location in locations %}
-                            <option value="{{ location }}">{{ location }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Total Products</h6>
+                                <p class="h4 text-primary" id="totalProducts">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Avg Service Level</h6>
+                                <p class="h4 text-success" id="avgServiceLevel">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Avg Stockout Rate</h6>
+                                <p class="h4 text-danger" id="avgStockoutRate">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Avg Inventory Turns</h6>
+                                <p class="h4 text-info" id="avgInventoryTurns">-</p>
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="data_source" class="form-label">Data Source:</label>
-                        <select class="form-select" id="data_source" name="data_source">
-                            <option value="All">All Sources (Compare)</option>
-                            {% for source in data_sources %}
-                            <option value="{{ source }}">{{ source }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-chart-bar"></i> Generate Simulation Plot
-                    </button>
-                </form>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-8">
-        <!-- Plot Container -->
-        <div class="plot-container" id="plotContainer" style="display: none;">
-            <div id="plot"></div>
-        </div>
-
-        <!-- Loading -->
-        <div class="loading" id="loading" style="display: none;">
-            <i class="fas fa-spinner fa-spin fa-2x"></i>
-            <h4>Generating Simulation Plot...</h4>
-            <p>This may take a few moments as we process the data.</p>
-        </div>
+        
+        {% endif %}
     </div>
 </div>
 
-{% endif %}
-{% endblock %}
-
-{% block extra_js %}
 <script>
-    document.getElementById('simulationForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const product = document.getElementById('product').value;
-        const location = document.getElementById('location').value;
-        const dataSource = document.getElementById('data_source').value;
-        
-        if (!product || !location) {
-            showError('Please select both product and location.', 'errorMessage');
+document.getElementById('simulationForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    // Show loading
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('plotContainer').style.display = 'none';
+    
+    fetch('/get_simulation_plot', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
             return;
         }
         
-        showLoading('loading');
-        document.getElementById('plotContainer').style.display = 'none';
+        // Display plot
+        document.getElementById('plotImage').src = 'data:image/png;base64,' + data.plot_url;
+        document.getElementById('totalProducts').textContent = data.summary_stats.total_products;
+        document.getElementById('avgServiceLevel').textContent = (data.summary_stats.avg_service_level * 100).toFixed(1) + '%';
+        document.getElementById('avgStockoutRate').textContent = (data.summary_stats.avg_stockout_rate * 100).toFixed(1) + '%';
+        document.getElementById('avgInventoryTurns').textContent = data.summary_stats.avg_inventory_turns.toFixed(1);
         
-        const formData = new FormData();
-        formData.append('product', product);
-        formData.append('location', location);
-        formData.append('data_source', dataSource);
-        
-        fetch('/get_simulation_plot', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading('loading');
-            
-            if (data.error) {
-                showError(data.error, 'errorMessage');
-                return;
-            }
-            
-            if (data.success && data.image) {
-                const plotContainer = document.getElementById('plotContainer');
-                plotContainer.innerHTML = `<img src="data:image/png;base64,${data.image}" class="img-fluid" alt="Simulation Plot">`;
-                plotContainer.style.display = 'block';
-            } else {
-                showError('No image data received', 'errorMessage');
-            }
-        })
-        .catch(error => {
-            hideLoading('loading');
-            console.error('Error:', error);
-            showError('An error occurred while generating the plot.', 'errorMessage');
-        });
+        // Hide loading and show results
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('plotContainer').style.display = 'block';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error generating plot');
+        document.getElementById('loading').style.display = 'none';
     });
+});
 </script>
 {% endblock %} 

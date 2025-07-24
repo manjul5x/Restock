@@ -22,8 +22,10 @@ logger = get_logger(__name__)
 def run_simulation(data_dir: str = "forecaster/data",
                   order_policy: str = "review_ordering",
                   output_dir: str = "output/simulation",
-                  max_workers: int = None,
-                  product_location_keys: list = None):
+                  max_workers: int = 8,
+                  product_location_keys: list = None,
+                  safety_stock_file: str = None,
+                  forecast_comparison_file: str = None):
     """
     Run inventory simulation.
     
@@ -52,7 +54,12 @@ def run_simulation(data_dir: str = "forecaster/data",
     try:
         # Initialize simulator
         print("\n🔧 Initializing simulator...")
-        simulator = InventorySimulator(data_dir=data_dir, default_policy=order_policy)
+        simulator = InventorySimulator(
+            data_dir=data_dir, 
+            default_policy=order_policy,
+            safety_stock_file=safety_stock_file,
+            forecast_comparison_file=forecast_comparison_file
+        )
         
         # Run simulation
         print("🚀 Running simulation...")
@@ -107,10 +114,14 @@ def main():
                        help="Order policy to use")
     parser.add_argument("--output-dir", default="output/simulation",
                        help="Directory to save results")
-    parser.add_argument("--max-workers", type=int, default=None,
+    parser.add_argument("--max-workers", type=int, default=8,
                        help="Maximum number of parallel workers")
     parser.add_argument("--product-location-keys", nargs="+",
                        help="Specific product-location keys to simulate")
+    parser.add_argument("--safety-stock-file",
+                       help="Path to safety stock results file")
+    parser.add_argument("--forecast-comparison-file",
+                       help="Path to forecast comparison file")
     
     args = parser.parse_args()
     
@@ -125,7 +136,9 @@ def main():
         order_policy=args.order_policy,
         output_dir=args.output_dir,
         max_workers=args.max_workers,
-        product_location_keys=args.product_location_keys
+        product_location_keys=args.product_location_keys,
+        safety_stock_file=args.safety_stock_file,
+        forecast_comparison_file=args.forecast_comparison_file
     )
 
 

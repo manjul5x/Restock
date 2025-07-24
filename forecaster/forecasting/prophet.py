@@ -384,6 +384,9 @@ class ProphetForecaster(BaseForecaster):
         # Prepare data for Prophet (this data is already aggregated into buckets)
         prophet_data = self._prepare_data_for_prophet(data)
 
+        # Store the first date before applying window (for tracking purposes)
+        self.original_first_date = prophet_data['ds'].min().date() if len(prophet_data) > 0 else None
+
         # Apply rolling window if specified (after bucketing)
         if self.window_length is not None and len(prophet_data) > self.window_length:
             # Sort by date and take the most recent window_length data points
@@ -393,6 +396,9 @@ class ProphetForecaster(BaseForecaster):
                 .reset_index(drop=True)
             )
         # If window_length is None, use all available data (no windowing applied)
+
+        # Store the first date of data actually used for forecasting
+        self.first_date_used = prophet_data['ds'].min().date() if len(prophet_data) > 0 else None
 
         # Check if we have enough data for Prophet
         if len(prophet_data) < self.min_data_points:
@@ -629,13 +635,8 @@ class ProphetForecaster(BaseForecaster):
         return self.fit(combined_data)
 
     def get_parameters(self) -> Dict:
-        """
-        Get model parameters
-
-        Returns:
-            Dictionary of parameters
-        """
-        params = {
+        """Get current parameters."""
+        return {
             "changepoint_range": self.changepoint_range,
             "n_changepoints": self.n_changepoints,
             "changepoint_prior_scale": self.changepoint_prior_scale,
@@ -653,15 +654,18 @@ class ProphetForecaster(BaseForecaster):
             "min_data_points": self.min_data_points,
             "window_length": self.window_length,
             "risk_period_days": self.risk_period_days,
-            "is_fitted": self.is_fitted,
-            "using_fallback": self.fallback_forecaster is not None,
+            "method_name": self.name,
         }
-
-        # Add fallback forecaster parameters if using fallback
-        if self.fallback_forecaster is not None:
-            params["fallback_parameters"] = self.fallback_forecaster.get_parameters()
-
-        return params
+    
+    def get_first_date_used(self) -> Optional[date]:
+        """
+        Get the first date of data that was actually used for forecasting
+        (after applying the window).
+        
+        Returns:
+            First date used, or None if no data was used
+        """
+        return self.first_date_used
 
     def set_parameters(self, parameters: Dict) -> "ProphetForecaster":
         """

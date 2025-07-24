@@ -57,7 +57,7 @@ docs = [
 ]
 
 [project.scripts]
-run-backtest = "run_customer_backtest:main"
+run-backtest = "run_unified_backtest:main"
 run-safety-stocks = "run_safety_stock_calculation:main"
 run-simulation = "run_simulation:main"
 

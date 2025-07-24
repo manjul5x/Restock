@@ -1,13 +1,51 @@
-# Quick Start Guide - Inventory Comparison
+# Quick Start Guide - Inventory Forecasting & Analysis System
 
-Follow these simple steps to run the inventory forecasting pipeline and view the inventory comparison results.
+Welcome to the enhanced Inventory Forecasting & Analysis System! This guide will help you get started quickly with the unified pipeline that provides comprehensive inventory insights.
 
-## Step 1: Prepare Your Data
+## 🚀 Quick Overview
+
+This system provides:
+- **Unified Forecasting Pipeline** with Prophet, ARIMA, and Moving Average models
+- **Advanced Backtesting** with performance metrics and visualization
+- **Safety Stock Optimization** with multiple calculation methods
+- **Inventory Simulation** with detailed performance analysis
+- **Interactive Web Interface** with real-time filtering and visualization
+- **Data Validation** to ensure data quality and completeness
+
+## 📋 Prerequisites
+
+- Python 3.8 or higher
+- UV package manager (recommended) or pip
+- Your inventory and demand data
+
+## Step 1: Setup & Installation
+
+### Option A: Using UV (Recommended)
+```bash
+# Install UV if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and setup the project
+git clone <your-repo-url>
+cd Forecaster
+uv sync
+```
+
+### Option B: Using pip
+```bash
+pip install -r requirements.txt
+```
+
+## Step 2: Prepare Your Data
+
 Replace the example data files with your own:
+
+### Required Files:
 - **`forecaster/data/customer_demand.csv`** - Your demand data
 - **`forecaster/data/customer_product_master.csv`** - Your product master data
 
 ### Data Format Requirements
+
 **customer_demand.csv** must have these columns:
 - `product_id` - Product identifier
 - `product_category` - Product category  
@@ -34,31 +72,155 @@ Replace the example data files with your own:
 - `leadtime` - Lead time in demand frequency units (e.g., 7 for weekly = 7 weeks)
 - `inventory_cost` - Unit cost of inventory (optional, default: 0.0)
 
-## Step 2: Install Dependencies
+## Step 3: Run the Complete Workflow
+
+### Option A: Single Command (Recommended)
 ```bash
-pip install -r requirements.txt
+python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
 ```
 
-## Step 3: Run the Pipeline (3 commands)
+This single command runs:
+1. **Data Validation** - Ensures data quality and completeness
+2. **Unified Backtesting** - Tests forecasting models with performance metrics
+3. **Safety Stock Calculation** - Optimizes inventory levels
+4. **Inventory Simulation** - Simulates inventory performance
+5. **Results Generation** - Creates all output files and visualizations
+
+### Option B: Step-by-Step (For Customization)
 ```bash
-# 1. Run backtesting
-python run_customer_backtest.py #loki set your analysis start and end date here. Ask cursor how. Give enough extra buffer on this analysis start so that there history that the safety stock analysis start can use. i.e. keep it 10 months before the analysis start below
+# 1. Validate your data
+python run_data_validation.py
 
-# 2. Calculate safety stocks  
-python run_safety_stock_calculation.py #loki pass your review days here. a list of the first of every month for the analysis period.
+# 2. Run backtesting with unified approach
+python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
 
-# 3. Run simulation
+# 3. Calculate safety stocks (uses default review dates)
+python run_safety_stock_calculation.py
+
+# 4. Run simulation
 python run_simulation.py
 ```
 
 ## Step 4: Start the Web Interface
+
 ```bash
-python webapp/app.py
+python webapp/run.py
 ```
 
-## Step 5: Access Inventory Comparison
-1. Open your web browser
-2. Go to: `http://localhost:5001`
-3. Click on **"Inventory Comparison"** in the navigation menu
-4. The page will automatically load and display the comparison results
+## Step 5: Explore Results
+
+Open your browser and go to `http://localhost:5001`
+
+### Available Pages:
+
+#### 📊 **Forecast Visualization**
+- View historical demand vs. forecasted demand
+- Compare different forecasting methods (Prophet, ARIMA, Moving Average)
+- Filter by product, location, and forecast method
+- Interactive charts with zoom and pan capabilities
+
+#### 📈 **Safety Stocks**
+- Analyze safety stock levels across products and locations
+- View safety stock trends and distributions
+- Filter by product category and location
+- Compare different calculation methods
+
+#### 🎯 **Simulation Visualization**
+- View inventory simulation results
+- Analyze stock levels, stockouts, and performance metrics
+- Filter by product, location, and forecast method
+- Interactive time series charts
+
+#### ⚖️ **Inventory Comparison** ⭐ **NEW!**
+- **Actual vs. Simulated Performance** comparison
+- **Performance Highlighting** - See which metrics improved
+- **Key Metrics**:
+  - Service Level & Stockout Rate
+  - Inventory Days (replacing inventory turns)
+  - Total Inventory Holding (units & cost)
+  - Missed Demand & Stockout Days
+  - Overstocking/Understocking percentages
+- **Compact Display** - All metrics in one organized view
+- **Visual Indicators** - Green checkmarks for improvements, red X for areas needing attention
+
+## 🎯 Key Features
+
+### Enhanced Metrics
+- **Inventory Days**: Average inventory / Average daily demand (lower is better)
+- **Total Inventory Holding**: On-hand + on-order inventory in units and cost
+- **Performance Comparison**: Side-by-side actual vs. simulated metrics
+- **Visual Highlighting**: Immediate identification of improvements
+
+### Improved Workflow
+- **Unified Pipeline**: Consistent approach across all forecasters
+- **Parameter Optimization**: Automatic optimization for each forecasting method
+- **Data Validation**: Comprehensive data quality checks
+- **Default Settings**: Sensible defaults for quick setup
+
+### Better User Experience
+- **Auto-filtering**: Default selections for all pages
+- **Performance Indicators**: Clear visual feedback on improvements
+- **Responsive Design**: Works on desktop and mobile
+- **Real-time Updates**: Dynamic filtering and visualization
+
+## 📁 Output Structure
+
+After running the workflow, you'll find results in:
+```
+output/complete_workflow/
+├── backtesting/
+│   ├── forecast_comparison.csv
+│   ├── forecast_visualization_data.csv
+│   └── backtest_results.csv
+├── safety_stocks/
+│   ├── safety_stock_results.csv
+│   └── safety_stock_plots/
+└── simulation/
+    ├── simulation_summary.csv
+    ├── detailed_results/
+    └── simulation_plots/
+```
+
+## 🔧 Configuration Options
+
+### Analysis Period
+- Set your analysis start and end dates
+- Ensure sufficient historical data (recommend 10+ months before analysis start)
+
+### Review Dates (Safety Stocks)
+- Default: 1st, 8th, 15th, 22nd of every month in 2024
+- Customizable via command line arguments
+
+### Parallel Processing
+- Default: 8 workers for faster processing
+- Adjustable via `--max-workers` parameter
+
+## 🆘 Troubleshooting
+
+### Common Issues:
+1. **Data Format**: Ensure your CSV files match the required format
+2. **Date Range**: Make sure you have sufficient historical data
+3. **Memory**: For large datasets, consider reducing parallel workers
+4. **Dependencies**: Ensure all packages are installed correctly
+
+### Getting Help:
+- Check the `MIGRATION_GUIDE.md` for detailed technical information
+- Review `DATA_VALIDATION_SYSTEM.md` for data requirements
+- See `UNIFIED_PIPELINE_REFACTOR.md` for architecture details
+
+## 🎉 What's New
+
+### Recent Improvements:
+- ✅ **Unified Forecasting Pipeline** - Consistent approach across all models
+- ✅ **Enhanced Web Interface** - Better visualization and user experience
+- ✅ **Performance Highlighting** - Visual indicators for improvements
+- ✅ **Inventory Days Metric** - More intuitive than inventory turns
+- ✅ **Total Inventory Holding** - Complete inventory cost analysis
+- ✅ **Data Validation** - Comprehensive data quality checks
+- ✅ **Streamlined Workflow** - Single command for complete analysis
+- ✅ **Better Documentation** - Comprehensive guides and examples
+
+---
+
+**Ready to get started?** Run `python run_complete_workflow.py` and explore your inventory insights! 🚀
 

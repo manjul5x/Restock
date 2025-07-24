@@ -64,7 +64,7 @@ def create_prophet_filtered_data():
     print(f"  - {filtered_product_master_path}")
     
     print(f"\nTo run the backtest with these files, use:")
-    print(f"python run_customer_backtest.py forecaster/data temp_prophet_demand.csv temp_prophet_product_master.csv")
+    print(f"python run_unified_backtest.py --data-dir forecaster/data --demand-file temp_prophet_demand.csv --product-master-file temp_prophet_product_master.csv")
 
 if __name__ == "__main__":
     create_prophet_filtered_data() 

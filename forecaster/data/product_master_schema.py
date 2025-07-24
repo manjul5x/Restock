@@ -3,7 +3,7 @@ Schema definitions for product master data.
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from datetime import date
 import pandas as pd
 
@@ -33,9 +33,9 @@ class ProductMasterRecord(BaseModel):
     forecast_horizon: int = Field(
         ..., description="Forecasting horizon in risk periods"
     )
-    forecast_method: Optional[str] = Field(
+    forecast_methods: Optional[str] = Field(
         "moving_average",
-        description="Forecasting method: 'moving_average', 'prophet', 'arima'",
+        description="Comma-separated forecasting methods: 'moving_average', 'prophet', 'arima'",
     )
     distribution: Optional[str] = Field(
         "kde", description="Safety stock distribution type: 'kde', 'normal'"
@@ -65,6 +65,27 @@ class ProductMasterRecord(BaseModel):
             raise ValueError("Monthly risk period cannot exceed 12 months")
         return v
 
+    @validator("forecast_methods")
+    def validate_forecast_methods(cls, v):
+        """Validate forecast methods are valid"""
+        if v is None:
+            return "moving_average"
+        
+        valid_methods = {"moving_average", "prophet", "arima"}
+        methods = [method.strip() for method in v.split(",")]
+        
+        invalid_methods = set(methods) - valid_methods
+        if invalid_methods:
+            raise ValueError(f"Invalid forecast methods: {invalid_methods}")
+        
+        return v
+
+    def get_forecast_methods_list(self) -> List[str]:
+        """Get list of forecast methods"""
+        if not self.forecast_methods:
+            return ["moving_average"]
+        return [method.strip() for method in self.forecast_methods.split(",")]
+
 
 class ProductMasterSchema:
     """Schema validation and conversion utilities for product master data"""
@@ -79,6 +100,7 @@ class ProductMasterSchema:
         "inventory_cost",
     ]
     VALID_FREQUENCIES = ["d", "w", "m"]
+    VALID_FORECAST_METHODS = {"moving_average", "prophet", "arima"}
 
     @staticmethod
     def validate_dataframe(df: pd.DataFrame) -> bool:
@@ -139,6 +161,14 @@ class ProductMasterSchema:
         if (monthly_risk > 12).any():
             raise ValueError("Monthly risk period cannot exceed 12 months")
 
+        # Validate forecast methods if present
+        if "forecast_methods" in df.columns:
+            for methods_str in df["forecast_methods"].dropna():
+                methods = [method.strip() for method in methods_str.split(",")]
+                invalid_methods = set(methods) - ProductMasterSchema.VALID_FORECAST_METHODS
+                if invalid_methods:
+                    raise ValueError(f"Invalid forecast methods: {invalid_methods}")
+
         return True
 
     @staticmethod
@@ -172,13 +202,16 @@ class ProductMasterSchema:
         if "forecast_horizon" in df.columns:
             df["forecast_horizon"] = df["forecast_horizon"].astype(int)
 
-        # Handle optional forecast method column
-        if "forecast_method" not in df.columns:
-            df["forecast_method"] = "moving_average"
+        # Handle optional forecast methods column (support both old and new format)
+        if "forecast_methods" not in df.columns:
+            if "forecast_method" in df.columns:
+                # Migrate from old single method to new multiple methods format
+                df["forecast_methods"] = df["forecast_method"].fillna("moving_average")
+                df = df.drop(columns=["forecast_method"])
+            else:
+                df["forecast_methods"] = "moving_average"
         else:
-            df["forecast_method"] = (
-                df["forecast_method"].fillna("moving_average").astype(str)
-            )
+            df["forecast_methods"] = df["forecast_methods"].fillna("moving_average").astype(str)
 
         # Handle optional safety stock columns
         if "distribution" not in df.columns:
@@ -202,6 +235,25 @@ class ProductMasterSchema:
         ).reset_index(drop=True)
 
         return df
+
+    @staticmethod
+    def expand_product_master_for_methods(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Expand product master to create separate rows for each forecast method.
+        This creates the product × location × method combinations.
+        """
+        expanded_rows = []
+        
+        for _, row in df.iterrows():
+            methods = [method.strip() for method in row["forecast_methods"].split(",")]
+            
+            for method in methods:
+                new_row = row.copy()
+                new_row["forecast_method"] = method  # Single method for this row
+                expanded_rows.append(new_row)
+        
+        expanded_df = pd.DataFrame(expanded_rows)
+        return expanded_df.reset_index(drop=True)
 
     @staticmethod
     def get_risk_period_days(frequency: str, risk_period: int) -> int:

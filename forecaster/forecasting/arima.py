@@ -277,10 +277,16 @@ class ARIMAForecaster(BaseForecaster):
         # Prepare data (this data is already aggregated into buckets)
         self.data = self.prepare_data(data)
         
+        # Store the first date before applying window (for tracking purposes)
+        self.original_first_date = self.data['date'].min() if len(self.data) > 0 else None
+        
         # Apply rolling window if specified (after bucketing)
         if self.window_length is not None and len(self.data) > self.window_length:
             # Sort by date and take the most recent window_length data points
             self.data = self.data.sort_values('date').tail(self.window_length).reset_index(drop=True)
+        
+        # Store the first date of data actually used for forecasting
+        self.first_date_used = self.data['date'].min() if len(self.data) > 0 else None
         
         # Check data availability
         data_length = len(self.data)
@@ -416,13 +422,8 @@ class ARIMAForecaster(BaseForecaster):
         return self.fit(combined_data)
     
     def get_parameters(self) -> Dict:
-        """
-        Get model parameters
-        
-        Returns:
-            Dictionary of model parameters
-        """
-        params = {
+        """Get current parameters."""
+        return {
             'window_length': self.window_length,
             'horizon': self.horizon,
             'auto_arima': self.auto_arima,
@@ -434,15 +435,21 @@ class ARIMAForecaster(BaseForecaster):
             'min_data_points': self.min_data_points,
             'order': self.order,
             'seasonal_order': self.seasonal_order,
-            'actual_window_length': self.actual_window_length
+            'actual_window_length': self.actual_window_length,
+            'is_fitted': self.is_fitted,
+            'method_name': self.name
         }
-        
-        if self.model is not None:
-            params['aic'] = self.model.aic
-            params['bic'] = self.model.bic
-            
-        return params
     
+    def get_first_date_used(self) -> Optional[date]:
+        """
+        Get the first date of data that was actually used for forecasting
+        (after applying the window).
+        
+        Returns:
+            First date used, or None if no data was used
+        """
+        return self.first_date_used
+
     def set_parameters(self, parameters: Dict) -> 'ARIMAForecaster':
         """
         Set model parameters

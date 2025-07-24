@@ -3,9 +3,10 @@ Backtesting module for historical forecasting simulation.
 """
 
 from .config import BacktestConfig
-from .backtester import Backtester
+from .unified_backtester import UnifiedBacktester, run_unified_backtest
 
 __all__ = [
     'BacktestConfig',
-    'Backtester'
+    'UnifiedBacktester',
+    'run_unified_backtest'
 ]
