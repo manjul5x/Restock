@@ -1,3 +1,22 @@
 product_id,location_id,product_category,demand_frequency,risk_period,forecast_window_length,forecast_horizon,forecast_methods,outlier_method,outlier_threshold,distribution,service_level,ss_window_length,leadtime,inventory_cost
-RSWQ,WB,General,d,13,25,7,"moving_average, prophet",no,2.0,kde,0.95,180,6,0
-IBWQ,WB,General,d,11,25,7,"moving_average, prophet",no,2.0,kde,0.95,180,4,0
+BPRN,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+BPRP,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+BPRQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+BPWN,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+BPWP,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+BPWQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+HPSN,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+HPSQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+HPTQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+IBWP,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+IBWQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+OGWN,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+OGWP,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+OGWQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSSN,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSSP,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSSQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSWH,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSWN,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSWP,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0
+RSWQ,WB,General,d,16,25,4,prophet,no,2.0,kde,0.95,180,7,0

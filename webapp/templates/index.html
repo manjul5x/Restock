@@ -277,10 +277,10 @@ function generatePlot() {
         contentType: false,
         success: function(response) {
             $('#loading').hide();
-            if (response.success) {
+            if (response.plot_url) {
                 // Display the base64 image
                 const img = $('<img>', {
-                    src: 'data:image/png;base64,' + response.image,
+                    src: 'data:image/png;base64,' + response.plot_url,
                     class: 'img-fluid',
                     style: 'max-width: 100%; height: auto;'
                 });

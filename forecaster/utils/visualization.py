@@ -749,3 +749,206 @@ class DemandVisualizer:
             fig: Matplotlib figure object
         """
         plt.show()
+
+    def generate_plot(
+        self,
+        plot_type: str = "demand_trend",
+        locations: Optional[List[str]] = None,
+        categories: Optional[List[str]] = None,
+        products: Optional[List[str]] = None,
+        time_aggregation: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        group_by: Optional[List[str]] = None,
+        figsize: Tuple[int, int] = (12, 6),
+        title: Optional[str] = None,
+    ) -> plt.Figure:
+        """
+        Generate a plot based on the specified plot type and parameters.
+
+        Args:
+            plot_type: Type of plot to generate ('demand_trend', 'category_comparison',
+                     'location_comparison', 'demand_decomposition', 'sku_location_demand')
+            locations: List of location IDs to include
+            categories: List of product categories to include
+            products: List of product IDs to include
+            time_aggregation: Time aggregation level ('daily', 'weekly', 'monthly', 'risk_period')
+            start_date: Start date for filtering
+            end_date: End date for filtering
+            group_by: Columns to group by for aggregation
+            figsize: Figure size (width, height)
+            title: Plot title
+
+        Returns:
+            Matplotlib figure object
+        """
+        if plot_type == "demand_trend":
+            return self.plot_demand_trend(
+                locations=locations,
+                categories=categories,
+                products=products,
+                start_date=start_date,
+                end_date=end_date,
+                group_by=group_by,
+                time_aggregation=time_aggregation,
+                figsize=figsize,
+                title=title,
+            )
+        elif plot_type == "category_comparison":
+            return self.plot_category_comparison(
+                locations=locations,
+                start_date=start_date,
+                end_date=end_date,
+                time_aggregation=time_aggregation,
+                figsize=figsize,
+                title=title,
+            )
+        elif plot_type == "location_comparison":
+            return self.plot_location_comparison(
+                categories=categories,
+                start_date=start_date,
+                end_date=end_date,
+                time_aggregation=time_aggregation,
+                figsize=figsize,
+                title=title,
+            )
+        elif plot_type == "demand_decomposition":
+            return self.plot_demand_decomposition(
+                locations=locations,
+                categories=categories,
+                products=products,
+                start_date=start_date,
+                end_date=end_date,
+                time_aggregation=time_aggregation,
+                figsize=figsize,
+                title=title,
+            )
+        elif plot_type == "sku_location_demand":
+            # For SKU-location demand, we need specific SKU-location pairs
+            # This would need to be handled differently in the webapp
+            # For now, we'll use a default approach
+            if products and locations:
+                sku_location_pairs = [
+                    (prod, loc) for prod in products for loc in locations
+                ]
+                return self.plot_sku_location_demand(
+                    sku_location_pairs=sku_location_pairs,
+                    start_date=start_date,
+                    end_date=end_date,
+                    figsize=figsize,
+                    title=title,
+                )
+            else:
+                # Fallback to demand trend if no specific SKU-location pairs
+                return self.plot_demand_trend(
+                    locations=locations,
+                    categories=categories,
+                    products=products,
+                    start_date=start_date,
+                    end_date=end_date,
+                    group_by=group_by,
+                    time_aggregation=time_aggregation,
+                    figsize=figsize,
+                    title=title,
+                )
+        else:
+            # Default to demand trend
+            return self.plot_demand_trend(
+                locations=locations,
+                categories=categories,
+                products=products,
+                start_date=start_date,
+                end_date=end_date,
+                group_by=group_by,
+                time_aggregation=time_aggregation,
+                figsize=figsize,
+                title=title,
+            )
+
+    def get_data_summary(self) -> Dict:
+        """
+        Get summary statistics for the demand data.
+
+        Returns:
+            Dictionary containing summary statistics
+        """
+        try:
+            # Basic statistics
+            total_demand = self.data["demand"].sum()
+            avg_demand = self.data["demand"].mean()
+            std_demand = self.data["demand"].std()
+            min_demand = self.data["demand"].min()
+            max_demand = self.data["demand"].max()
+
+            # Date range
+            date_range = self.data["date"].agg(["min", "max"])
+            start_date = date_range["min"].strftime("%Y-%m-%d")
+            end_date = date_range["max"].strftime("%Y-%m-%d")
+
+            # Counts
+            total_records = len(self.data)
+            unique_products = self.data["product_id"].nunique()
+            unique_locations = self.data["location_id"].nunique()
+            unique_categories = self.data["product_category"].nunique()
+
+            # Top products by demand
+            top_products = (
+                self.data.groupby("product_id")["demand"]
+                .sum()
+                .sort_values(ascending=False)
+                .head(5)
+                .to_dict()
+            )
+
+            # Top locations by demand
+            top_locations = (
+                self.data.groupby("location_id")["demand"]
+                .sum()
+                .sort_values(ascending=False)
+                .head(5)
+                .to_dict()
+            )
+
+            # Top categories by demand
+            top_categories = (
+                self.data.groupby("product_category")["demand"]
+                .sum()
+                .sort_values(ascending=False)
+                .head(5)
+                .to_dict()
+            )
+
+            return {
+                "total_demand": float(total_demand),
+                "avg_demand": float(avg_demand),
+                "std_demand": float(std_demand),
+                "min_demand": float(min_demand),
+                "max_demand": float(max_demand),
+                "start_date": start_date,
+                "end_date": end_date,
+                "total_records": int(total_records),
+                "unique_products": int(unique_products),
+                "unique_locations": int(unique_locations),
+                "unique_categories": int(unique_categories),
+                "top_products": top_products,
+                "top_locations": top_locations,
+                "top_categories": top_categories,
+            }
+        except Exception as e:
+            return {
+                "error": f"Failed to generate summary: {str(e)}",
+                "total_demand": 0,
+                "avg_demand": 0,
+                "std_demand": 0,
+                "min_demand": 0,
+                "max_demand": 0,
+                "start_date": "",
+                "end_date": "",
+                "total_records": 0,
+                "unique_products": 0,
+                "unique_locations": 0,
+                "unique_categories": 0,
+                "top_products": {},
+                "top_locations": {},
+                "top_categories": {},
+            }

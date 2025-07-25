@@ -182,10 +182,7 @@
                     <!-- Best Model Parameters -->
                     <div id="bestModelParameters"></div>
                     
-                    <!-- Model Parameters -->
-                    <div id="modelParameters"></div>
-                    
-                    <!-- Forecast Chart -->
+                    <!-- Forecast Charts -->
                     <div id="forecastChart"></div>
                 </div>
             </div>
@@ -263,10 +260,7 @@ $(document).ready(function() {
         // Display best model parameters
         displayBestModelParameters(results.recommendations);
         
-        // Display model parameters
-        displayModelParameters(results.model_parameters);
-        
-        // Display forecast chart
+        // Display forecast charts
         displayForecastChart(results.forecast_data);
     }
     
@@ -453,39 +447,7 @@ $(document).ready(function() {
         $('#bestModelParameters').html(html);
     }
     
-    function displayModelParameters(parameters) {
-        var html = '<h5 class="mt-4"><i class="fas fa-cogs me-2"></i>Model Parameters</h5>';
-        html += '<div class="row">';
-        
-        var paramGroups = {
-            'Core Parameters': ['changepoint_range', 'n_changepoints', 'changepoint_prior_scale', 'seasonality_prior_scale', 'holidays_prior_scale'],
-            'Seasonality Settings': ['seasonality_mode', 'weekly_seasonality', 'daily_seasonality'],
-            'Indian Market Features': ['include_indian_holidays', 'include_quarterly_effects', 'include_monthly_effects', 'include_festival_seasons', 'include_monsoon_effect'],
-            'Data Settings': ['min_data_points', 'window_length', 'risk_period_days']
-        };
-        
-        for (var groupName in paramGroups) {
-            html += '<div class="col-md-6 mb-3">';
-            html += '<h6>' + groupName + '</h6>';
-            html += '<ul class="list-unstyled">';
-            
-            paramGroups[groupName].forEach(function(param) {
-                if (parameters[param] !== undefined) {
-                    var value = parameters[param];
-                    if (typeof value === 'boolean') {
-                        value = value ? 'Yes' : 'No';
-                    }
-                    html += '<li><strong>' + param.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ':</strong> ' + value + '</li>';
-                }
-            });
-            
-            html += '</ul>';
-            html += '</div>';
-        }
-        
-        html += '</div>';
-        $('#modelParameters').html(html);
-    }
+
     
     function displayForecastChart(forecastData) {
         if (!forecastData) {
@@ -493,35 +455,90 @@ $(document).ready(function() {
             return;
         }
         
-        var html = '<h5 class="mt-4"><i class="fas fa-chart-line me-2"></i>Demand Forecast with Best Parameters</h5>';
-        html += '<p class="text-muted">Showing historical demand and 4-month forecast using optimized model parameters</p>';
-        html += '<div id="forecastChartContainer" style="height: 500px;"></div>';
+        var html = '<h5 class="mt-4"><i class="fas fa-chart-line me-2"></i>Demand Forecast Comparison</h5>';
+        html += '<p class="text-muted">Showing historical demand and 4-month forecast comparison between default and optimized parameters</p>';
+        
+        // Create two chart containers stacked vertically
+        html += '<div class="row">';
+        html += '<div class="col-12 mb-4">';
+        html += '<h6 class="text-center">Default Parameters</h6>';
+        html += '<div id="defaultForecastChart" style="height: 400px;"></div>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="row">';
+        html += '<div class="col-12">';
+        html += '<h6 class="text-center">Optimized Parameters</h6>';
+        html += '<div id="optimizedForecastChart" style="height: 400px;"></div>';
+        html += '</div>';
+        html += '</div>';
         
         $('#forecastChart').html(html);
         
-        // Create the forecast chart using Plotly
-        var trace1 = {
+        // Create the default forecast chart
+        var defaultTrace1 = {
             x: forecastData.historical_dates,
             y: forecastData.historical_demands,
             type: 'scatter',
             mode: 'lines+markers',
             name: 'Historical Demand',
             line: {color: '#007bff', width: 2},
-            marker: {size: 6}
+            marker: {size: 4}
         };
         
-        var trace2 = {
-            x: forecastData.forecast_dates,
-            y: forecastData.forecast_values,
+        var defaultTrace2 = {
+            x: forecastData.default_forecast_dates,
+            y: forecastData.default_forecast_values,
             type: 'scatter',
             mode: 'lines+markers',
-            name: 'Forecast (4 months)',
+            name: 'Default Forecast',
             line: {color: '#dc3545', width: 2, dash: 'dash'},
-            marker: {size: 6}
+            marker: {size: 4}
         };
         
-        var layout = {
-            title: 'Demand Series and Forecast',
+        var defaultLayout = {
+            title: 'Default Parameters',
+            xaxis: {
+                title: 'Date',
+                showgrid: true,
+                gridcolor: '#f0f0f0'
+            },
+            yaxis: {
+                title: 'Demand',
+                showgrid: true,
+                gridcolor: '#f0f0f0'
+            },
+            hovermode: 'closest',
+            legend: {
+                x: 0,
+                y: 1,
+                orientation: 'h'
+            },
+            margin: {l: 60, r: 30, t: 60, b: 60}
+        };
+        
+        // Create the optimized forecast chart
+        var optimizedTrace1 = {
+            x: forecastData.historical_dates,
+            y: forecastData.historical_demands,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Historical Demand',
+            line: {color: '#007bff', width: 2},
+            marker: {size: 4}
+        };
+        
+        var optimizedTrace2 = {
+            x: forecastData.optimized_forecast_dates,
+            y: forecastData.optimized_forecast_values,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Optimized Forecast',
+            line: {color: '#28a745', width: 2, dash: 'dash'},
+            marker: {size: 4}
+        };
+        
+        var optimizedLayout = {
+            title: 'Optimized Parameters',
             xaxis: {
                 title: 'Date',
                 showgrid: true,
@@ -547,7 +564,9 @@ $(document).ready(function() {
             modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
         };
         
-        Plotly.newPlot('forecastChartContainer', [trace1, trace2], layout, config);
+        // Plot both charts
+        Plotly.newPlot('defaultForecastChart', [defaultTrace1, defaultTrace2], defaultLayout, config);
+        Plotly.newPlot('optimizedForecastChart', [optimizedTrace1, optimizedTrace2], optimizedLayout, config);
     }
     
     function showError(message) {

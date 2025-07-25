@@ -28,6 +28,7 @@ def run_unified_backtest_script(
     max_workers: int = 8,
     batch_size: int = 20,
     outlier_enabled: bool = True,
+    log_level: str = "INFO",
 ):
     """Run unified backtesting on customer data with method-specific parameter optimization."""
 
@@ -35,7 +36,7 @@ def run_unified_backtest_script(
     if not analysis_start_date:
         print("❌ Error: analysis_start_date is required")
         return False
-    
+
     if not analysis_end_date:
         print("❌ Error: analysis_end_date is required")
         return False
@@ -79,7 +80,7 @@ def run_unified_backtest_script(
         outlier_enabled=outlier_enabled,
         aggregation_enabled=True,
         # Logging
-        log_level="INFO",
+        log_level=log_level,
     )
 
     # Validate configuration
@@ -114,28 +115,37 @@ def run_unified_backtest_script(
     print(f"🚀 Max Workers: {max_workers}")
     print(f"🔍 Outlier Handling: {'Enabled' if outlier_enabled else 'Disabled'}")
     print("=" * 70)
+    print("⏱️  Starting backtesting process...")
+    print("📊 Progress tracking and logging enabled")
+    print("=" * 70)
 
     try:
         # Run unified backtesting
         result = run_unified_backtest_func(config)
-        
+
         # The result is the summary itself, not a dict with success field
         print("\n✅ Unified backtesting completed successfully!")
         print(f"📁 Results saved to: {output_dir}")
-        
+
         # Print summary
         if result:
             print(f"⏱️  Total time: {result.get('execution_time', 0):.2f} seconds")
-            print(f"📊 Total forecasts: {result.get('results_summary', {}).get('total_forecasts', 0)}")
-            print(f"📈 Total comparisons: {result.get('results_summary', {}).get('total_comparisons', 0)}")
-            print(f"🔧 Products optimized: {result.get('results_summary', {}).get('products_optimized', 0)}")
-        
+            print(
+                f"📊 Total forecasts: {result.get('results_summary', {}).get('total_forecasts', 0)}"
+            )
+            print(
+                f"📈 Total comparisons: {result.get('results_summary', {}).get('total_comparisons', 0)}"
+            )
+            print(
+                f"🔧 Products optimized: {result.get('results_summary', {}).get('products_optimized', 0)}"
+            )
+
         return True
-            
+
     except Exception as e:
         print(f"❌ Error during unified backtesting: {e}")
         return False
-            
+
     except Exception as e:
         print(f"❌ Error during unified backtesting: {e}")
         return False
@@ -144,7 +154,7 @@ def run_unified_backtest_script(
 def main():
     """Main function for command line usage."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(
         description="Run unified backtesting with method-specific parameter optimization",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -161,37 +171,71 @@ Examples:
 
   # Without outlier handling
   python run_unified_backtest.py --data-dir forecaster/data --demand-file customer_demand.csv --product-master-file customer_product_master.csv --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --no-outliers
-        """
+
+  # With custom log level for progress tracking
+  python run_unified_backtest.py --data-dir forecaster/data --demand-file customer_demand.csv --product-master-file customer_product_master.csv --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --log-level DEBUG
+        """,
     )
-    
+
     # Required arguments
-    parser.add_argument("--data-dir", required=True,
-                       help="Directory containing data files")
-    parser.add_argument("--demand-file", required=True,
-                       help="Demand data file name")
-    parser.add_argument("--product-master-file", required=True,
-                       help="Product master file name")
-    parser.add_argument("--analysis-start-date", required=True,
-                       help="Analysis start date (YYYY-MM-DD format)")
-    parser.add_argument("--analysis-end-date", required=True,
-                       help="Analysis end date (YYYY-MM-DD format)")
-    
+    parser.add_argument(
+        "--data-dir", required=True, help="Directory containing data files"
+    )
+    parser.add_argument("--demand-file", required=True, help="Demand data file name")
+    parser.add_argument(
+        "--product-master-file", required=True, help="Product master file name"
+    )
+    parser.add_argument(
+        "--analysis-start-date",
+        required=True,
+        help="Analysis start date (YYYY-MM-DD format)",
+    )
+    parser.add_argument(
+        "--analysis-end-date",
+        required=True,
+        help="Analysis end date (YYYY-MM-DD format)",
+    )
+
     # Optional arguments
-    parser.add_argument("--output-dir", default="output/unified_backtest",
-                       help="Output directory (default: output/unified_backtest)")
-    parser.add_argument("--historic-start-date",
-                       help="Historic start date (YYYY-MM-DD format, default: 1 year before analysis start)")
-    parser.add_argument("--demand-frequency", default="d", choices=["d", "w", "m"],
-                       help="Demand frequency: 'd' for daily, 'w' for weekly, 'm' for monthly (default: d)")
-    parser.add_argument("--batch-size", type=int, default=20,
-                       help="Batch size for processing (default: 20)")
-    parser.add_argument("--max-workers", type=int, default=8,
-                       help="Maximum number of parallel workers (default: 8)")
-    parser.add_argument("--no-outliers", action="store_true",
-                       help="Disable outlier handling")
-    
+    parser.add_argument(
+        "--output-dir",
+        default="output/unified_backtest",
+        help="Output directory (default: output/unified_backtest)",
+    )
+    parser.add_argument(
+        "--historic-start-date",
+        help="Historic start date (YYYY-MM-DD format, default: 1 year before analysis start)",
+    )
+    parser.add_argument(
+        "--demand-frequency",
+        default="d",
+        choices=["d", "w", "m"],
+        help="Demand frequency: 'd' for daily, 'w' for weekly, 'm' for monthly (default: d)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=20,
+        help="Batch size for processing (default: 20)",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=8,
+        help="Maximum number of parallel workers (default: 8)",
+    )
+    parser.add_argument(
+        "--no-outliers", action="store_true", help="Disable outlier handling"
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level (default: INFO)",
+    )
+
     args = parser.parse_args()
-    
+
     # Run unified backtesting
     success = run_unified_backtest_script(
         data_dir=args.data_dir,
@@ -205,8 +249,9 @@ Examples:
         max_workers=args.max_workers,
         batch_size=args.batch_size,
         outlier_enabled=not args.no_outliers,
+        log_level=args.log_level,
     )
-    
+
     if success:
         print("\n🎉 Unified backtesting completed successfully!")
         sys.exit(0)
@@ -216,4 +261,4 @@ Examples:
 
 
 if __name__ == "__main__":
-    main() 
+    main()
