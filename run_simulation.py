@@ -19,9 +19,7 @@ from forecaster.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def run_simulation(data_dir: str = "forecaster/data",
-                  order_policy: str = "review_ordering",
-                  output_dir: str = "output/simulation",
+def run_simulation(order_policy: str = "review_ordering",
                   max_workers: int = 8,
                   product_location_keys: list = None,
                   safety_stock_file: str = None,
@@ -30,11 +28,11 @@ def run_simulation(data_dir: str = "forecaster/data",
     Run inventory simulation.
     
     Args:
-        data_dir: Directory containing data files
         order_policy: Order policy to use
-        output_dir: Directory to save results
         max_workers: Maximum number of parallel workers
         product_location_keys: Specific product-location keys to simulate (None for all)
+        safety_stock_file: Path to safety stock results file (optional)
+        forecast_comparison_file: Path to forecast comparison file (optional)
     """
     
     print("🔍 Inventory Simulation")
@@ -48,14 +46,11 @@ def run_simulation(data_dir: str = "forecaster/data",
         sys.exit(1)
     
     print(f"📋 Order Policy: {order_policy}")
-    print(f"📁 Data Directory: {data_dir}")
-    print(f"📊 Output Directory: {output_dir}")
     
     try:
         # Initialize simulator
         print("\n🔧 Initializing simulator...")
         simulator = InventorySimulator(
-            data_dir=data_dir, 
             default_policy=order_policy,
             safety_stock_file=safety_stock_file,
             forecast_comparison_file=forecast_comparison_file
@@ -74,7 +69,7 @@ def run_simulation(data_dir: str = "forecaster/data",
         
         # Save results
         print("\n💾 Saving results...")
-        output_files = simulator.save_results(output_dir)
+        simulator.save_results()
         
         # Display summary
         print("\n📊 Simulation Summary:")
@@ -92,10 +87,6 @@ def run_simulation(data_dir: str = "forecaster/data",
             print(f"  Average stockout rate: {avg_stockout_rate:.2%}")
             print(f"  Average inventory turns: {avg_inventory_turns:.2f}")
         
-        print(f"\n📁 Results saved to:")
-        print(f"  Summary: {output_files['summary_file']}")
-        print(f"  Detailed: {output_files['detailed_dir']}")
-        
         print("\n✅ Simulation completed successfully!")
         
     except Exception as e:
@@ -107,13 +98,10 @@ def run_simulation(data_dir: str = "forecaster/data",
 def main():
     """Main function."""
     parser = argparse.ArgumentParser(description="Run inventory simulation")
-    parser.add_argument("--data-dir", default="forecaster/data", 
-                       help="Directory containing data files")
+    # Note: Data paths are now handled by DataLoader configuration
     parser.add_argument("--order-policy", default="review_ordering",
                        choices=OrderPolicyFactory.list_policies(),
                        help="Order policy to use")
-    parser.add_argument("--output-dir", default="output/simulation",
-                       help="Directory to save results")
     parser.add_argument("--max-workers", type=int, default=8,
                        help="Maximum number of parallel workers")
     parser.add_argument("--product-location-keys", nargs="+",
@@ -125,16 +113,10 @@ def main():
     
     args = parser.parse_args()
     
-    # Validate data directory
-    if not Path(args.data_dir).exists():
-        print(f"❌ Error: Data directory not found: {args.data_dir}")
-        sys.exit(1)
-    
+
     # Run simulation
     run_simulation(
-        data_dir=args.data_dir,
         order_policy=args.order_policy,
-        output_dir=args.output_dir,
         max_workers=args.max_workers,
         product_location_keys=args.product_location_keys,
         safety_stock_file=args.safety_stock_file,

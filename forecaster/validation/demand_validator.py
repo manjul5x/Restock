@@ -8,14 +8,14 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 from datetime import date, timedelta
 from pathlib import Path
-from .loader import DemandDataLoader
+from data.loader import DataLoader
 from .product_master_schema import ProductMasterSchema
 
 class DemandValidator:
     """Utilities for validating demand data completeness and frequency"""
     
-    def __init__(self, data_loader: DemandDataLoader = None):
-        self.data_loader = data_loader or DemandDataLoader()
+    def __init__(self, data_loader: DataLoader = None):
+        self.data_loader = data_loader or DataLoader()
     
     def detect_demand_frequency(self, dates: pd.Series) -> str:
         """

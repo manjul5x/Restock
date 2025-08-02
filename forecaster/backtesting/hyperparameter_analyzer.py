@@ -23,7 +23,7 @@ import sys
 import os
 
 from .config import BacktestConfig
-from ..data.loader import DemandDataLoader
+from data.loader import DataLoader
 from ..forecasting.prophet import ProphetForecaster, create_prophet_forecaster
 from ..forecasting.base import calculate_forecast_metrics
 from ..utils.logger import ForecasterLogger
@@ -54,18 +54,11 @@ class HyperparameterAnalyzer:
         """Load demand and product master data."""
         self.logger.info("Loading data for hyperparameter analysis")
 
-        # Load demand data using config data directory
-        data_loader = DemandDataLoader(self.config.data_dir)
+        # Load demand data using the new DataLoader
+        data_loader = DataLoader()
 
-        # Load demand data - try customer demand first, then fallback to dummy data
-        try:
-            self.demand_data = data_loader.load_customer_demand()
-        except FileNotFoundError:
-            # Fallback to dummy data
-            self.demand_data = data_loader.load_dummy_data("daily")
-
-        # Load product master data (use daily frequency)
-        self.product_master_data = data_loader.load_product_master_daily()
+        self.demand_data = data_loader.load_outflow()
+        self.product_master_data = data_loader.load_product_master()
 
         self.logger.info(
             f"Loaded {len(self.demand_data)} demand records and {len(self.product_master_data)} product records"
@@ -634,14 +627,10 @@ class HyperparameterAnalyzer:
 
         return analysis
 
-    def generate_visualization_plots(
-        self, output_dir: str = "output/hyperparameter_analysis"
-    ) -> Dict[str, str]:
+    def generate_visualization_plots(self) -> Dict[str, str]:
         """
         Generate comprehensive visualization plots for hyperparameter analysis.
-
-        Args:
-            output_dir: Directory to save plots
+        Uses DataLoader for output paths.
 
         Returns:
             Dictionary with plot file paths
@@ -649,8 +638,11 @@ class HyperparameterAnalyzer:
         if not self.analysis_results:
             raise ValueError("No analysis results available. Run analysis first.")
 
-        # Create output directory
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        # Get output directory from DataLoader
+        from data.loader import DataLoader
+        loader = DataLoader()
+        output_dir = loader.get_output_path("hyperparameter_analysis", "")
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # Set up plotting style
         plt.style.use("default")
@@ -659,22 +651,16 @@ class HyperparameterAnalyzer:
         plot_files = {}
 
         # 1. Parameter Performance Comparison
-        plot_files["parameter_comparison"] = self._create_parameter_comparison_plot(
-            output_dir
-        )
+        plot_files["parameter_comparison"] = self._create_parameter_comparison_plot(output_dir)
 
         # 2. Individual Parameter Effects
-        plot_files["parameter_effects"] = self._create_parameter_effects_plot(
-            output_dir
-        )
+        plot_files["parameter_effects"] = self._create_parameter_effects_plot(output_dir)
 
         # 3. Best Parameters Summary
         plot_files["best_parameters"] = self._create_best_parameters_plot(output_dir)
 
         # 4. Performance Distribution
-        plot_files["performance_distribution"] = (
-            self._create_performance_distribution_plot(output_dir)
-        )
+        plot_files["performance_distribution"] = self._create_performance_distribution_plot(output_dir)
 
         return plot_files
 

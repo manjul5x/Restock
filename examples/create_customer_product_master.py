@@ -102,19 +102,21 @@ def create_product_master(demand_file: str, output_file: str):
 
 def main():
     """Main function."""
+    # Initialize DataLoader
+    loader = DataLoader()
+    
     # Define paths
-    demand_file = "forecaster/data/customer_demand.csv"
-    output_file = "forecaster/data/customer_product_master.csv"
+    demand_file = loader.get_output_path("customer_data", "customer_demand.csv")
+    output_file = loader.get_output_path("customer_data", "customer_product_master.csv")
 
     # Check if demand file exists
-    if not Path(demand_file).exists():
+    if not demand_file.exists():
         print(f"❌ Demand file not found: {demand_file}")
         print("Please run format_customer_data.py first to create the demand file.")
         sys.exit(1)
 
     # Create output directory if it doesn't exist
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Create the product master
     try:

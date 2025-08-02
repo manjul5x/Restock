@@ -10,8 +10,8 @@ import pandas as pd
 import sys
 from pathlib import Path
 from datetime import datetime
-from forecaster.data.schema import DemandSchema
-from forecaster.data.product_master_schema import ProductMasterSchema
+from forecaster.validation.schema import DemandSchema
+from forecaster.validation.product_master_schema import ProductMasterSchema
 
 
 def validate_demand_data(file_path: str) -> dict:

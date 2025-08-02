@@ -16,6 +16,9 @@ from .schema_validator import SchemaValidator
 from .completeness_validator import CompletenessValidator
 from .quality_validator import QualityValidator
 from .coverage_validator import CoverageValidator
+from .schema import DemandSchema, DemandRecord
+from .product_master_schema import ProductMasterSchema, ProductMasterRecord
+from .demand_validator import DemandValidator, validate_demand_completeness, generate_completeness_report
 
 __all__ = [
     'DataValidator',
@@ -26,5 +29,12 @@ __all__ = [
     'SchemaValidator',
     'CompletenessValidator',
     'QualityValidator',
-    'CoverageValidator'
+    'CoverageValidator',
+    'DemandSchema',
+    'DemandRecord',
+    'ProductMasterSchema',
+    'ProductMasterRecord',
+    'DemandValidator',
+    'validate_demand_completeness',
+    'generate_completeness_report'
 ] 

@@ -13,11 +13,7 @@ import os
 class BacktestConfig:
     """Configuration for backtesting runs."""
 
-    # Data paths
-    data_dir: str = "forecaster/data/dummy"
-    demand_file: str = "sku_demand_daily.csv"
-    product_master_file: str = "product_master_daily.csv"
-    output_dir: str = "output/backtest"
+    # Output directory (will be set by DataLoader)
 
     # Backtesting parameters
     historic_start_date: date = field(default_factory=lambda: date(2022, 1, 1))
@@ -44,39 +40,41 @@ class BacktestConfig:
 
     def __post_init__(self):
         """Post-initialization setup."""
-        # Create output directory
-        Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+        # Initialize DataLoader
+        from data.loader import DataLoader
+        self.loader = DataLoader()
 
         # Set log file name if not provided
         if self.log_file is None:
             from datetime import datetime
-
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.log_file = f"{self.output_dir}/backtest_run_{timestamp}.log"
+            self.log_file = str(self.loader.get_output_path("backtesting", f"backtest_run_{timestamp}.log"))
 
     def get_demand_file_path(self) -> Path:
         """Get full path to demand file."""
-        return Path(self.data_dir) / self.demand_file
+        return self.loader.get_output_path("customer_data", "customer_demand.csv")
 
     def get_product_master_file_path(self) -> Path:
         """Get full path to product master file."""
-        return Path(self.data_dir) / self.product_master_file
+        return self.loader.get_output_path("customer_data", "customer_product_master.csv")
 
     def get_backtest_results_path(self) -> Path:
         """Get path for backtest results file."""
-        return Path(self.output_dir) / "backtest_results.csv"
+        return self.loader.get_output_path("backtesting", "backtest_results.csv")
 
     def get_accuracy_metrics_path(self) -> Path:
         """Get path for accuracy metrics file."""
-        return Path(self.output_dir) / "accuracy_metrics.csv"
+        return self.loader.get_output_path("backtesting", "accuracy_metrics.csv")
 
     def get_forecast_comparison_path(self) -> Path:
         """Get path for forecast vs actual comparison file."""
-        return Path(self.output_dir) / "forecast_comparison.csv"
+        filename = self.loader.config['paths']['output_files']['forecast_comparison']
+        return self.loader.get_output_path("backtesting", filename)
 
     def get_forecast_visualization_path(self) -> Path:
         """Get path for enhanced forecast visualization data file."""
-        return Path(self.output_dir) / "forecast_visualization_data.csv"
+        filename = self.loader.config['paths']['output_files']['forecast_visualization']
+        return self.loader.get_output_path("backtesting", filename)
 
     def validate_dates(self) -> bool:
         """Validate that the dates are in correct order."""

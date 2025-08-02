@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, date, timedelta
 import time
 
-from ..data.demand_validator import DemandValidator
+from .demand_validator import DemandValidator
 from .types import ValidationResult, ValidationIssue, ValidationSeverity
 
 

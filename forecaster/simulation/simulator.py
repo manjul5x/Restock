@@ -31,21 +31,18 @@ class InventorySimulator:
     Designed for efficient parallel processing of thousands of product lines.
     """
     
-    def __init__(self, data_dir: str = "forecaster/data", 
-                 default_policy: str = "review_ordering",
+    def __init__(self, default_policy: str = "review_ordering",
                  safety_stock_file: str = None,
                  forecast_comparison_file: str = None):
         """
         Initialize the inventory simulator.
         
         Args:
-            data_dir: Directory containing data files
             default_policy: Default order policy to use
             safety_stock_file: Path to safety stock results file (optional)
             forecast_comparison_file: Path to forecast comparison file (optional)
         """
         self.data_loader = SimulationDataLoader(
-            data_dir, 
             safety_stock_file=safety_stock_file,
             forecast_comparison_file=forecast_comparison_file
         )
@@ -286,19 +283,13 @@ class InventorySimulator:
         
         return metrics
     
-    def save_results(self, output_dir: str = "output/simulation"):
+    def save_results(self):
         """
-        Save simulation results to files.
-        
-        Args:
-            output_dir: Directory to save results
+        Save simulation results to files using DataLoader.
         """
         if not self.results:
             logger.warning("No results to save")
             return
-        
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
         
         # Save summary metrics
         summary_data = []
@@ -319,14 +310,9 @@ class InventorySimulator:
             summary_data.append(summary_row)
         
         summary_df = pd.DataFrame(summary_data)
-        summary_file = output_path / "simulation_summary.csv"
-        summary_df.to_csv(summary_file, index=False)
-        logger.info(f"Saved simulation summary to {summary_file}")
+        self.data_loader.loader.save_simulation_results(summary_df)
         
         # Save detailed results for each product-location
-        detailed_dir = output_path / "detailed_results"
-        detailed_dir.mkdir(exist_ok=True)
-        
         for key, result in self.results.items():
             # Convert arrays to DataFrame
             arrays_df = pd.DataFrame(result['arrays'])
@@ -340,10 +326,16 @@ class InventorySimulator:
             
             # Save to file
             safe_key = key.replace('/', '_').replace('\\', '_')
-            detail_file = detailed_dir / f"{safe_key}_simulation.csv"
-            arrays_df.to_csv(detail_file, index=False)
+            self.data_loader.loader.save_results(
+                arrays_df,
+                "simulation/detailed_results",
+                f"{safe_key}_simulation.csv"
+            )
         
-        logger.info(f"Saved detailed results to {detailed_dir}")
+        # Return paths for backward compatibility
+        filename = self.data_loader.loader.config['paths']['output_files']['simulation_results']
+        summary_file = self.data_loader.loader.get_output_path("simulation", filename)
+        detailed_dir = self.data_loader.loader.get_output_path("simulation/detailed_results", "")
         
         return {
             'summary_file': summary_file,

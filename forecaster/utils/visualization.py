@@ -205,17 +205,12 @@ class DemandVisualizer:
         """
         try:
             # Import here to avoid circular imports
-            from forecaster.data import DemandDataLoader
-            from forecaster.data.product_master_schema import ProductMasterSchema
+            from data.loader import DataLoader
+            from forecaster.validation.product_master_schema import ProductMasterSchema
 
             # Load product master data
-            loader = DemandDataLoader()
-            try:
-                # Try to load customer product master first
-                product_master = loader.load_csv("customer_product_master.csv")
-            except:
-                # Fallback to daily product master
-                product_master = loader.load_product_master_daily()
+            loader = DataLoader()
+            product_master = loader.load_product_master()
 
             # Create aggregator for risk period bucketing
             from forecaster.data.aggregator import DemandAggregator

@@ -8,8 +8,8 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, date
 import time
 
-from ..data.schema import DemandSchema
-from ..data.product_master_schema import ProductMasterSchema
+from .schema import DemandSchema
+from .product_master_schema import ProductMasterSchema
 from .types import ValidationResult, ValidationIssue, ValidationSeverity
 
 

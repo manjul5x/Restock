@@ -5,13 +5,16 @@ Script to update product master to use Prophet forecasting for some combinations
 
 import pandas as pd
 from pathlib import Path
+from data.loader import DataLoader
 
 def update_product_master_for_prophet():
     """Update some product-location combinations to use Prophet forecasting."""
     
+    # Initialize DataLoader
+    loader = DataLoader()
+    
     # Load the product master
-    file_path = Path("forecaster/data/customer_product_master.csv")
-    df = pd.read_csv(file_path)
+    df = loader.load_product_master()
     
     print(f"Original product master: {len(df)} combinations")
     print(f"Current forecast methods: {df['forecast_method'].value_counts().to_dict()}")
@@ -28,10 +31,10 @@ def update_product_master_for_prophet():
         print(f"  - {row['product_id']} at {row['location_id']}")
     
     # Save the updated file
-    df.to_csv(file_path, index=False)
+    loader.save_results(df, "customer_data", "customer_product_master.csv")
     
     print(f"\nUpdated forecast methods: {df['forecast_method'].value_counts().to_dict()}")
-    print(f"File saved to: {file_path}")
+    print(f"File saved to: {loader.get_output_path('customer_data', 'customer_product_master.csv')}")
     
     return df
 

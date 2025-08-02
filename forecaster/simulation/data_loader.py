@@ -16,112 +16,87 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 
-from forecaster.utils.logger import get_logger
+from data.loader import DataLoader
+from ..validation.product_master_schema import ProductMasterSchema
+from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class SimulationDataLoader:
     """
-    Loads and prepares data for inventory simulation.
-    
-    Handles:
-    - Loading customer demand, safety stocks, forecasts, and product master data
-    - Creating simulation arrays for each product-location combination
-    - Determining simulation periods and frequencies
+    Loads and prepares data for inventory simulation using the standardized DataLoader.
     """
-    
-    def __init__(self, data_dir: str = "forecaster/data",
-                 safety_stock_file: str = None,
-                 forecast_comparison_file: str = None):
+
+    def __init__(self,
+                 safety_stock_file: Optional[str] = None,
+                 forecast_comparison_file: Optional[str] = None):
         """
         Initialize the data loader.
-        
+
         Args:
-            data_dir: Directory containing data files
-            safety_stock_file: Path to safety stock results file (optional)
-            forecast_comparison_file: Path to forecast comparison file (optional)
+            safety_stock_file: Path to safety stock results file.
+            forecast_comparison_file: Path to forecast comparison file.
         """
-        self.data_dir = Path(data_dir)
+        self.loader = DataLoader()
         self.safety_stock_file = safety_stock_file
         self.forecast_comparison_file = forecast_comparison_file
-        
+
+        # Data attributes to be loaded
+        self.product_master: Optional[pd.DataFrame] = None
+        self.customer_demand: Optional[pd.DataFrame] = None
+        self.safety_stocks: Optional[pd.DataFrame] = None
+        self.forecast_comparison: Optional[pd.DataFrame] = None
+
         # Load all required data
-        self._load_data()
-        
+        self._load_required_data()
+
     def _expand_product_master_by_methods(self) -> pd.DataFrame:
         """
         Expand product master data to create separate entries for each forecast method.
-        
+        Uses the standardized schema helper for consistency.
+
         Returns:
-            Expanded product master DataFrame with forecast_method column
+            Expanded product master DataFrame with a 'forecast_method' column.
         """
-        expanded_data = []
-        
-        for _, row in self.product_master.iterrows():
-            # Get forecast methods from the row
-            forecast_methods_str = row.get('forecast_methods', '')
-            if not forecast_methods_str:
-                logger.warning(f"No forecast_methods found for {row['product_id']} at {row['location_id']}")
-                continue
-                
-            # Split methods and create separate rows for each
-            methods = [m.strip() for m in forecast_methods_str.split(',')]
-            
-            for method in methods:
-                expanded_row = row.copy()
-                expanded_row['forecast_method'] = method
-                expanded_data.append(expanded_row)
-        
-        expanded_df = pd.DataFrame(expanded_data)
+        if self.product_master is None:
+            self._load_required_data()
+
+        expanded_df = ProductMasterSchema.expand_product_master_for_methods(
+            self.product_master
+        )
         logger.info(f"Expanded product master from {len(self.product_master)} to {len(expanded_df)} entries")
         return expanded_df
-        
-    def _load_data(self):
-        """Load all required data files."""
+
+    def _load_required_data(self):
+        """Load all required data files using the DataLoader and direct reads for output files."""
         try:
-            # Load customer demand data
-            customer_demand_file = self.data_dir / "customer_demand.csv"
-            if customer_demand_file.exists():
-                self.customer_demand = pd.read_csv(customer_demand_file)
-            else:
-                raise FileNotFoundError(f"Customer demand file not found: {customer_demand_file}")
-            
-            # Load product master
-            product_master_file = self.data_dir / "customer_product_master.csv"
-            if product_master_file.exists():
-                self.product_master = pd.read_csv(product_master_file)
-            else:
-                raise FileNotFoundError(f"Product master file not found: {product_master_file}")
-            
+            logger.info("Loading core data using DataLoader...")
+            # Load product master and filtered outflow (demand) data
+            self.product_master = self.loader.load_product_master()
+            self.customer_demand = self.loader.load_outflow(product_master=self.product_master)
+
+            logger.info("Loading simulation-specific output files...")
             # Load safety stock results
-            if self.safety_stock_file:
-                safety_stock_file = Path(self.safety_stock_file)
-            else:
-                safety_stock_file = Path("output/safety_stocks/safety_stock_results.csv")
-            
-            if safety_stock_file.exists():
-                self.safety_stocks = pd.read_csv(safety_stock_file)
-                # Convert review_date to datetime
+            filename = self.loader.config['paths']['output_files']['safety_stocks']
+            ss_path = Path(self.safety_stock_file or str(self.loader.get_output_path("safety_stocks", filename)))
+            if ss_path.exists():
+                self.safety_stocks = pd.read_csv(ss_path)
                 self.safety_stocks['review_date'] = pd.to_datetime(self.safety_stocks['review_date'])
             else:
-                raise FileNotFoundError(f"Safety stock results not found: {safety_stock_file}. Please run safety stock calculation first.")
-            
+                raise FileNotFoundError(f"Safety stock results not found: {ss_path}. Please run safety stock calculation first.")
+
             # Load forecast comparison data
-            if self.forecast_comparison_file:
-                forecast_file = Path(self.forecast_comparison_file)
-            else:
-                forecast_file = Path("output/customer_backtest/forecast_comparison.csv")
-            
-            if forecast_file.exists():
-                self.forecast_comparison = pd.read_csv(forecast_file)
-                # Convert analysis_date to datetime
+            filename = self.loader.config['paths']['output_files']['forecast_comparison']
+            fc_path = Path(self.forecast_comparison_file or str(self.loader.get_output_path("backtesting", filename)))
+            if fc_path.exists():
+                self.forecast_comparison = pd.read_csv(fc_path)
                 self.forecast_comparison['analysis_date'] = pd.to_datetime(self.forecast_comparison['analysis_date'])
             else:
-                raise FileNotFoundError(f"Forecast comparison data not found: {forecast_file}. Please run backtest first.")
-            
+                raise FileNotFoundError(f"Forecast comparison data not found: {fc_path}. Please run backtest first.")
+
             logger.info("Successfully loaded all simulation data")
-            
+
         except Exception as e:
             logger.error(f"Error loading simulation data: {e}")
             raise

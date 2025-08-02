@@ -1,0 +1,805 @@
+{
+  "timestamp": "2025-08-01 17:35:17",
+  "summary": {
+    "total_tests": 2,
+    "successful_tests": 2,
+    "success_rate": 1.0,
+    "total_runtime": 22.127509117126465,
+    "total_memory_delta": -6.265625,
+    "all_passed": true
+  },
+  "detailed_results": [
+    {
+      "test_name": "parallel_processing",
+      "success": true,
+      "runtime": 2.461899995803833,
+      "memory_delta": -3.9375,
+      "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.1, pluggy-1.6.0 -- /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/bin/python3\ncachedir: .pytest_cache\nmetadata: {'Python': '3.9.6', 'Platform': 'macOS-14.5-arm64-arm-64bit', 'Packages': {'pytest': '8.4.1', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'cov': '6.2.1'}}\nrootdir: /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster\nconfigfile: pyproject.toml\nplugins: json-report-1.5.0, metadata-3.1.1, cov-6.2.1\ncollecting ... collected 15 items\n\ndata/tests/test_parallel_processing.py::TestSingletonBehavior::test_singleton_in_main_process PASSED [  6%]\ndata/tests/test_parallel_processing.py::TestSingletonBehavior::test_no_singleton_in_worker_process PASSED [ 13%]\ndata/tests/test_parallel_processing.py::TestCacheIsolation::test_cache_isolation_between_processes PASSED [ 20%]\ndata/tests/test_parallel_processing.py::TestCacheIsolation::test_main_process_cache_independence PASSED [ 26%]\ndata/tests/test_parallel_processing.py::TestPreloadedDataConsistency::test_preload_data_creation PASSED [ 33%]\ndata/tests/test_parallel_processing.py::TestPreloadedDataConsistency::test_worker_data_consistency PASSED [ 40%]\ndata/tests/test_parallel_processing.py::TestMemoryAndPerformance::test_memory_usage_with_preloaded_data PASSED [ 46%]\ndata/tests/test_parallel_processing.py::TestMemoryAndPerformance::test_performance_with_preloaded_vs_disk_loading PASSED [ 53%]\ndata/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_missing_preloaded_data PASSED [ 60%]\ndata/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_corrupted_preloaded_data PASSED [ 66%]\ndata/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_file_not_found_fallback PASSED [ 73%]\ndata/tests/test_parallel_processing.py::TestBackwardCompatibility::test_old_demandDataloader_methods PASSED [ 80%]\ndata/tests/test_parallel_processing.py::TestBackwardCompatibility::test_validation_parameter_ignored PASSED [ 86%]\ndata/tests/test_parallel_processing.py::TestRealWorldScenarios::test_unified_backtester_workflow PASSED [ 93%]\ndata/tests/test_parallel_processing.py::TestRealWorldScenarios::test_concurrent_access_safety PASSED [100%]\n\n--------------------------------- JSON report ----------------------------------\nreport saved to: /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/data/tests/parallel_processing_report.json\n================================ tests coverage ================================\n_______________ coverage: platform darwin, python 3.9.6-final-0 ________________\n\nName                                                  Stmts   Miss  Cover   Missing\n-----------------------------------------------------------------------------------\nforecaster/__init__.py                                    6      6     0%   5-11\nforecaster/backtesting/__init__.py                        3      3     0%   5-8\nforecaster/backtesting/config.py                         62     62     0%   5-119\nforecaster/backtesting/hyperparameter_analyzer.py       381    381     0%   8-996\nforecaster/backtesting/metrics.py                         0      0   100%\nforecaster/backtesting/unified_backtester.py            437    437     0%   13-1114\nforecaster/data/__init__.py                               6      6     0%   7-13\nforecaster/data/aggregator.py                            88     88     0%   6-298\nforecaster/data/demand_validator.py                     122    122     0%   6-308\nforecaster/data/loader.py                                95     95     0%   1-381\nforecaster/data/product_master_schema.py                149    149     0%   5-283\nforecaster/data/schema.py                                66     66     0%   1-128\nforecaster/forecasting/__init__.py                        7      7     0%   5-18\nforecaster/forecasting/arima.py                         250    250     0%   8-562\nforecaster/forecasting/base.py                           57     57     0%   5-135\nforecaster/forecasting/core_engine.py                    41     41     0%   8-128\nforecaster/forecasting/moving_average.py                125    125     0%   5-333\nforecaster/forecasting/parameter_optimizer.py            82     82     0%   8-365\nforecaster/forecasting/prophet.py                       281    281     0%   8-821\nforecaster/forecasting/seasonality_analyzer.py          247    247     0%   9-679\nforecaster/imputation/__init__.py                         0      0   100%\nforecaster/imputation/impute.py                           0      0   100%\nforecaster/outlier/__init__.py                            3      3     0%   5-8\nforecaster/outlier/detection.py                          44     44     0%   5-123\nforecaster/outlier/handler.py                           175    175     0%   6-431\nforecaster/outlier/removal.py                             0      0   100%\nforecaster/safety_stocks/__init__.py                      3      3     0%   7-10\nforecaster/safety_stocks/safety_stock_calculator.py      73     73     0%   7-243\nforecaster/safety_stocks/safety_stock_models.py          72     72     0%   7-220\nforecaster/simulation/__init__.py                         4      4     0%   8-12\nforecaster/simulation/data_loader.py                    145    145     0%   7-348\nforecaster/simulation/order_policies.py                  51     51     0%   7-204\nforecaster/simulation/simulator.py                      143    143     0%   7-348\nforecaster/utils/__init__.py                              4      4     0%   5-19\nforecaster/utils/logger.py                               64     64     0%   6-145\nforecaster/utils/standardize.py                         133    133     0%   6-315\nforecaster/utils/visualization.py                       283    283     0%   6-938\nforecaster/validation/__init__.py                         7      7     0%   13-20\nforecaster/validation/completeness_validator.py          67     67     0%   5-233\nforecaster/validation/coverage_validator.py              59     59     0%   5-210\nforecaster/validation/quality_validator.py              100    100     0%   5-302\nforecaster/validation/schema_validator.py                98     98     0%   5-274\nforecaster/validation/types.py                           58     58     0%   5-82\nforecaster/validation/validator.py                      123    123     0%   5-272\n-----------------------------------------------------------------------------------\nTOTAL                                                  4214   4214     0%\nCoverage HTML written to dir htmlcov\n============================== 15 passed in 2.11s ==============================\n",
+      "stderr": "/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/lib/python3.9/site-packages/coverage/control.py:918: CoverageWarning: No data was collected. (no-data-collected)\n  self._warn(\"No data was collected.\", slug=\"no-data-collected\")\n",
+      "detailed_results": {
+        "created": 1754049897.491478,
+        "duration": 2.1117098331451416,
+        "exitcode": 0,
+        "root": "/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster",
+        "environment": {},
+        "summary": {
+          "passed": 15,
+          "total": 15,
+          "collected": 15
+        },
+        "collectors": [
+          {
+            "nodeid": "",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py",
+                "type": "Module"
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestSingletonBehavior",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestSingletonBehavior::test_singleton_in_main_process",
+                "type": "Function",
+                "lineno": 138
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestSingletonBehavior::test_no_singleton_in_worker_process",
+                "type": "Function",
+                "lineno": 147
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestCacheIsolation",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestCacheIsolation::test_cache_isolation_between_processes",
+                "type": "Function",
+                "lineno": 172
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestCacheIsolation::test_main_process_cache_independence",
+                "type": "Function",
+                "lineno": 201
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestPreloadedDataConsistency",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestPreloadedDataConsistency::test_preload_data_creation",
+                "type": "Function",
+                "lineno": 228
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestPreloadedDataConsistency::test_worker_data_consistency",
+                "type": "Function",
+                "lineno": 248
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestMemoryAndPerformance",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestMemoryAndPerformance::test_memory_usage_with_preloaded_data",
+                "type": "Function",
+                "lineno": 300
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestMemoryAndPerformance::test_performance_with_preloaded_vs_disk_loading",
+                "type": "Function",
+                "lineno": 340
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_missing_preloaded_data",
+                "type": "Function",
+                "lineno": 400
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_corrupted_preloaded_data",
+                "type": "Function",
+                "lineno": 416
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_file_not_found_fallback",
+                "type": "Function",
+                "lineno": 432
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestBackwardCompatibility",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestBackwardCompatibility::test_old_demandDataloader_methods",
+                "type": "Function",
+                "lineno": 469
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestBackwardCompatibility::test_validation_parameter_ignored",
+                "type": "Function",
+                "lineno": 491
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestRealWorldScenarios",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestRealWorldScenarios::test_unified_backtester_workflow",
+                "type": "Function",
+                "lineno": 507
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestRealWorldScenarios::test_concurrent_access_safety",
+                "type": "Function",
+                "lineno": 567
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestSingletonBehavior",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestCacheIsolation",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestPreloadedDataConsistency",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestMemoryAndPerformance",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestBackwardCompatibility",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_parallel_processing.py::TestRealWorldScenarios",
+                "type": "Class"
+              }
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestSingletonBehavior::test_singleton_in_main_process",
+            "lineno": 138,
+            "outcome": "passed",
+            "keywords": [
+              "test_singleton_in_main_process",
+              "TestSingletonBehavior",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.11757883300000005,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.001992709000000037,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00017154199999991349,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestSingletonBehavior::test_no_singleton_in_worker_process",
+            "lineno": 147,
+            "outcome": "passed",
+            "keywords": [
+              "test_no_singleton_in_worker_process",
+              "TestSingletonBehavior",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00014654199999997175,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.002212541999999984,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00012229099999994109,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestCacheIsolation::test_cache_isolation_between_processes",
+            "lineno": 172,
+            "outcome": "passed",
+            "keywords": [
+              "test_cache_isolation_between_processes",
+              "TestCacheIsolation",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00015087499999999476,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.02495091699999996,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00018225000000005043,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestCacheIsolation::test_main_process_cache_independence",
+            "lineno": 201,
+            "outcome": "passed",
+            "keywords": [
+              "test_main_process_cache_independence",
+              "TestCacheIsolation",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00015037499999992487,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.005963291000000037,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00011412500000007597,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestPreloadedDataConsistency::test_preload_data_creation",
+            "lineno": 228,
+            "outcome": "passed",
+            "keywords": [
+              "test_preload_data_creation",
+              "TestPreloadedDataConsistency",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.0001399169999999339,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.07770229099999992,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00021208299999997404,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestPreloadedDataConsistency::test_worker_data_consistency",
+            "lineno": 248,
+            "outcome": "passed",
+            "keywords": [
+              "test_worker_data_consistency",
+              "TestPreloadedDataConsistency",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00019162499999991756,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.1141042080000001,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.0001731670000000296,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestMemoryAndPerformance::test_memory_usage_with_preloaded_data",
+            "lineno": 300,
+            "outcome": "passed",
+            "keywords": [
+              "test_memory_usage_with_preloaded_data",
+              "TestMemoryAndPerformance",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.0002215830000000807,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.061363499999999904,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.0001539589999999258,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestMemoryAndPerformance::test_performance_with_preloaded_vs_disk_loading",
+            "lineno": 340,
+            "outcome": "passed",
+            "keywords": [
+              "test_performance_with_preloaded_vs_disk_loading",
+              "TestMemoryAndPerformance",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00014845799999996245,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.18937154199999995,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00015729199999992005,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_missing_preloaded_data",
+            "lineno": 400,
+            "outcome": "passed",
+            "keywords": [
+              "test_missing_preloaded_data",
+              "TestErrorHandlingAndEdgeCases",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00015383300000015865,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.03972100000000012,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.0001263750000000119,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_corrupted_preloaded_data",
+            "lineno": 416,
+            "outcome": "passed",
+            "keywords": [
+              "test_corrupted_preloaded_data",
+              "TestErrorHandlingAndEdgeCases",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00015929199999997756,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.0029177090000001016,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00010883400000016863,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestErrorHandlingAndEdgeCases::test_file_not_found_fallback",
+            "lineno": 432,
+            "outcome": "passed",
+            "keywords": [
+              "test_file_not_found_fallback",
+              "TestErrorHandlingAndEdgeCases",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00014583300000015065,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.001979249999999988,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 9.620799999998653e-05,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestBackwardCompatibility::test_old_demandDataloader_methods",
+            "lineno": 469,
+            "outcome": "passed",
+            "keywords": [
+              "test_old_demandDataloader_methods",
+              "TestBackwardCompatibility",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.0001407920000000562,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.04940074999999999,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00020749999999991608,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestBackwardCompatibility::test_validation_parameter_ignored",
+            "lineno": 491,
+            "outcome": "passed",
+            "keywords": [
+              "test_validation_parameter_ignored",
+              "TestBackwardCompatibility",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00015474999999987027,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.00486299999999984,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00013958299999994317,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestRealWorldScenarios::test_unified_backtester_workflow",
+            "lineno": 507,
+            "outcome": "passed",
+            "keywords": [
+              "test_unified_backtester_workflow",
+              "TestRealWorldScenarios",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.0001747500000000013,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.07007249999999998,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.00025633299999983095,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_parallel_processing.py::TestRealWorldScenarios::test_concurrent_access_safety",
+            "lineno": 567,
+            "outcome": "passed",
+            "keywords": [
+              "test_concurrent_access_safety",
+              "TestRealWorldScenarios",
+              "test_parallel_processing.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00015412500000011597,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 0.1587565409999998,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.001552792000000025,
+              "outcome": "passed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "test_name": "performance_benchmark",
+      "success": true,
+      "runtime": 19.665609121322632,
+      "memory_delta": -2.328125,
+      "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.1, pluggy-1.6.0 -- /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/bin/python3\ncachedir: .pytest_cache\nmetadata: {'Python': '3.9.6', 'Platform': 'macOS-14.5-arm64-arm-64bit', 'Packages': {'pytest': '8.4.1', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'cov': '6.2.1'}}\nrootdir: /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster\nconfigfile: pyproject.toml\nplugins: json-report-1.5.0, metadata-3.1.1, cov-6.2.1\ncollecting ... collected 4 items\n\ndata/tests/test_performance_benchmark.py::TestMemoryUsageBenchmark::test_memory_usage_old_vs_new_approach SKIPPED [ 25%]\ndata/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark::test_loading_time_preloaded_vs_disk PASSED [ 50%]\ndata/tests/test_performance_benchmark.py::TestScalabilityBenchmark::test_scalability_with_worker_count SKIPPED [ 75%]\ndata/tests/test_performance_benchmark.py::TestRealWorldSimulation::test_unified_backtester_simulation PASSED [100%]\n\n=============================== warnings summary ===============================\ndata/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark::test_loading_time_preloaded_vs_disk\n  /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/lib/python3.9/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but data/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark::test_loading_time_preloaded_vs_disk returned <class 'dict'>.\n  Did you mean to use `assert` instead of `return`?\n  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.\n    warnings.warn(\n\ndata/tests/test_performance_benchmark.py::TestRealWorldSimulation::test_unified_backtester_simulation\n  /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/lib/python3.9/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but data/tests/test_performance_benchmark.py::TestRealWorldSimulation::test_unified_backtester_simulation returned <class 'dict'>.\n  Did you mean to use `assert` instead of `return`?\n  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n--------------------------------- JSON report ----------------------------------\nreport saved to: /Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/data/tests/performance_benchmark_report.json\n================================ tests coverage ================================\n_______________ coverage: platform darwin, python 3.9.6-final-0 ________________\n\nName                                                  Stmts   Miss  Cover   Missing\n-----------------------------------------------------------------------------------\nforecaster/__init__.py                                    6      6     0%   5-11\nforecaster/backtesting/__init__.py                        3      3     0%   5-8\nforecaster/backtesting/config.py                         62     62     0%   5-119\nforecaster/backtesting/hyperparameter_analyzer.py       381    381     0%   8-996\nforecaster/backtesting/metrics.py                         0      0   100%\nforecaster/backtesting/unified_backtester.py            437    437     0%   13-1114\nforecaster/data/__init__.py                               6      6     0%   7-13\nforecaster/data/aggregator.py                            88     88     0%   6-298\nforecaster/data/demand_validator.py                     122    122     0%   6-308\nforecaster/data/loader.py                                95     95     0%   1-381\nforecaster/data/product_master_schema.py                149    149     0%   5-283\nforecaster/data/schema.py                                66     66     0%   1-128\nforecaster/forecasting/__init__.py                        7      7     0%   5-18\nforecaster/forecasting/arima.py                         250    250     0%   8-562\nforecaster/forecasting/base.py                           57     57     0%   5-135\nforecaster/forecasting/core_engine.py                    41     41     0%   8-128\nforecaster/forecasting/moving_average.py                125    125     0%   5-333\nforecaster/forecasting/parameter_optimizer.py            82     82     0%   8-365\nforecaster/forecasting/prophet.py                       281    281     0%   8-821\nforecaster/forecasting/seasonality_analyzer.py          247    247     0%   9-679\nforecaster/imputation/__init__.py                         0      0   100%\nforecaster/imputation/impute.py                           0      0   100%\nforecaster/outlier/__init__.py                            3      3     0%   5-8\nforecaster/outlier/detection.py                          44     44     0%   5-123\nforecaster/outlier/handler.py                           175    175     0%   6-431\nforecaster/outlier/removal.py                             0      0   100%\nforecaster/safety_stocks/__init__.py                      3      3     0%   7-10\nforecaster/safety_stocks/safety_stock_calculator.py      73     73     0%   7-243\nforecaster/safety_stocks/safety_stock_models.py          72     72     0%   7-220\nforecaster/simulation/__init__.py                         4      4     0%   8-12\nforecaster/simulation/data_loader.py                    145    145     0%   7-348\nforecaster/simulation/order_policies.py                  51     51     0%   7-204\nforecaster/simulation/simulator.py                      143    143     0%   7-348\nforecaster/utils/__init__.py                              4      4     0%   5-19\nforecaster/utils/logger.py                               64     64     0%   6-145\nforecaster/utils/standardize.py                         133    133     0%   6-315\nforecaster/utils/visualization.py                       283    283     0%   6-938\nforecaster/validation/__init__.py                         7      7     0%   13-20\nforecaster/validation/completeness_validator.py          67     67     0%   5-233\nforecaster/validation/coverage_validator.py              59     59     0%   5-210\nforecaster/validation/quality_validator.py              100    100     0%   5-302\nforecaster/validation/schema_validator.py                98     98     0%   5-274\nforecaster/validation/types.py                           58     58     0%   5-82\nforecaster/validation/validator.py                      123    123     0%   5-272\n-----------------------------------------------------------------------------------\nTOTAL                                                  4214   4214     0%\nCoverage HTML written to dir htmlcov\n================== 2 passed, 2 skipped, 2 warnings in 19.35s ===================\n",
+      "stderr": "/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/lib/python3.9/site-packages/coverage/control.py:918: CoverageWarning: No data was collected. (no-data-collected)\n  self._warn(\"No data was collected.\", slug=\"no-data-collected\")\n",
+      "detailed_results": {
+        "created": 1754049917.1173708,
+        "duration": 19.350563764572144,
+        "exitcode": 0,
+        "root": "/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster",
+        "environment": {},
+        "summary": {
+          "skipped": 2,
+          "passed": 2,
+          "total": 4,
+          "collected": 4
+        },
+        "collectors": [
+          {
+            "nodeid": "",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py",
+                "type": "Module"
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestMemoryUsageBenchmark",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestMemoryUsageBenchmark::test_memory_usage_old_vs_new_approach",
+                "type": "Function",
+                "lineno": 135
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark::test_loading_time_preloaded_vs_disk",
+                "type": "Function",
+                "lineno": 214
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestScalabilityBenchmark",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestScalabilityBenchmark::test_scalability_with_worker_count",
+                "type": "Function",
+                "lineno": 302
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestRealWorldSimulation",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestRealWorldSimulation::test_unified_backtester_simulation",
+                "type": "Function",
+                "lineno": 399
+              }
+            ]
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py",
+            "outcome": "passed",
+            "result": [
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestMemoryUsageBenchmark",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestScalabilityBenchmark",
+                "type": "Class"
+              },
+              {
+                "nodeid": "data/tests/test_performance_benchmark.py::TestRealWorldSimulation",
+                "type": "Class"
+              }
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestMemoryUsageBenchmark::test_memory_usage_old_vs_new_approach",
+            "lineno": 135,
+            "outcome": "skipped",
+            "keywords": [
+              "test_memory_usage_old_vs_new_approach",
+              "TestMemoryUsageBenchmark",
+              "skip",
+              "test_performance_benchmark.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.0001711670000000276,
+              "outcome": "skipped",
+              "longrepr": "('/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/data/tests/test_performance_benchmark.py', 136, 'Skipped: Temporarily disabled due to strict thresholds in test environment')"
+            },
+            "teardown": {
+              "duration": 0.00015945900000002844,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark::test_loading_time_preloaded_vs_disk",
+            "lineno": 214,
+            "outcome": "passed",
+            "keywords": [
+              "test_loading_time_preloaded_vs_disk",
+              "TestLoadingTimeBenchmark",
+              "test_performance_benchmark.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 1.5479161670000001,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 4.131881249999999,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.0008300840000003973,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestScalabilityBenchmark::test_scalability_with_worker_count",
+            "lineno": 302,
+            "outcome": "skipped",
+            "keywords": [
+              "test_scalability_with_worker_count",
+              "TestScalabilityBenchmark",
+              "skip",
+              "test_performance_benchmark.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.00014991599999980565,
+              "outcome": "skipped",
+              "longrepr": "('/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/data/tests/test_performance_benchmark.py', 303, 'Skipped: Temporarily disabled due to strict thresholds in test environment')"
+            },
+            "teardown": {
+              "duration": 9.862499999968577e-05,
+              "outcome": "passed"
+            }
+          },
+          {
+            "nodeid": "data/tests/test_performance_benchmark.py::TestRealWorldSimulation::test_unified_backtester_simulation",
+            "lineno": 399,
+            "outcome": "passed",
+            "keywords": [
+              "test_unified_backtester_simulation",
+              "TestRealWorldSimulation",
+              "test_performance_benchmark.py",
+              "tests",
+              "data",
+              "Forecaster",
+              ""
+            ],
+            "setup": {
+              "duration": 0.0001980000000001425,
+              "outcome": "passed"
+            },
+            "call": {
+              "duration": 12.479472458,
+              "outcome": "passed"
+            },
+            "teardown": {
+              "duration": 0.021574582999999592,
+              "outcome": "passed"
+            }
+          }
+        ],
+        "warnings": [
+          {
+            "message": "Test functions should return None, but data/tests/test_performance_benchmark.py::TestLoadingTimeBenchmark::test_loading_time_preloaded_vs_disk returned <class 'dict'>.\nDid you mean to use `assert` instead of `return`?\nSee https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+            "category": "PytestReturnNotNoneWarning",
+            "when": "runtest",
+            "filename": "/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/lib/python3.9/site-packages/_pytest/python.py",
+            "lineno": 161
+          },
+          {
+            "message": "Test functions should return None, but data/tests/test_performance_benchmark.py::TestRealWorldSimulation::test_unified_backtester_simulation returned <class 'dict'>.\nDid you mean to use `assert` instead of `return`?\nSee https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+            "category": "PytestReturnNotNoneWarning",
+            "when": "runtest",
+            "filename": "/Users/samuelkingwill/Library/Mobile Documents/com~apple~CloudDocs/5X/Inventory Solution/Forecaster/.venv/lib/python3.9/site-packages/_pytest/python.py",
+            "lineno": 161
+          }
+        ]
+      }
+    }
+  ]
+}

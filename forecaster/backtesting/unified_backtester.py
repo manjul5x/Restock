@@ -22,15 +22,15 @@ from tqdm import tqdm
 import json
 
 from .config import BacktestConfig
-from ..data.loader import DemandDataLoader
-from ..data.demand_validator import DemandValidator
+from data.loader import DataLoader
+from ..validation.demand_validator import DemandValidator
 from ..outlier.handler import OutlierHandler
 from ..data.aggregator import DemandAggregator
 from ..forecasting.parameter_optimizer import ParameterOptimizerFactory
 from ..forecasting.core_engine import CoreForecastingEngine
 from ..forecasting.base import calculate_forecast_metrics
 from ..utils.logger import ForecasterLogger
-from ..data.product_master_schema import ProductMasterSchema
+from ..validation.product_master_schema import ProductMasterSchema
 
 
 class UnifiedBacktester:
@@ -149,17 +149,16 @@ class UnifiedBacktester:
             raise
 
     def _load_data(self):
-        """Load and validate demand and product master data."""
-        self.logger.info("Step 1: Loading and validating data")
+        """Load and validate demand and product master data using the new DataLoader."""
+        self.logger.info("Step 1: Loading and validating data with DataLoader")
 
-        # Load demand data
-        demand_loader = DemandDataLoader(self.config.data_dir)
-        self.demand_data = demand_loader.load_csv(self.config.demand_file)
+        # Initialize DataLoader
+        # The config_path will be derived from self.config.data_dir if needed,
+        # assuming a standard structure. For now, we rely on the default path.
+        loader = DataLoader()
 
-        # Load product master data
-        self.product_master_data = demand_loader.load_csv(
-            self.config.product_master_file
-        )
+        # Load product master data first
+        self.product_master_data = loader.load_product_master()
 
         # Validate product master schema
         ProductMasterSchema.validate_dataframe(self.product_master_data)
@@ -167,7 +166,12 @@ class UnifiedBacktester:
             self.product_master_data
         )
 
-        self.logger.info(f"Loaded {len(self.demand_data)} demand records")
+        # Load demand data filtered by product master
+        self.demand_data = loader.load_outflow(
+            product_master=self.product_master_data
+        )
+
+        self.logger.info(f"Loaded {len(self.demand_data)} demand records (filtered by product master)")
         self.logger.info(
             f"Loaded {len(self.product_master_data)} product master records"
         )
@@ -201,8 +205,6 @@ class UnifiedBacktester:
         print("UNIFIED BACKTESTING SUMMARY")
         print("=" * 60)
         print(f"Data Configuration:")
-        print(f"  • Demand file: {self.config.demand_file}")
-        print(f"  • Product master file: {self.config.product_master_file}")
         print(f"  • Total demand records: {len(self.demand_data):,}")
         print(
             f"  • Original product-location combinations: {len(self.product_master_data):,}"
@@ -460,12 +462,17 @@ class UnifiedBacktester:
     def _run_unified_backtesting_parallel(
         self, analysis_dates: List[date], product_locations: List[Dict]
     ):
-        """Run backtesting in parallel."""
+        """Run backtesting in parallel using the new DataLoader with preloading."""
         self.logger.info(
             f"Running backtesting in parallel with {self.config.max_workers} workers"
         )
 
-        # Create tasks
+        # Step 1: Preload data in the main process
+        self.logger.info("Preloading data for parallel processing...")
+        preloaded_data = DataLoader.preload_for_parallel_processing()
+        self.logger.info("Data preloading complete.")
+
+        # Step 2: Create tasks with a reference to the preloaded data
         tasks = []
         for analysis_date in analysis_dates:
             cutoff_date = self._get_cutoff_date(analysis_date)
@@ -477,6 +484,7 @@ class UnifiedBacktester:
                     "product_id": product_info["product_id"],
                     "location_id": product_info["location_id"],
                     "product_record": product_info["product_record"],
+                    "preloaded_data": preloaded_data,  # Pass preloaded data
                 }
                 tasks.append(task)
 
@@ -485,7 +493,7 @@ class UnifiedBacktester:
             f"🚀 Starting parallel processing with {self.config.max_workers} workers..."
         )
 
-        # Process tasks in parallel
+        # Step 3: Process tasks in parallel
         with ProcessPoolExecutor(max_workers=self.config.max_workers) as executor:
             futures = [
                 executor.submit(self._process_single_backtest_task, task)
@@ -506,15 +514,12 @@ class UnifiedBacktester:
                 result = future.result()
                 if result:
                     successful_count += 1
-                    # Extract comparisons from result and add to forecast_comparisons list
                     if "comparisons" in result:
-                        comparisons = result.pop("comparisons")  # Remove from result
+                        comparisons = result.pop("comparisons", [])
                         if comparisons:
                             self.forecast_comparisons.extend(comparisons)
-
                     self.backtest_results.append(result)
 
-                # Show progress every 100 tasks
                 if completed_count % 100 == 0:
                     success_rate = (successful_count / completed_count) * 100
                     print(
@@ -527,13 +532,16 @@ class UnifiedBacktester:
         print(f"📋 Generated {len(self.forecast_comparisons):,} forecast comparisons")
 
     def _process_single_backtest_task(self, task: Dict) -> Optional[Dict[str, Any]]:
-        """Process a single backtest task."""
+        """Process a single backtest task using preloaded data."""
+        # The preloaded data is passed in the task dictionary.
+        # The DataLoader will be implicitly created for the worker process.
         return self._run_unified_forecast_for_product_location(
             task["analysis_date"],
             task["cutoff_date"],
             task["product_id"],
             task["location_id"],
             task["product_record"],
+            task.get("preloaded_data")  # Pass preloaded data to the forecast function
         )
 
     def _run_unified_forecast_for_product_location(
@@ -543,9 +551,24 @@ class UnifiedBacktester:
         product_id: str,
         location_id: str,
         product_record: pd.Series,
+        preloaded_data: Optional[Dict[str, pd.DataFrame]] = None
     ) -> Optional[Dict[str, Any]]:
         """Run unified forecast for a single product-location-method combination."""
         try:
+            # Step 1: Initialize DataLoader for the worker
+            # If preloaded_data is provided, it creates a worker-optimized loader.
+            # Otherwise, it falls back to a standard loader (for sequential mode).
+            if preloaded_data:
+                loader = DataLoader.create_for_worker(preloaded_data)
+                # Use preloaded data directly for efficiency
+                self.demand_data = loader.load_outflow(product_master=loader.load_product_master())
+            else:
+                loader = DataLoader()
+                # Ensure data is loaded if not already present (sequential case)
+                if self.demand_data is None:
+                    self._load_data()
+
+
             # Get daily data for this product-location up to cutoff date
             daily_data = self._get_daily_data_for_product_location(
                 product_id, location_id, cutoff_date
@@ -598,20 +621,17 @@ class UnifiedBacktester:
                 "analysis_date": analysis_date,
                 "product_id": product_id,
                 "location_id": location_id,
-                "forecast_method": forecast_method,  # Include method in results
+                "forecast_method": forecast_method,
                 "risk_period": product_record.get("risk_period"),
                 "demand_frequency": product_record.get("demand_frequency"),
                 "forecast_values": forecast_values,
                 "actual_demands": actual_demands,
                 "metrics": metrics,
                 "parameters": optimized_parameters,
-                "first_date_used": forecast_result.get(
-                    "first_date_used"
-                ),  # Include first date used
+                "first_date_used": forecast_result.get("first_date_used"),
             }
 
             # Generate forecast comparisons for visualization
-            # Convert forecast_values to list if it's not already
             if not isinstance(forecast_values, list):
                 forecast_values = [forecast_values]
 
@@ -624,17 +644,19 @@ class UnifiedBacktester:
                 forecast_values,
                 product_record.get("risk_period"),
                 product_record.get("demand_frequency"),
-                forecast_result.get("first_date_used"),  # Pass first_date_used
+                forecast_result.get("first_date_used"),
             )
 
-            # Add comparisons to the result so they can be collected later
             result["comparisons"] = comparisons
 
             return result
 
         except Exception as e:
+            # It's better to log the forecast_method if it's available
+            method_info = product_record.get("forecast_method", "unknown_method")
             self.logger.error(
-                f"Error in backtest for {product_id}-{location_id}-{forecast_method}: {e}"
+                f"Error in backtest for {product_id}-{location_id}-{method_info}: {e}",
+                exc_info=True # Include stack trace for better debugging
             )
             return None
 
@@ -810,29 +832,27 @@ class UnifiedBacktester:
         """Save backtesting results."""
         self.logger.info("Step 7: Saving results")
 
-        # Create output directory
-        Path(self.config.output_dir).mkdir(parents=True, exist_ok=True)
+        # Initialize DataLoader
+        from data.loader import DataLoader
+        loader = DataLoader()
 
         # Save backtest results
         if self.backtest_results:
-            results_file = Path(self.config.output_dir) / "backtest_results.csv"
             results_df = pd.DataFrame(self.backtest_results)
-            results_df.to_csv(results_file, index=False)
-            self.logger.info(f"Backtest results saved to: {results_file}")
+            loader.save_results(results_df, "backtesting", "backtest_results.csv")
+            self.logger.info("Backtest results saved using DataLoader")
 
         # Save accuracy metrics
         if self.accuracy_metrics:
-            metrics_file = Path(self.config.output_dir) / "accuracy_metrics.csv"
             metrics_df = pd.DataFrame(self.accuracy_metrics)
-            metrics_df.to_csv(metrics_file, index=False)
-            self.logger.info(f"Accuracy metrics saved to: {metrics_file}")
+            loader.save_results(metrics_df, "backtesting", "accuracy_metrics.csv")
+            self.logger.info("Accuracy metrics saved using DataLoader")
 
         # Save forecast comparisons
         if self.forecast_comparisons:
-            comparison_file = Path(self.config.output_dir) / "forecast_comparison.csv"
             comparison_df = pd.DataFrame(self.forecast_comparisons)
-            comparison_df.to_csv(comparison_file, index=False)
-            self.logger.info(f"Forecast comparisons saved to: {comparison_file}")
+            loader.save_forecast_comparison(comparison_df)
+            self.logger.info("Forecast comparisons saved using DataLoader")
 
             # Generate forecast visualization data
             self._generate_forecast_visualization_data(comparison_df)
@@ -933,9 +953,6 @@ class UnifiedBacktester:
 
         # Save forecast visualization data
         if visualization_data:
-            visualization_file = (
-                Path(self.config.output_dir) / "forecast_visualization_data.csv"
-            )
             visualization_df = pd.DataFrame(visualization_data)
 
             # Convert datetime objects and numpy types to more readable formats
@@ -962,10 +979,10 @@ class UnifiedBacktester:
                         lambda x: [float(val) for val in x]
                     )
 
-            visualization_df.to_csv(visualization_file, index=False)
-            self.logger.info(
-                f"Forecast visualization data saved to: {visualization_file}"
-            )
+            # Save using DataLoader
+            filename = self.config.loader.config['paths']['output_files']['forecast_visualization']
+            self.config.loader.save_results(visualization_df, "backtesting", filename)
+            self.logger.info("Forecast visualization data saved using DataLoader")
 
     def _generate_historical_bucket_dates(
         self,

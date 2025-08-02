@@ -8,14 +8,14 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 from datetime import date, timedelta
 from pathlib import Path
-from .loader import DemandDataLoader
-from .product_master_schema import ProductMasterSchema
+from data.loader import DataLoader
+from ..validation.product_master_schema import ProductMasterSchema
 
 class DemandAggregator:
     """Utilities for aggregating demand data into risk period buckets"""
     
-    def __init__(self, data_loader: DemandDataLoader = None):
-        self.data_loader = data_loader or DemandDataLoader()
+    def __init__(self, data_loader: DataLoader = None):
+        self.data_loader = data_loader or DataLoader()
     
     def create_risk_period_buckets_with_data(self, 
                                             demand_df: pd.DataFrame,

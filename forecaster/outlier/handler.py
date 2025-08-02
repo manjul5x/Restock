@@ -8,16 +8,17 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional, Any
 from datetime import date
 from pathlib import Path
-from ..data import DemandDataLoader, ProductMasterSchema
+from data.loader import DataLoader
+from ..validation import ProductMasterSchema
 from .detection import OutlierDetector
 
 
 class OutlierHandler:
     """Utilities for handling outliers in demand data"""
 
-    def __init__(self, data_loader: DemandDataLoader = None):
-        self.data_loader = data_loader or DemandDataLoader()
-        self.detector = OutlierDetector(data_loader)
+    def __init__(self, data_loader: DataLoader = None):
+        self.data_loader = data_loader or DataLoader()
+        self.detector = OutlierDetector(self.data_loader)
 
     def process_demand_outliers_with_data(
         self,

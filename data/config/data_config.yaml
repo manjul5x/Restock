@@ -1,0 +1,22 @@
+
+storage:
+  type: "csv"
+cache:
+  enabled: true
+  ttl_seconds: 3600
+  max_size_mb: 500
+  check_file_changes: false
+paths:
+  base_dir: "data/customer_data"
+  outflow: "customer_demand.csv"
+  product_master: "customer_product_master.csv"
+  output_dir: "output"
+  output_files:
+    safety_stocks: "safety_stock_results.csv"
+    forecast_comparison: "forecast_comparison.csv"
+    simulation_results: "simulation_results.csv"
+    forecast_visualization: "forecast_visualization_data.csv"
+monitoring:
+  log_access: false
+  track_memory: true
+  alert_threshold_mb: 400

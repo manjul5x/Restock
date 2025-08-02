@@ -23,40 +23,36 @@ from scipy.stats import gaussian_kde
 # Add the forecaster package to the path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from forecaster.data import DemandDataLoader
+from data.loader import DataLoader
 from forecaster.utils import DemandVisualizer
-from forecaster.safety_stocks import SafetyStockCalculator, SafetyStockModels
-from forecaster.backtesting.config import BacktestConfig
 
 app = Flask(__name__)
 
-# Global variables to store data and visualizer
-data_loader = None
+# Global variables to store data
+loader = DataLoader()
 visualizer = None
-
-# Define the new output directory structure
-COMPLETE_WORKFLOW_DIR = Path(__file__).parent.parent / "output/complete_workflow"
 
 
 def initialize_data():
     """Initialize data loader and visualizer"""
-    global data_loader, visualizer
-    if data_loader is None:
+    global visualizer
+    if visualizer is None:
         try:
-            data_loader = DemandDataLoader()
-            # Load customer demand data instead of dummy data
-            daily_data = data_loader.load_customer_demand()
+            # Load product master first
+            product_master_data = loader.load_product_master()
+            
+            # Load customer demand data filtered by product master
+            daily_data = loader.load_outflow(product_master=product_master_data)
             visualizer = DemandVisualizer(daily_data)
         except Exception as e:
             print(f"Warning: Could not initialize data loader: {e}")
             # Create empty visualizer with dummy data
-            data_loader = None
             visualizer = None
 
 
 def load_complete_workflow_data(data_type):
     """
-    Load data from the complete workflow output directory.
+    Load data from the complete workflow output directory using DataLoader.
 
     Args:
         data_type: Type of data to load ('backtesting', 'safety_stocks', 'simulation', 'forecast_visualization')
@@ -66,54 +62,37 @@ def load_complete_workflow_data(data_type):
     """
     try:
         if data_type == "backtesting":
-            # Load forecast comparison data
-            forecast_file = (
-                COMPLETE_WORKFLOW_DIR / "backtesting/forecast_comparison.csv"
-            )
-            if forecast_file.exists():
-                data = pd.read_csv(forecast_file)
-                # Convert analysis_date to datetime
+            filename = loader.config['paths']['output_files']['forecast_comparison']
+            path = loader.get_output_path("backtesting", filename)
+            if path.exists():
+                data = pd.read_csv(path)
                 data["analysis_date"] = pd.to_datetime(data["analysis_date"])
                 return data
 
         elif data_type == "forecast_visualization":
-            # Load forecast visualization data
-            forecast_viz_file = (
-                COMPLETE_WORKFLOW_DIR / "backtesting/forecast_visualization_data.csv"
-            )
-            if forecast_viz_file.exists():
-                data = pd.read_csv(forecast_viz_file)
-                # Convert analysis_date to datetime
+            filename = loader.config['paths']['output_files']['forecast_visualization']
+            path = loader.get_output_path("backtesting", filename)
+            if path.exists():
+                data = pd.read_csv(path)
                 data["analysis_date"] = pd.to_datetime(data["analysis_date"])
                 return data
 
         elif data_type == "safety_stocks":
-            # Load safety stock results
-            safety_stock_file = (
-                COMPLETE_WORKFLOW_DIR / "safety_stocks/safety_stock_results.csv"
-            )
-            if safety_stock_file.exists():
-                data = pd.read_csv(safety_stock_file)
-                # Convert review_date to datetime
+            filename = loader.config['paths']['output_files']['safety_stocks']
+            path = loader.get_output_path("safety_stocks", filename)
+            if path.exists():
+                data = pd.read_csv(path)
                 data["review_date"] = pd.to_datetime(data["review_date"])
-                # Convert errors string back to list
                 data["errors"] = data["errors"].apply(
-                    lambda x: (
-                        [float(e) for e in x.split(",")]
-                        if pd.notna(x) and x and x != ""
-                        else []
-                    )
+                    lambda x: [float(e) for e in x.strip('[]').split(',')] if pd.notna(x) and x.strip('[]') else []
                 )
                 return data
 
         elif data_type == "simulation":
-            # Load simulation summary
-            simulation_file = (
-                COMPLETE_WORKFLOW_DIR / "simulation/simulation_summary.csv"
-            )
-            if simulation_file.exists():
-                data = pd.read_csv(simulation_file)
-                return data
+            filename = loader.config['paths']['output_files']['simulation_results']
+            path = loader.get_output_path("simulation", filename)
+            if path.exists():
+                return pd.read_csv(path)
 
     except Exception as e:
         print(f"Error loading {data_type} data: {e}")
@@ -370,14 +349,15 @@ def inventory_comparison():
     """Inventory comparison page"""
     try:
         # Load simulation summary data to get available options
-        summary_file = COMPLETE_WORKFLOW_DIR / "simulation/simulation_summary.csv"
-        if not summary_file.exists():
+        filename = loader.config['paths']['output_files']['simulation_results']
+        summary_path = loader.get_output_path("simulation", filename)
+        if not summary_path.exists():
             return render_template(
                 "inventory_comparison.html",
                 error="Simulation data not found. Please run the complete workflow first.",
             )
 
-        summary_data = pd.read_csv(summary_file)
+        summary_data = pd.read_csv(summary_path)
 
         # Get available filter options
         products = sorted(summary_data["product_id"].unique().tolist())
@@ -420,8 +400,7 @@ def calculate_actual_metrics(actual_data, product_master=None):
     """Calculate actual inventory metrics from customer demand data"""
     try:
         # Load customer demand data
-        data_loader = DemandDataLoader()
-        customer_demand = data_loader.load_customer_demand()
+        customer_demand = loader.load_outflow()
 
         if customer_demand.empty:
             return {}
@@ -466,8 +445,11 @@ def get_comparison_data():
         forecast_methods = request.form.getlist("forecast_methods")
 
         # Load detailed simulation data for comparison
-        detailed_dir = COMPLETE_WORKFLOW_DIR / "simulation/detailed_results"
+        detailed_dir = loader.get_output_path("simulation", "detailed_results")
         detailed_data = []
+
+        if not detailed_dir.exists():
+            return jsonify({"error": "No detailed simulation data available"})
 
         for file_path in detailed_dir.glob("*_simulation.csv"):
             filename = file_path.stem
@@ -630,10 +612,9 @@ def get_comparison_data():
 
             # Total inventory holding calculations
             # Get product master data for cost information
-            product_master_file = Path("forecaster/data/customer_product_master.csv")
+            product_master = loader.load_product_master()
             inventory_cost = 0.0
-            if product_master_file.exists():
-                product_master = pd.read_csv(product_master_file)
+            if not product_master.empty:
                 product_record = product_master[
                     (product_master["product_id"] == product_id)
                     & (product_master["location_id"] == location_id)
@@ -996,7 +977,8 @@ def get_simulation_plot():
         forecast_methods = request.form.getlist("forecast_methods")
 
         # Load simulation summary data for metrics
-        summary_file = COMPLETE_WORKFLOW_DIR / "simulation/simulation_summary.csv"
+        filename = loader.config['paths']['output_files']['simulation_results']
+        summary_file = loader.get_output_path("simulation", filename)
         if not summary_file.exists():
             return jsonify({"error": "Simulation summary data not available"})
 
@@ -1013,7 +995,7 @@ def get_simulation_plot():
             ]
 
         # Load detailed simulation data for plotting
-        detailed_dir = COMPLETE_WORKFLOW_DIR / "simulation/detailed_results"
+        detailed_dir = loader.get_output_path("simulation/detailed_results", "")
         if not detailed_dir.exists():
             return jsonify({"error": "Detailed simulation data not available"})
 
@@ -1376,8 +1358,7 @@ def run_seasonality_analysis_route():
         analysis_type = request.form.get("analysis_type", "decomposition")
 
         # Initialize data loader
-        data_loader = DemandDataLoader()
-        customer_demand = data_loader.load_customer_demand()
+        customer_demand = loader.load_outflow()
 
         # Filter data
         if products:
@@ -1609,14 +1590,13 @@ def get_demand_analysis_plot():
         forecast_methods = request.form.getlist("forecast_methods")
 
         # Load simulation detailed data
-        detailed_dir = COMPLETE_WORKFLOW_DIR / "simulation/detailed_results"
+        detailed_dir = loader.get_output_path("simulation/detailed_results", "")
         if not detailed_dir.exists():
             return jsonify({"error": "Detailed simulation data not available"})
 
         # Load forecast comparison data for first risk period forecasts
-        forecast_comparison_file = (
-            COMPLETE_WORKFLOW_DIR / "backtesting/forecast_comparison.csv"
-        )
+        filename = loader.config['paths']['output_files']['forecast_comparison']
+        forecast_comparison_file = loader.get_output_path("backtesting", filename)
         if not forecast_comparison_file.exists():
             return jsonify({"error": "Forecast comparison data not available"})
 

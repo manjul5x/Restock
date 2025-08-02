@@ -7,10 +7,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from pathlib import Path
+from data.loader import DataLoader
 
 def create_simulation_plot():
+    # Initialize DataLoader
+    loader = DataLoader()
+    
     # Load simulation data
-    simulation_file = Path("output/simulation/detailed_results/RSWQ_WB_simulation.csv")
+    simulation_file = loader.get_output_path("simulation/detailed_results", "RSWQ_WB_simulation.csv")
     
     if not simulation_file.exists():
         print(f"Error: Simulation file not found: {simulation_file}")

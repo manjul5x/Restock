@@ -10,16 +10,16 @@ from datetime import datetime
 # Add the forecaster package to the path
 sys.path.append(str(Path(__file__).parent))
 
-from forecaster.data import DemandDataLoader
+from data.loader import DataLoader
 from forecaster.utils import DemandVisualizer
 
 def main():
     """Demonstrate visualization capabilities"""
     
-    # Load data
+    # Load data using the new DataLoader
     print("Loading demand data...")
-    loader = DemandDataLoader()
-    data = loader.load_dummy_data(frequency="daily")
+    loader = DataLoader()
+    data = loader.load_outflow()
     
     # Initialize visualizer
     viz = DemandVisualizer(data)

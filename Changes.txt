@@ -1,0 +1,3 @@
+- keep the full customer demand, but run for only products in product master
+    - Data validation was validating for the entire set 
+    - Sim and Webapp were loading the entire file, but running only on what was filtered. 

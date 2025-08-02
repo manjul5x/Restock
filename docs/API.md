@@ -4,19 +4,18 @@
 
 ### Backtesting (`forecaster.backtesting`)
 
-#### `Backtester` class
+#### `UnifiedBacktester` class
 Main class for running backtesting simulations.
 
 ```python
-from forecaster.backtesting import Backtester, BacktestConfig
+from forecaster.backtesting import UnifiedBacktester, BacktestConfig
 
 config = BacktestConfig(
-    data_dir="forecaster/data",
-    demand_file="customer_demand.csv",
-    product_master_file="customer_product_master.csv"
+    analysis_start_date="2024-01-01",
+    analysis_end_date="2024-12-01",
 )
-backtester = Backtester(config)
-results = backtester.run()
+backtester = UnifiedBacktester(config)
+results = backtester.run_unified_backtesting()
 ```
 
 ### Safety Stocks (`forecaster.safety_stocks`)
@@ -26,7 +25,11 @@ Calculates safety stock levels based on forecast errors.
 
 ```python
 from forecaster.safety_stocks import SafetyStockCalculator
+from data.loader import DataLoader
 
+loader = DataLoader()
+product_master_data = loader.load_product_master()
+# forecast_comparison_data would be loaded from a CSV output from the backtester
 calculator = SafetyStockCalculator(product_master_data)
 results = calculator.calculate_safety_stocks(forecast_comparison_data)
 ```
@@ -37,32 +40,34 @@ results = calculator.calculate_safety_stocks(forecast_comparison_data)
 Runs inventory simulation with different ordering policies.
 
 ```python
-from forecaster.simulation import Simulator
+from forecaster.simulation import Simulator, SimulationConfig
 
+config = SimulationConfig()
 simulator = Simulator(config)
-results = simulator.run()
+results = simulator.run_simulation()
 ```
 
-### Data Loading (`forecaster.data`)
+### Data Loading (`data.loader`)
 
-#### `DemandDataLoader` class
-Handles loading and validating demand data.
+#### `DataLoader` class
+Handles loading and validating all input data, with built-in caching and support for parallel processing. It is configured via `data/config/data_config.yaml`.
 
 ```python
-from forecaster.data import DemandDataLoader
+from data.loader import DataLoader
 
-loader = DemandDataLoader()
-demand_data = loader.load_csv("customer_demand.csv")
+# The DataLoader is a singleton in the main process
+loader = DataLoader()
+
+# Load product master and outflow (demand) data
+product_master = loader.load_product_master()
+outflow_data = loader.load_outflow(product_master=product_master) # Filtering is optional but recommended
 ```
 
-### Web Interface (`forecaster.webapp`)
+### Web Interface (`webapp`)
 
 #### Running the Web App
-```python
-from forecaster.webapp import app
-
-if __name__ == "__main__":
-    app.run(debug=True)
+```shell
+python webapp/app.py
 ```
 
 ## Data Schemas

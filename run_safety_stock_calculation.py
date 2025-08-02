@@ -13,12 +13,11 @@ import sys
 import argparse
 from datetime import date
 from forecaster.safety_stocks.safety_stock_calculator import SafetyStockCalculator
+from data.loader import DataLoader
 
 
 def run_safety_stock_calculation(
     forecast_comparison_file: str,
-    product_master_file: str,
-    output_dir: str = "output/safety_stocks",
     review_dates: str = None,
     review_interval_days: int = 30
 ):
@@ -27,7 +26,7 @@ def run_safety_stock_calculation(
     
     Args:
         forecast_comparison_file: Path to forecast comparison CSV file
-        product_master_file: Path to product master CSV file
+        product_master_file: Path to product master CSV file (handled by DataLoader)
         output_dir: Output directory for results
         review_dates: Comma-separated list of review dates (YYYY-MM-DD)
         review_interval_days: Days between review dates if not provided
@@ -39,17 +38,16 @@ def run_safety_stock_calculation(
     print("🔍 Safety Stock Calculation")
     print("=" * 50)
     print(f"Forecast comparison file: {forecast_comparison_file}")
-    print(f"Product master file: {product_master_file}")
-    print(f"Output directory: {output_dir}")
+    print("Product master file: (loaded via DataLoader)")
     
-    # Create output directory if it doesn't exist
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    # Initialize DataLoader
+    loader = DataLoader()
     
     # Load data
     print("\n📊 Loading data...")
     try:
         forecast_data = pd.read_csv(forecast_comparison_file)
-        product_master_data = pd.read_csv(product_master_file)
+        product_master_data = loader.load_product_master()
         
         print(f"✅ Loaded {len(forecast_data)} forecast comparison records")
         print(f"✅ Loaded {len(product_master_data)} product master records")
@@ -127,42 +125,43 @@ def run_safety_stock_calculation(
         review_dates=review_date_list
     )
     
-    # Save results
-    output_file = Path(output_dir) / "safety_stock_results.csv"
-    
-    # Convert errors list to string for CSV storage
-    results_for_csv = safety_stock_results.copy()
-    results_for_csv['errors'] = results_for_csv['errors'].apply(lambda x: ','.join(map(str, x)) if x else '')
-    
-    results_for_csv.to_csv(output_file, index=False)
+    # Save results using DataLoader
+    loader.save_safety_stocks(safety_stock_results)
+    filename = loader.config['paths']['output_files']['safety_stocks']
+    output_file = loader.get_output_path("safety_stocks", filename)
     print(f"💾 Saved results to: {output_file}")
     
     # Display summary
     print("\n📊 Safety Stock Calculation Summary:")
     print(f"  Total calculations: {len(safety_stock_results)}")
-    print(f"  Products: {safety_stock_results['product_id'].nunique()}")
-    print(f"  Locations: {safety_stock_results['location_id'].nunique()}")
-    print(f"  Review dates: {safety_stock_results['review_date'].nunique()}")
     
-    # Summary statistics
-    print(f"\n📈 Safety Stock Statistics:")
-    print(f"  Mean safety stock: {safety_stock_results['safety_stock'].mean():.2f}")
-    print(f"  Median safety stock: {safety_stock_results['safety_stock'].median():.2f}")
-    print(f"  Min safety stock: {safety_stock_results['safety_stock'].min():.2f}")
-    print(f"  Max safety stock: {safety_stock_results['safety_stock'].max():.2f}")
-    
-    # Error count statistics
-    print(f"\n📊 Error Data Statistics:")
-    print(f"  Mean error count: {safety_stock_results['error_count'].mean():.1f}")
-    print(f"  Median error count: {safety_stock_results['error_count'].median():.1f}")
-    print(f"  Min error count: {safety_stock_results['error_count'].min()}")
-    print(f"  Max error count: {safety_stock_results['error_count'].max()}")
-    
-    # Distribution types used
-    print(f"\n🔧 Distribution Types:")
-    dist_counts = safety_stock_results['distribution_type'].value_counts()
-    for dist_type, count in dist_counts.items():
-        print(f"  {dist_type}: {count}")
+    if len(safety_stock_results) > 0:
+        print(f"  Products: {safety_stock_results['product_id'].nunique()}")
+        print(f"  Locations: {safety_stock_results['location_id'].nunique()}")
+        print(f"  Review dates: {safety_stock_results['review_date'].nunique()}")
+        
+        # Summary statistics
+        print(f"\n📈 Safety Stock Statistics:")
+        print(f"  Mean safety stock: {safety_stock_results['safety_stock'].mean():.2f}")
+        print(f"  Median safety stock: {safety_stock_results['safety_stock'].median():.2f}")
+        print(f"  Min safety stock: {safety_stock_results['safety_stock'].min():.2f}")
+        print(f"  Max safety stock: {safety_stock_results['safety_stock'].max():.2f}")
+        
+        # Error count statistics
+        print(f"\n📊 Error Data Statistics:")
+        print(f"  Mean error count: {safety_stock_results['error_count'].mean():.1f}")
+        print(f"  Median error count: {safety_stock_results['error_count'].median():.1f}")
+        print(f"  Min error count: {safety_stock_results['error_count'].min()}")
+        print(f"  Max error count: {safety_stock_results['error_count'].max()}")
+        
+        # Distribution types used
+        print(f"\n🔧 Distribution Types:")
+        dist_counts = safety_stock_results['distribution_type'].value_counts()
+        for dist_type, count in dist_counts.items():
+            print(f"  {dist_type}: {count}")
+    else:
+        print("  No safety stock calculations were performed")
+        print("  This may be due to missing forecast comparison data for the specified product-location-method combinations")
     
     return safety_stock_results
 
@@ -175,28 +174,24 @@ def main():
         epilog="""
 Examples:
   # Run with required parameters
-  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv
+  python run_safety_stock_calculation.py forecast_comparison.csv
   
   # Run with custom review dates
-  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv --review-dates "2024-01-01,2024-02-01,2024-03-01"
+  python run_safety_stock_calculation.py forecast_comparison.csv --review-dates "2024-01-01,2024-02-01,2024-03-01"
   
   # Run with custom review interval
-  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv --review-interval 14
+  python run_safety_stock_calculation.py forecast_comparison.csv --review-interval 14
   
   # Run with custom output directory
-  python run_safety_stock_calculation.py forecast_comparison.csv product_master.csv --output-dir output/my_safety_stocks
+  python run_safety_stock_calculation.py forecast_comparison.csv --output-dir output/my_safety_stocks
         """
     )
     
     # Required arguments
     parser.add_argument("forecast_comparison_file", 
                        help="Path to forecast comparison CSV file")
-    parser.add_argument("product_master_file",
-                       help="Path to product master CSV file")
     
-    # Optional arguments
-    parser.add_argument("--output-dir", default="output/safety_stocks", 
-                       help="Output directory (default: output/safety_stocks)")
+    # Note: Output directory is now handled by DataLoader configuration
     parser.add_argument("--review-dates", 
                        help="Comma-separated list of review dates (YYYY-MM-DD)")
     parser.add_argument("--review-interval", type=int, default=30, 
@@ -209,15 +204,9 @@ Examples:
         print(f"❌ Error: Forecast comparison file not found: {args.forecast_comparison_file}")
         sys.exit(1)
     
-    if not Path(args.product_master_file).exists():
-        print(f"❌ Error: Product master file not found: {args.product_master_file}")
-        sys.exit(1)
-    
     # Run safety stock calculation
     result = run_safety_stock_calculation(
         forecast_comparison_file=args.forecast_comparison_file,
-        product_master_file=args.product_master_file,
-        output_dir=args.output_dir,
         review_dates=args.review_dates,
         review_interval_days=args.review_interval
     )

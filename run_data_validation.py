@@ -32,14 +32,11 @@ from datetime import datetime
 # Add the forecaster package to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from forecaster.data.loader import load_csv
+from data.loader import DataLoader
 from forecaster.validation import DataValidator
 
 
 def run_data_validation(
-    data_dir: str = "forecaster/data",
-    demand_file: str = "customer_demand.csv",
-    product_master_file: str = "customer_product_master.csv",
     demand_frequency: str = "d",
     validate_schema: bool = True,
     validate_completeness: bool = True,
@@ -78,35 +75,29 @@ def run_data_validation(
     print("=" * 60)
     
     # Configuration
-    print(f"📁 Data Directory: {data_dir}")
-    print(f"📊 Demand File: {demand_file}")
-    print(f"📋 Product Master File: {product_master_file}")
     print(f"🔄 Demand Frequency: {demand_frequency}")
     print(f"⚙️  Strict Mode: {strict_mode}")
     print(f"📝 Output Report: {output_report or 'None'}")
     print("=" * 60)
     
     try:
-        # Load data
-        print("📂 Loading data files...")
-        data_path = Path(data_dir)
+        # Initialize DataLoader
+        # Note: We are assuming the config YAML is correctly set up.
+        # The script's --data-dir, --demand-file, etc., arguments are now for documentation
+        # as the DataLoader gets its paths from data/config/data_config.yaml.
+        print("📂 Initializing DataLoader...")
+        loader = DataLoader()
         
-        demand_path = data_path / demand_file
-        product_master_path = data_path / product_master_file
+        # Load data using the new loader
+        print("📂 Loading data files via DataLoader...")
+        product_master_data = loader.load_product_master()
+        demand_data = loader.load_outflow(product_master=product_master_data)
         
-        if not demand_path.exists():
-            print(f"❌ Demand file not found: {demand_path}")
+        if demand_data is None or product_master_data is None:
+            print("❌ Data loading failed. Please check the DataLoader configuration and file paths.")
             return False
-        
-        if not product_master_path.exists():
-            print(f"❌ Product master file not found: {product_master_path}")
-            return False
-        
-        # Load data with validation disabled (we'll do our own validation)
-        demand_data = load_csv(demand_path, validate=False)
-        product_master_data = load_csv(product_master_path, validate=False)
-        
-        print(f"✅ Loaded {len(demand_data)} demand records")
+
+        print(f"✅ Loaded {len(demand_data)} demand records (filtered by product master)")
         print(f"✅ Loaded {len(product_master_data)} product master records")
         
         # Initialize validator
@@ -175,22 +166,7 @@ Examples:
         """
     )
     
-    # Data configuration
-    parser.add_argument(
-        "--data-dir",
-        default="forecaster/data",
-        help="Directory containing data files (default: forecaster/data)"
-    )
-    parser.add_argument(
-        "--demand-file",
-        default="customer_demand.csv",
-        help="Demand data file name (default: customer_demand.csv)"
-    )
-    parser.add_argument(
-        "--product-master-file",
-        default="customer_product_master.csv",
-        help="Product master file name (default: customer_product_master.csv)"
-    )
+    # Note: Data paths are now handled by DataLoader configuration
     parser.add_argument(
         "--demand-frequency",
         choices=["d", "w", "m"],
@@ -241,9 +217,6 @@ Examples:
     
     # Run validation
     success = run_data_validation(
-        data_dir=args.data_dir,
-        demand_file=args.demand_file,
-        product_master_file=args.product_master_file,
         demand_frequency=args.demand_frequency,
         validate_schema=not args.no_schema,
         validate_completeness=not args.no_completeness,

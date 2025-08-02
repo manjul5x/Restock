@@ -8,6 +8,7 @@ optimal Prophet parameters for demand forecasting.
 
 import sys
 from pathlib import Path
+from datetime import date
 
 # Add the forecaster package to the path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -26,9 +27,6 @@ def main():
 
     # Create configuration with smaller scope to see progress
     config = BacktestConfig(
-        data_dir="forecaster/data/dummy",  # Use dummy data for testing
-        demand_file="sku_demand_daily.csv",
-        product_master_file="product_master_daily.csv",
         output_dir="output/hyperparameter_analysis",
         historic_start_date=date(2022, 1, 1),
         analysis_start_date=date(2023, 6, 1),
@@ -41,7 +39,6 @@ def main():
     )
 
     print(f"📊 Configuration:")
-    print(f"   - Data directory: {config.data_dir}")
     print(
         f"   - Analysis period: {config.analysis_start_date} to {config.analysis_end_date}"
     )

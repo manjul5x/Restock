@@ -10,7 +10,7 @@ from pathlib import Path
 # Add the project root to the path
 sys.path.append(str(Path(__file__).parent))
 
-from forecaster.data.loader import DemandDataLoader
+from data.loader import DataLoader
 
 def check_first_demand_dates():
     """Check the first demand date for each material in customer product master."""
@@ -19,14 +19,14 @@ def check_first_demand_dates():
     print("FIRST DEMAND DATES BY MATERIAL")
     print("=" * 60)
     
-    # Load data
-    loader = DemandDataLoader('forecaster/data')
+    # Load data using the new DataLoader
+    loader = DataLoader()
     
     print("\n1. Loading customer demand data...")
-    demand_data = loader.load_csv('customer_demand.csv')
+    demand_data = loader.load_outflow()
     
     print("\n2. Loading customer product master...")
-    product_master = loader.load_csv('customer_product_master.csv')
+    product_master = loader.load_product_master()
     
     print(f"\n3. Found {len(product_master)} products in product master:")
     for _, row in product_master.iterrows():

@@ -7,13 +7,14 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 from datetime import date
 from pathlib import Path
-from ..data import DemandDataLoader, ProductMasterSchema
+from data.loader import DataLoader
+from ..validation import ProductMasterSchema
 
 class OutlierDetector:
     """Utilities for detecting outliers in demand data"""
     
-    def __init__(self, data_loader: DemandDataLoader = None):
-        self.data_loader = data_loader or DemandDataLoader()
+    def __init__(self, data_loader: DataLoader = None):
+        self.data_loader = data_loader or DataLoader()
     
     def detect_outliers_iqr(self, 
                            demand_series: pd.Series,

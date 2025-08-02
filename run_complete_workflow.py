@@ -105,10 +105,6 @@ def generate_review_dates(
 
 
 def run_complete_workflow(
-    data_dir: str = "forecaster/data",
-    demand_file: str = "customer_demand.csv",
-    product_master_file: str = "customer_product_master.csv",
-    output_dir: str = "output/complete_workflow",
     analysis_start_date: str = "2024-01-01",
     analysis_end_date: str = "2024-12-01",
     demand_frequency: str = "d",
@@ -127,10 +123,6 @@ def run_complete_workflow(
     Run the complete inventory analysis workflow.
 
     Args:
-        data_dir: Directory containing data files
-        demand_file: Demand data file name
-        product_master_file: Product master file name
-        output_dir: Output directory for results
         analysis_start_date: Analysis start date (YYYY-MM-DD format)
         analysis_end_date: Analysis end date (YYYY-MM-DD format)
         demand_frequency: Demand frequency ('d', 'w', 'm')
@@ -143,6 +135,7 @@ def run_complete_workflow(
         web_interface: Whether to start web interface
         log_level: Logging level
         review_interval_days: Days between review dates for safety stock calculation
+        review_dates: Comma-separated list of review dates (YYYY-MM-DD format)
     """
 
     print("🔍 Complete Inventory Analysis Workflow")
@@ -156,32 +149,17 @@ def run_complete_workflow(
         print("5. Web interface startup")
     print("=" * 60)
 
-    # Validate data directory
-    data_path = Path(data_dir)
-    if not data_path.exists():
-        print(f"❌ Error: Data directory not found: {data_dir}")
+    # Initialize DataLoader to validate configuration
+    try:
+        from data.loader import DataLoader
+        loader = DataLoader()
+        print("✅ DataLoader initialized successfully")
+        print(f"📁 Data configuration loaded from: data/config/data_config.yaml")
+    except Exception as e:
+        print(f"❌ Error initializing DataLoader: {e}")
+        print("Please check your data/config/data_config.yaml configuration")
         sys.exit(1)
 
-    # Validate data files
-    demand_path = data_path / demand_file
-    product_master_path = data_path / product_master_file
-
-    if not demand_path.exists():
-        print(f"❌ Error: Demand file not found: {demand_path}")
-        sys.exit(1)
-
-    if not product_master_path.exists():
-        print(f"❌ Error: Product master file not found: {product_master_path}")
-        sys.exit(1)
-
-    # Create output directory
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    print(f"📁 Data Directory: {data_dir}")
-    print(f"📊 Demand File: {demand_file}")
-    print(f"📋 Product Master File: {product_master_file}")
-    print(f"📁 Output Directory: {output_dir}")
     print(f"📅 Analysis Period: {analysis_start_date} to {analysis_end_date}")
     print(f"🔄 Demand Frequency: {demand_frequency}")
     print(f"⚙️ Batch Size: {batch_size}")
@@ -205,7 +183,7 @@ def run_complete_workflow(
         total_steps += 1
         print("🔄 Step 1/5: Running data validation...")
 
-        validation_cmd = f"python run_data_validation.py --data-dir {data_dir} --demand-file {demand_file} --product-master-file {product_master_file}"
+        validation_cmd = f"python run_data_validation.py"
 
         if demand_frequency:
             validation_cmd += f" --demand-frequency {demand_frequency}"
@@ -229,7 +207,7 @@ def run_complete_workflow(
                 "⏱️  This step may take significant time depending on data size and workers"
             )
 
-            backtest_cmd = f"python run_unified_backtest.py --data-dir {data_dir} --demand-file {demand_file} --product-master-file {product_master_file} --output-dir {output_dir}/backtesting --analysis-start-date {analysis_start_date} --analysis-end-date {analysis_end_date}"
+            backtest_cmd = f"python run_unified_backtest.py --analysis-start-date {analysis_start_date} --analysis-end-date {analysis_end_date}"
 
             backtest_cmd += f" --demand-frequency {demand_frequency} --batch-size {batch_size} --max-workers {max_workers}"
 
@@ -256,9 +234,8 @@ def run_complete_workflow(
             print("📊 Progress tracking will be displayed in real-time")
 
             # Check if forecast comparison file exists
-            forecast_comparison_file = (
-                f"{output_dir}/backtesting/forecast_comparison.csv"
-            )
+            filename = loader.config['paths']['output_files']['forecast_comparison']
+            forecast_comparison_file = str(loader.get_output_path("backtesting", filename))
             if not Path(forecast_comparison_file).exists():
                 print(
                     f"⚠️  Forecast comparison file not found: {forecast_comparison_file}"
@@ -322,7 +299,7 @@ def run_complete_workflow(
                 else:
                     review_dates_str = review_dates
 
-                safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} {data_dir}/{product_master_file} --output-dir {output_dir}/safety_stocks --review-dates "{review_dates_str}"'
+                safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}"'
 
                 if run_command(
                     safety_stock_cmd,
@@ -344,10 +321,10 @@ def run_complete_workflow(
             print("📊 Progress tracking will be displayed in real-time")
 
             # Check if safety stock results exist
-            safety_stock_file = f"{output_dir}/safety_stocks/safety_stock_results.csv"
-            forecast_comparison_file = (
-                f"{output_dir}/backtesting/forecast_comparison.csv"
-            )
+            safety_filename = loader.config['paths']['output_files']['safety_stocks']
+            safety_stock_file = str(loader.get_output_path("safety_stocks", safety_filename))
+            forecast_filename = loader.config['paths']['output_files']['forecast_comparison']
+            forecast_comparison_file = str(loader.get_output_path("backtesting", forecast_filename))
 
             if not Path(safety_stock_file).exists():
                 print(f"⚠️  Safety stock results not found: {safety_stock_file}")
@@ -358,7 +335,7 @@ def run_complete_workflow(
                 )
                 print("Skipping simulation...")
             else:
-                simulation_cmd = f"python run_simulation.py --data-dir {data_dir} --safety-stock-file {safety_stock_file} --forecast-comparison-file {forecast_comparison_file} --output-dir {output_dir}/simulation --max-workers {max_workers}"
+                simulation_cmd = f"python run_simulation.py --safety-stock-file {safety_stock_file} --forecast-comparison-file {forecast_comparison_file} --max-workers {max_workers}"
 
                 if run_command(
                     simulation_cmd,
@@ -408,15 +385,14 @@ def run_complete_workflow(
         print(f"{'='*60}")
         print(f"✅ Steps Completed: {success_count}/{total_steps}")
         print(f"⏱️  Total Workflow Time: {total_workflow_time:.2f} seconds")
-        print(f"📁 Output Directory: {output_dir}")
         print()
         print("📁 Generated Files:")
         if backtesting_enabled:
-            print(f"  • Backtesting Results: {output_dir}/backtesting/")
+            print(f"  • Backtesting Results: {loader.get_output_path('backtesting', '')}")
         if safety_stock_enabled:
-            print(f"  • Safety Stock Results: {output_dir}/safety_stocks/")
+            print(f"  • Safety Stock Results: {loader.get_output_path('safety_stocks', '')}")
         if simulation_enabled:
-            print(f"  • Simulation Results: {output_dir}/simulation/")
+            print(f"  • Simulation Results: {loader.get_output_path('simulation', '')}")
         print()
 
         if success_count == total_steps:
@@ -427,9 +403,14 @@ def run_complete_workflow(
             )
 
         if web_interface:
-            print("\n🌐 Web Interface:")
-            print("  • URL: http://localhost:5001")
-            print("  • Navigate to different tabs to view results")
+            print("\n🌐 Starting web interface...")
+            web_cmd = "python webapp/app.py"
+            if run_command(web_cmd, "Web Interface", check=True, real_time_output=True):
+                print("\n🌐 Web Interface:")
+                print("  • URL: http://localhost:5001")
+                print("  • Navigate to different tabs to view results")
+            else:
+                print("\n❌ Failed to start web interface")
         else:
             print("\n🌐 To view results in web interface:")
             print("  • Run: python webapp/app.py")
@@ -454,10 +435,7 @@ Examples:
   # Run with default settings
   python run_complete_workflow.py
   
-  # Run with custom data directory and files
-  python run_complete_workflow.py --data-dir forecaster/data --demand-file my_demand.csv --product-master-file my_product_master.csv
-  
-  # Run with specific analysis period
+  # Run with custom analysis period
   python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
   
   # Run with custom processing settings
@@ -477,29 +455,8 @@ Examples:
         """,
     )
 
-    # Data configuration
-    parser.add_argument(
-        "--data-dir",
-        default="forecaster/data",
-        help="Directory containing data files (default: forecaster/data)",
-    )
-    parser.add_argument(
-        "--demand-file",
-        default="customer_demand.csv",
-        help="Demand data file name (default: customer_demand.csv)",
-    )
-    parser.add_argument(
-        "--product-master-file",
-        default="customer_product_master.csv",
-        help="Product master file name (default: customer_product_master.csv)",
-    )
-
     # Output configuration
-    parser.add_argument(
-        "--output-dir",
-        default="output/complete_workflow",
-        help="Output directory (default: output/complete_workflow)",
-    )
+    # Note: Output directory is now handled by DataLoader configuration
 
     # Analysis period configuration
     parser.add_argument(
@@ -583,10 +540,6 @@ Examples:
     simulation_enabled = not args.no_simulation
 
     run_complete_workflow(
-        data_dir=args.data_dir,
-        demand_file=args.demand_file,
-        product_master_file=args.product_master_file,
-        output_dir=args.output_dir,
         analysis_start_date=args.analysis_start_date,
         analysis_end_date=args.analysis_end_date,
         demand_frequency=args.demand_frequency,

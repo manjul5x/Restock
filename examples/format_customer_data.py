@@ -123,18 +123,20 @@ def format_demand_data(input_file: str, output_file: str):
 
 def main():
     """Main function."""
+    # Initialize DataLoader
+    loader = DataLoader()
+    
     # Define paths
-    input_file = "forecaster/data/PR_consolidated_df.csv"
-    output_file = "forecaster/data/customer_demand.csv"
+    input_file = loader.get_output_path("raw_data", "PR_consolidated_df.csv")
+    output_file = loader.get_output_path("customer_data", "customer_demand.csv")
     
     # Check if input file exists
-    if not Path(input_file).exists():
+    if not input_file.exists():
         print(f"❌ Input file not found: {input_file}")
         sys.exit(1)
     
     # Create output directory if it doesn't exist
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     
     # Format the data
     try:
