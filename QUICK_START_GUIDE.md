@@ -20,7 +20,17 @@ This system provides:
 
 ## Step 1: Setup & Installation
 
-### Option A: Using UV (Recommended)
+### Quick Setup (Recommended)
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd Forecaster
+
+# Run the setup script (installs uv, dependencies, and dev tools)
+./setup.sh
+```
+
+### Manual Setup
 ```bash
 # Install UV if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -29,11 +39,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone <your-repo-url>
 cd Forecaster
 uv sync
-```
 
-### Option B: Using pip
-```bash
-pip install -r requirements.txt
+# For development (optional)
+uv sync --extra dev
 ```
 
 ## Step 2: Prepare Your Data
@@ -74,9 +82,9 @@ Replace the example data files with your own:
 
 ## Step 3: Run the Complete Workflow
 
-### Option A: Single Command (Recommended)
+### Single Command (Recommended)
 ```bash
-python run_complete_workflow.py
+uv run python run_complete_workflow.py
 ```
 
 This single command runs:
@@ -86,25 +94,34 @@ This single command runs:
 4. **Inventory Simulation** - Simulates inventory performance
 5. **Results Generation** - Creates all output files and visualizations
 
-### Option B: Step-by-Step (For Customization)
+### Step-by-Step (For Customization)
 ```bash
 # 1. Validate your data
-python run_data_validation.py
+uv run python run_data_validation.py
 
 # 2. Run backtesting with unified approach
-python run_unified_backtest.py
+uv run python run_unified_backtest.py
 
 # 3. Calculate safety stocks (uses default review dates)
-python run_safety_stock_calculation.py
+uv run python run_safety_stock_calculation.py
 
 # 4. Run simulation
-python run_simulation.py
+uv run python run_simulation.py
+```
+
+### Using Makefile Shortcuts
+```bash
+# Run individual components
+make run-backtest
+make run-safety-stocks
+make run-simulation
+make run-webapp
 ```
 
 ## Step 4: Start the Web Interface
 
 ```bash
-python webapp/run.py
+uv run python webapp/run.py
 ```
 
 ## Step 5: Explore Results
@@ -222,5 +239,5 @@ output/complete_workflow/
 
 ---
 
-**Ready to get started?** Run `python run_complete_workflow.py` and explore your inventory insights! 🚀
+**Ready to get started?** Run `uv run python run_complete_workflow.py` and explore your inventory insights! 🚀
 

@@ -43,14 +43,26 @@ A comprehensive, enterprise-grade inventory forecasting and analysis system with
 ## 📋 Quick Start
 
 ### 1. **Setup & Installation**
+
+#### Quick Setup (Recommended)
 ```bash
-# Install UV (recommended)
+git clone <your-repo-url>
+cd Forecaster
+./setup.sh
+```
+
+#### Manual Setup
+```bash
+# Install UV
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone and setup
 git clone <your-repo-url>
 cd Forecaster
 uv sync
+
+# For development (optional)
+uv sync --extra dev
 ```
 
 ### 2. **Prepare Your Data**
@@ -176,7 +188,10 @@ Forecaster/
 ### Running Tests
 ```bash
 # Run all tests
-uv run python -m pytest
+make test
+
+# Run tests with coverage
+make test-cov
 
 # Run specific test categories
 uv run python -m pytest forecaster/tests/ -v
@@ -184,14 +199,17 @@ uv run python -m pytest forecaster/tests/ -v
 
 ### Development Setup
 ```bash
-# Install development dependencies
-uv sync --extra dev
+# Install development dependencies and setup pre-commit
+make dev
+
+# Run all checks (linting and tests)
+make check
+
+# Format code
+make format
 
 # Run linting
-uv run ruff check .
-
-# Run type checking
-uv run mypy forecaster/
+make lint
 ```
 
 ## 🤝 Contributing
