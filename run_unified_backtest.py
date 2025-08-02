@@ -20,7 +20,6 @@ import os
 def run_unified_backtest_script(
     analysis_start_date: str = None,
     analysis_end_date: str = None,
-    historic_start_date: str = None,
     demand_frequency: str = "d",
     max_workers: int = 8,
     batch_size: int = 20,
@@ -42,14 +41,6 @@ def run_unified_backtest_script(
     try:
         start_date = date.fromisoformat(analysis_start_date)
         end_date = date.fromisoformat(analysis_end_date)
-
-        # Parse historic start date
-        if historic_start_date:
-            historic_start = date.fromisoformat(historic_start_date)
-        else:
-            historic_start = start_date.replace(
-                year=start_date.year - 1
-            )  # Default: 1 year before analysis start
     except ValueError as e:
         print(f"❌ Invalid date format: {e}")
         print("Use YYYY-MM-DD format (e.g., 2023-01-01)")
@@ -66,7 +57,6 @@ def run_unified_backtest_script(
     # Configuration
     config = BacktestConfig(
         # Backtesting parameters
-        historic_start_date=historic_start,
         analysis_start_date=start_date,
         analysis_end_date=end_date,
         # Forecasting parameters
@@ -92,7 +82,6 @@ def run_unified_backtest_script(
     print("=" * 70)
     print("🚀 Unified Backtesting")
     print("=" * 70)
-    print(f"📅 Historic Start Date: {historic_start}")
     print(f"📅 Analysis Start Date: {start_date}")
     print(f"📅 Analysis End Date: {end_date}")
     print(f"🔄 Demand Frequency: {demand_frequency}")
@@ -150,8 +139,7 @@ Examples:
   # With custom processing settings
   python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --max-workers 8 --batch-size 20
 
-  # With custom historic start date
-  python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --historic-start-date 2023-01-01
+
 
   # Without outlier handling
   python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --no-outliers
@@ -176,10 +164,6 @@ Examples:
     )
 
     # Note: Output directory is now handled by DataLoader configuration
-    parser.add_argument(
-        "--historic-start-date",
-        help="Historic start date (YYYY-MM-DD format, default: 1 year before analysis start)",
-    )
     parser.add_argument(
         "--demand-frequency",
         default="d",
@@ -214,7 +198,6 @@ Examples:
     success = run_unified_backtest_script(
         analysis_start_date=args.analysis_start_date,
         analysis_end_date=args.analysis_end_date,
-        historic_start_date=args.historic_start_date,
         demand_frequency=args.demand_frequency,
         max_workers=args.max_workers,
         batch_size=args.batch_size,

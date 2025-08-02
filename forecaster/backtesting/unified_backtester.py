@@ -71,7 +71,7 @@ class UnifiedBacktester:
         # Validate configuration
         if not self.config.validate_dates():
             raise ValueError(
-                "Invalid date configuration: historic_start_date <= analysis_start_date <= analysis_end_date"
+                "Invalid date configuration: analysis_start_date <= analysis_end_date"
             )
 
     def run(self) -> Dict:
@@ -214,7 +214,6 @@ class UnifiedBacktester:
         )
 
         print(f"\nDate Configuration:")
-        print(f"  • Historic start: {self.config.historic_start_date}")
         print(
             f"  • Analysis period: {self.config.analysis_start_date} to {self.config.analysis_end_date}"
         )

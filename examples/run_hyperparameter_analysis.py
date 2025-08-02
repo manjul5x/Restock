@@ -28,7 +28,7 @@ def main():
     # Create configuration with smaller scope to see progress
     config = BacktestConfig(
         output_dir="output/hyperparameter_analysis",
-        historic_start_date=date(2022, 1, 1),
+        
         analysis_start_date=date(2023, 6, 1),
         analysis_end_date=date(2023, 7, 1),  # Shorter period
         demand_frequency="d",

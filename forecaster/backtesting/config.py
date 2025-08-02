@@ -16,7 +16,6 @@ class BacktestConfig:
     # Output directory (will be set by DataLoader)
 
     # Backtesting parameters
-    historic_start_date: date = field(default_factory=lambda: date(2022, 1, 1))
     analysis_start_date: date = field(default_factory=lambda: date(2024, 4, 1))
     analysis_end_date: date = field(default_factory=lambda: date(2025, 4, 1))
 
@@ -79,8 +78,7 @@ class BacktestConfig:
     def validate_dates(self) -> bool:
         """Validate that the dates are in correct order."""
         return (
-            self.historic_start_date
-            <= self.analysis_start_date
+            self.analysis_start_date
             <= self.analysis_end_date
         )
 

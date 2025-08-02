@@ -79,7 +79,7 @@ config = BacktestConfig(
     output_dir="output/customer_backtest",
     
     # Backtesting parameters
-    historic_start_date=date(2022, 1, 1),  # Start of your historical data
+    
     analysis_start_date=date(2023, 1, 1),  # When to start backtesting
     analysis_end_date=date(2023, 12, 31),  # When to end backtesting
     
@@ -271,7 +271,7 @@ def run_customer_backtest():
         output_dir="output/customer_backtest",
         
         # Update these dates to match your data
-        historic_start_date=date(2022, 1, 1),
+        
         analysis_start_date=date(2023, 1, 1),
         analysis_end_date=date(2023, 12, 31),
         

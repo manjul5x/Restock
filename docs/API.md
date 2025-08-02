@@ -99,11 +99,6 @@ Required columns and their types:
 Configuration for backtesting runs:
 ```python
 config = BacktestConfig(
-    data_dir="forecaster/data",
-    demand_file="customer_demand.csv",
-    product_master_file="customer_product_master.csv",
-    output_dir="output/customer_backtest",
-    historic_start_date=date(2022, 1, 1),
     analysis_start_date=date(2023, 1, 1),
     analysis_end_date=date(2023, 12, 31),
     demand_frequency="d",

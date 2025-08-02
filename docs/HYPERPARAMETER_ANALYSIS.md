@@ -92,7 +92,7 @@ config = BacktestConfig(
     demand_file="customer_demand.csv",
     product_master_file="customer_product_master.csv",
     output_dir="output/hyperparameter_analysis",
-    historic_start_date=date(2022, 1, 1),
+    
     analysis_start_date=date(2024, 1, 1),
     analysis_end_date=date(2025, 1, 1),
     demand_frequency="d",
