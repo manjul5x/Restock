@@ -76,7 +76,7 @@ Replace the example data files with your own:
 
 ### Option A: Single Command (Recommended)
 ```bash
-python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
+python run_complete_workflow.py
 ```
 
 This single command runs:
@@ -92,7 +92,7 @@ This single command runs:
 python run_data_validation.py
 
 # 2. Run backtesting with unified approach
-python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
+python run_unified_backtest.py
 
 # 3. Calculate safety stocks (uses default review dates)
 python run_safety_stock_calculation.py

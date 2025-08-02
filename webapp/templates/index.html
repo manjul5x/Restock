@@ -127,12 +127,12 @@
                         <!-- Date Range -->
                         <div class="col-md-3">
                             <label class="form-label">Start Date</label>
-                            <input type="date" class="form-control" id="start-date" name="start_date" value="2023-07-01">
+                            <input type="date" class="form-control" id="start-date" name="start_date">
                         </div>
 
                         <div class="col-md-3">
                             <label class="form-label">End Date</label>
-                            <input type="date" class="form-control" id="end-date" name="end_date" value="2025-04-30">
+                            <input type="date" class="form-control" id="end-date" name="end_date">
                         </div>
                     </div>
 
@@ -242,9 +242,8 @@ $(document).ready(function() {
         generatePlot();
     });
     
-    // Set default date range (2023-07-01 to 2025-04-30)
-    $('#start-date').val('2023-07-01');
-    $('#end-date').val('2025-04-30');
+    // Set default date range dynamically based on data
+    setDefaultDateRange();
 });
 
 function loadDataSummary() {
@@ -259,6 +258,24 @@ function loadDataSummary() {
         })
         .fail(function() {
             console.error('Failed to load data summary');
+        });
+}
+
+function setDefaultDateRange() {
+    $.get('/get_date_range')
+        .done(function(data) {
+            if (data.start_date && data.end_date) {
+                $('#start-date').val(data.start_date);
+                $('#end-date').val(data.end_date);
+            }
+        })
+        .fail(function() {
+            console.error('Failed to load date range, using fallback');
+            // Fallback to a reasonable default if the endpoint fails
+            const today = new Date();
+            const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
+            $('#start-date').val(sixMonthsAgo.toISOString().split('T')[0]);
+            $('#end-date').val(today.toISOString().split('T')[0]);
         });
 }
 

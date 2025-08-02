@@ -201,8 +201,8 @@ config = BacktestConfig(
     demand_file="customer_demand.csv",
     product_master_file="customer_product_master.csv",
     output_dir="output/backtest_with_progress",
-    analysis_start_date="2024-01-01",
-    analysis_end_date="2024-12-31",
+    analysis_start_date=None,  # Will be calculated based on ss_window_length and first review date
+analysis_end_date=None,     # Will be set to last review date
     max_workers=8,  # Enable parallel processing
     log_level="INFO",  # Enable progress tracking
 )
@@ -227,45 +227,37 @@ All progress tracking features from the individual backtesting are preserved whe
 
 #### Individual Backtesting
 ```bash
-# Run with default progress tracking
+# Run with default progress tracking (analysis dates calculated automatically)
 python run_unified_backtest.py \
     --data-dir forecaster/data \
     --demand-file customer_demand.csv \
     --product-master-file customer_product_master.csv \
-    --analysis-start-date 2024-01-01 \
-    --analysis-end-date 2024-12-31 \
     --max-workers 8
 
-# Run with detailed logging
+# Run with detailed logging (analysis dates calculated automatically)
 python run_unified_backtest.py \
     --data-dir forecaster/data \
     --demand-file customer_demand.csv \
     --product-master-file customer_product_master.csv \
-    --analysis-start-date 2024-01-01 \
-    --analysis-end-date 2024-12-31 \
     --max-workers 8 \
     --log-level DEBUG
 ```
 
 #### Complete Workflow with Progress Tracking
 ```bash
-# Run complete workflow with progress tracking
+# Run complete workflow with progress tracking (analysis dates calculated automatically)
 python run_complete_workflow.py \
     --data-dir forecaster/data \
     --demand-file customer_demand.csv \
     --product-master-file customer_product_master.csv \
-    --analysis-start-date 2024-01-01 \
-    --analysis-end-date 2024-12-31 \
     --max-workers 8 \
     --log-level INFO
 
-# Run with web interface
+# Run with web interface (analysis dates calculated automatically)
 python run_complete_workflow.py \
     --data-dir forecaster/data \
     --demand-file customer_demand.csv \
     --product-master-file customer_product_master.csv \
-    --analysis-start-date 2024-01-01 \
-    --analysis-end-date 2024-12-31 \
     --max-workers 8 \
     --log-level INFO \
     --web-interface

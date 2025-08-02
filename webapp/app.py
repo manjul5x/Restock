@@ -194,6 +194,30 @@ def get_data_summary():
         return jsonify({"error": str(e)})
 
 
+@app.route("/get_date_range")
+def get_date_range():
+    """Get the available date range for the data"""
+    initialize_data()
+
+    if visualizer is None:
+        return jsonify({"error": "Data not available"})
+
+    try:
+        # Get the date range from the visualizer's data
+        data = visualizer.data
+        if data is not None and 'date' in data.columns:
+            min_date = data['date'].min().strftime('%Y-%m-%d')
+            max_date = data['date'].max().strftime('%Y-%m-%d')
+            return jsonify({
+                "start_date": min_date,
+                "end_date": max_date
+            })
+        else:
+            return jsonify({"error": "No date column found in data"})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 @app.route("/safety_stocks")
 def safety_stocks():
     """Safety stock visualization page"""

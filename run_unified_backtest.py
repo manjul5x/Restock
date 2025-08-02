@@ -158,6 +158,8 @@ Examples:
 
   # With custom log level for progress tracking
   python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --log-level DEBUG
+
+  # Note: For automatic date calculation, use run_complete_workflow.py instead
         """,
     )
 

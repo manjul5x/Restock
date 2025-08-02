@@ -23,8 +23,64 @@ import time
 sys.path.append(str(Path(__file__).parent))
 
 from forecaster.utils.logger import get_logger
+from datetime import date, timedelta
+import pandas as pd
 
 logger = get_logger(__name__)
+
+
+def calculate_analysis_dates(loader, demand_frequency: str = "d") -> tuple[str, str]:
+    """
+    Calculate the analysis start and end dates based on the max ss_window_length and review dates.
+    
+    Args:
+        loader: DataLoader instance
+        demand_frequency: Demand frequency ('d', 'w', 'm')
+    
+    Returns:
+        Tuple of (analysis_start_date, analysis_end_date) in YYYY-MM-DD format
+        
+    Raises:
+        ValueError: If unable to calculate the dates (e.g., missing review dates or product master data)
+    """
+    try:
+        # Load product master to get max ss_window_length
+        product_master = loader.load_product_master()
+        max_ss_window_length = product_master['ss_window_length'].max()
+        
+        # Get review dates from config
+        review_dates = loader.config.get('safety_stock', {}).get('review_dates', [])
+        if not review_dates:
+            raise ValueError("No review dates found in config")
+        
+        first_review_date = date.fromisoformat(review_dates[0])
+        last_review_date = date.fromisoformat(review_dates[-1])
+        
+        # Calculate days to subtract based on demand frequency and ss_window_length
+        if demand_frequency == "d":
+            days_to_subtract = int(max_ss_window_length)
+        elif demand_frequency == "w":
+            days_to_subtract = int(max_ss_window_length * 7)
+        elif demand_frequency == "m":
+            days_to_subtract = int(max_ss_window_length * 30)  # Approximate
+        else:
+            raise ValueError(f"Unsupported demand frequency: {demand_frequency}")
+        
+        # Calculate analysis start date
+        analysis_start_date = first_review_date - timedelta(days=days_to_subtract)
+        
+        print(f"📊 Calculated analysis dates:")
+        print(f"   Max ss_window_length: {max_ss_window_length} {demand_frequency}")
+        print(f"   First review date: {first_review_date}")
+        print(f"   Last review date: {last_review_date}")
+        print(f"   Analysis start date: {analysis_start_date}")
+        print(f"   Analysis end date: {last_review_date}")
+        
+        return analysis_start_date.isoformat(), last_review_date.isoformat()
+        
+    except Exception as e:
+        print(f"❌ Error calculating analysis dates: {e}")
+        raise ValueError(f"Failed to calculate analysis dates: {e}")
 
 
 def run_command(command, description, check=True, real_time_output=False):
@@ -77,36 +133,12 @@ def run_command(command, description, check=True, real_time_output=False):
         return False
 
 
-def generate_review_dates(
-    analysis_start_date: str, analysis_end_date: str, review_interval_days: int = 30
-) -> str:
-    """
-    Generate review dates for safety stock calculation.
 
-    Args:
-        analysis_start_date: Analysis start date (YYYY-MM-DD)
-        analysis_end_date: Analysis end date (YYYY-MM-DD)
-        review_interval_days: Days between review dates
-
-    Returns:
-        Comma-separated string of review dates
-    """
-    start_date = date.fromisoformat(analysis_start_date)
-    end_date = date.fromisoformat(analysis_end_date)
-
-    review_dates = []
-    current_date = start_date
-
-    while current_date <= end_date:
-        review_dates.append(current_date.isoformat())
-        current_date = current_date + timedelta(days=review_interval_days)
-
-    return ",".join(review_dates)
 
 
 def run_complete_workflow(
-    analysis_start_date: str = "2024-01-01",
-    analysis_end_date: str = "2024-12-01",
+    analysis_start_date: str = None,
+    analysis_end_date: str = None,
     demand_frequency: str = "d",
     batch_size: int = 10,
     max_workers: int = 8,
@@ -116,15 +148,14 @@ def run_complete_workflow(
     simulation_enabled: bool = True,
     web_interface: bool = False,
     log_level: str = "INFO",
-    review_interval_days: int = 30,
     review_dates: str = None,
 ):
     """
     Run the complete inventory analysis workflow.
 
     Args:
-        analysis_start_date: Analysis start date (YYYY-MM-DD format)
-        analysis_end_date: Analysis end date (YYYY-MM-DD format)
+        analysis_start_date: Analysis start date (YYYY-MM-DD format). If None, will be calculated based on max ss_window_length and first review date. Required if calculation fails.
+        analysis_end_date: Analysis end date (YYYY-MM-DD format). If None, will be set to the last review date. Required if calculation fails.
         demand_frequency: Demand frequency ('d', 'w', 'm')
         batch_size: Batch size for processing
         max_workers: Maximum number of parallel workers
@@ -134,8 +165,7 @@ def run_complete_workflow(
         simulation_enabled: Whether to enable simulation
         web_interface: Whether to start web interface
         log_level: Logging level
-        review_interval_days: Days between review dates for safety stock calculation
-        review_dates: Comma-separated list of review dates (YYYY-MM-DD format)
+        review_dates: Comma-separated list of review dates (YYYY-MM-DD format). If not provided, will use dates from config file.
     """
 
     print("🔍 Complete Inventory Analysis Workflow")
@@ -160,6 +190,23 @@ def run_complete_workflow(
         print("Please check your data/config/data_config.yaml configuration")
         sys.exit(1)
 
+    # Calculate analysis dates if not provided
+    if analysis_start_date is None or analysis_end_date is None:
+        print("📊 Calculating analysis dates based on max ss_window_length and review dates...")
+        try:
+            calculated_start, calculated_end = calculate_analysis_dates(loader, demand_frequency)
+            if analysis_start_date is None:
+                analysis_start_date = calculated_start
+            if analysis_end_date is None:
+                analysis_end_date = calculated_end
+        except Exception as e:
+            print(f"❌ Failed to calculate analysis dates: {e}")
+            print("   Please provide analysis dates using --analysis-start-date and --analysis-end-date parameters")
+            sys.exit(1)
+    else:
+        print(f"📅 Using provided analysis start date: {analysis_start_date}")
+        print(f"📅 Using provided analysis end date: {analysis_end_date}")
+
     print(f"📅 Analysis Period: {analysis_start_date} to {analysis_end_date}")
     print(f"🔄 Demand Frequency: {demand_frequency}")
     print(f"⚙️ Batch Size: {batch_size}")
@@ -171,7 +218,7 @@ def run_complete_workflow(
     )
     print(f"🎮 Simulation: {'Enabled' if simulation_enabled else 'Disabled'}")
     print(f"🌐 Web Interface: {'Enabled' if web_interface else 'Disabled'}")
-    print(f"📅 Review Interval: {review_interval_days} days")
+
     print()
 
     workflow_start_time = time.time()
@@ -242,77 +289,56 @@ def run_complete_workflow(
                 )
                 print("Skipping safety stock calculation...")
             else:
-                # Use provided review dates or default to hardcoded dates (1st, 8th, 15th, 22nd of every month in 2024)
+                # Use provided review dates or get from config
                 if review_dates is None:
-                    # Hardcoded review dates: 1st, 8th, 15th, 22nd of every month in 2024
-                    hardcoded_review_dates = [
-                        "2024-01-01",
-                        "2024-01-08",
-                        "2024-01-15",
-                        "2024-01-22",
-                        "2024-02-01",
-                        "2024-02-08",
-                        "2024-02-15",
-                        "2024-02-22",
-                        "2024-03-01",
-                        "2024-03-08",
-                        "2024-03-15",
-                        "2024-03-22",
-                        "2024-04-01",
-                        "2024-04-08",
-                        "2024-04-15",
-                        "2024-04-22",
-                        "2024-05-01",
-                        "2024-05-08",
-                        "2024-05-15",
-                        "2024-05-22",
-                        "2024-06-01",
-                        "2024-06-08",
-                        "2024-06-15",
-                        "2024-06-22",
-                        "2024-07-01",
-                        "2024-07-08",
-                        "2024-07-15",
-                        "2024-07-22",
-                        "2024-08-01",
-                        "2024-08-08",
-                        "2024-08-15",
-                        "2024-08-22",
-                        "2024-09-01",
-                        "2024-09-08",
-                        "2024-09-15",
-                        "2024-09-22",
-                        "2024-10-01",
-                        "2024-10-08",
-                        "2024-10-15",
-                        "2024-10-22",
-                        "2024-11-01",
-                        "2024-11-08",
-                        "2024-11-15",
-                        "2024-11-22",
-                        "2024-12-01",
-                        "2024-12-08",
-                        "2024-12-15",
-                        "2024-12-22",
-                    ]
-                    review_dates_str = ",".join(hardcoded_review_dates)
+                    # Get review dates from config
+                    try:
+                        config_review_dates = loader.config.get('safety_stock', {}).get('review_dates', [])
+                        if not config_review_dates:
+                            print("❌ No review dates found in config. Please add review_dates to data/config/data_config.yaml under safety_stock section.")
+                            print("Skipping safety stock calculation...")
+                        else:
+                            review_dates_str = ",".join(config_review_dates)
+                            print(f"📅 Using {len(config_review_dates)} review dates from config")
+                    except Exception as e:
+                        print(f"❌ Error reading review dates from config: {e}")
+                        print("Skipping safety stock calculation...")
+                        config_review_dates = []
+                    
+                    if not config_review_dates:
+                        # Skip safety stock calculation if no review dates available
+                        pass
+                    else:
+                        safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}"'
+
+                        if run_command(
+                            safety_stock_cmd,
+                            "Safety Stock Calculation",
+                            check=False,
+                            real_time_output=True,
+                        ):
+                            success_count += 1
+                            print("✅ Safety stock calculation completed successfully!")
+                        else:
+                            print(
+                                "⚠️  Safety stock calculation failed, but continuing workflow..."
+                            )
                 else:
                     review_dates_str = review_dates
+                    safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}"'
 
-                safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}"'
-
-                if run_command(
-                    safety_stock_cmd,
-                    "Safety Stock Calculation",
-                    check=False,
-                    real_time_output=True,
-                ):
-                    success_count += 1
-                    print("✅ Safety stock calculation completed successfully!")
-                else:
-                    print(
-                        "⚠️  Safety stock calculation failed, but continuing workflow..."
-                    )
+                    if run_command(
+                        safety_stock_cmd,
+                        "Safety Stock Calculation",
+                        check=False,
+                        real_time_output=True,
+                    ):
+                        success_count += 1
+                        print("✅ Safety stock calculation completed successfully!")
+                    else:
+                        print(
+                            "⚠️  Safety stock calculation failed, but continuing workflow..."
+                        )
 
         # Step 4: Inventory Simulation
         if simulation_enabled and safety_stock_enabled:
@@ -438,6 +464,9 @@ Examples:
   # Run with custom analysis period
   python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
   
+  # Run with auto-calculated dates (based on ss_window_length and review dates)
+  python run_complete_workflow.py
+  
   # Run with custom processing settings
   python run_complete_workflow.py --batch-size 20 --max-workers 8 --log-level DEBUG
   
@@ -446,9 +475,6 @@ Examples:
   
   # Run with web interface
   python run_complete_workflow.py --web-interface
-  
-  # Run with custom review interval for safety stock
-  python run_complete_workflow.py --review-interval 14
   
   # Run with custom review dates for safety stock
   python run_complete_workflow.py --review-dates "2024-01-01,2024-01-15,2024-02-01,2024-02-15"
@@ -461,13 +487,13 @@ Examples:
     # Analysis period configuration
     parser.add_argument(
         "--analysis-start-date",
-        default="2024-01-01",
-        help="Analysis start date (YYYY-MM-DD format, default: 2024-01-01)",
+        default=None,
+        help="Analysis start date (YYYY-MM-DD format). If not provided, will be calculated based on max ss_window_length and first review date. Required if calculation fails.",
     )
     parser.add_argument(
         "--analysis-end-date",
-        default="2024-12-01",
-        help="Analysis end date (YYYY-MM-DD format, default: 2024-12-01)",
+        default=None,
+        help="Analysis end date (YYYY-MM-DD format). If not provided, will be set to the last review date. Required if calculation fails.",
     )
 
     # Processing configuration
@@ -492,14 +518,8 @@ Examples:
 
     # Safety stock configuration
     parser.add_argument(
-        "--review-interval",
-        type=int,
-        default=30,
-        help="Days between review dates for safety stock calculation (default: 30)",
-    )
-    parser.add_argument(
         "--review-dates",
-        help="Comma-separated list of review dates (YYYY-MM-DD format). If not provided, uses default dates: 1st, 8th, 15th, 22nd of every month in 2024",
+        help="Comma-separated list of review dates (YYYY-MM-DD format). If not provided, will use dates from config file.",
     )
 
     # Feature flags
@@ -540,8 +560,8 @@ Examples:
     simulation_enabled = not args.no_simulation
 
     run_complete_workflow(
-        analysis_start_date=args.analysis_start_date,
-        analysis_end_date=args.analysis_end_date,
+        analysis_start_date=args.analysis_start_date if args.analysis_start_date else None,
+        analysis_end_date=args.analysis_end_date if args.analysis_end_date else None,
         demand_frequency=args.demand_frequency,
         batch_size=args.batch_size,
         max_workers=args.max_workers,
@@ -551,7 +571,6 @@ Examples:
         simulation_enabled=simulation_enabled,
         web_interface=args.web_interface,
         log_level=args.log_level,
-        review_interval_days=args.review_interval,
         review_dates=args.review_dates,
     )
 

@@ -11,8 +11,8 @@ Main class for running backtesting simulations.
 from forecaster.backtesting import UnifiedBacktester, BacktestConfig
 
 config = BacktestConfig(
-    analysis_start_date="2024-01-01",
-    analysis_end_date="2024-12-01",
+    analysis_start_date=None,  # Will be calculated based on ss_window_length and first review date
+analysis_end_date=None,     # Will be set to last review date
 )
 backtester = UnifiedBacktester(config)
 results = backtester.run_unified_backtesting()

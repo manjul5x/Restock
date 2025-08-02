@@ -112,7 +112,8 @@ export FORECASTER_DATA_DIR="path/to/your/customer/data"
 export FORECASTER_DEMAND_FILE="customer_demand.csv"
 export FORECASTER_PRODUCT_MASTER_FILE="customer_product_master.csv"
 export FORECASTER_OUTPUT_DIR="output/customer_backtest"
-export FORECASTER_ANALYSIS_START_DATE="2023-01-01"
+# Analysis dates are now calculated automatically based on ss_window_length and review dates
+# No need to set FORECASTER_ANALYSIS_START_DATE environment variable
 export FORECASTER_ANALYSIS_END_DATE="2023-12-31"
 export FORECASTER_DEMAND_FREQUENCY="d"
 export FORECASTER_MAX_WORKERS="4"

@@ -28,8 +28,8 @@ def run_safety_stock_calculation(
         forecast_comparison_file: Path to forecast comparison CSV file
         product_master_file: Path to product master CSV file (handled by DataLoader)
         output_dir: Output directory for results
-        review_dates: Comma-separated list of review dates (YYYY-MM-DD)
-        review_interval_days: Days between review dates if not provided
+        review_dates: Comma-separated list of review dates (YYYY-MM-DD). If not provided, will use dates from config file.
+        review_interval_days: Days between review dates if not provided (deprecated - use config file instead)
     
     Returns:
         DataFrame with safety stock results
@@ -97,22 +97,19 @@ def run_safety_stock_calculation(
         review_date_list = [date.fromisoformat(d.strip()) for d in review_dates.split(',')]
         print(f"📅 Using {len(review_date_list)} provided review dates")
     else:
-        # Generate review dates based on interval
-        print(f"📅 Generating review dates with {review_interval_days}-day intervals")
-        
-        # Get date range from forecast data
-        forecast_data['analysis_date'] = pd.to_datetime(forecast_data['analysis_date'])
-        min_date = forecast_data['analysis_date'].min().date()
-        max_date = forecast_data['analysis_date'].max().date()
-        
-        # Generate review dates
-        review_date_list = []
-        current_date = min_date
-        while current_date <= max_date:
-            review_date_list.append(current_date)
-            current_date = current_date.replace(day=current_date.day + review_interval_days)
-        
-        print(f"📅 Generated {len(review_date_list)} review dates from {min_date} to {max_date}")
+        # Try to get review dates from config
+        try:
+            config_review_dates = loader.config.get('safety_stock', {}).get('review_dates', [])
+            if config_review_dates:
+                review_date_list = [date.fromisoformat(d.strip()) for d in config_review_dates]
+                print(f"📅 Using {len(review_date_list)} review dates from config")
+            else:
+                raise ValueError("No review dates found in config")
+        except Exception as e:
+            print(f"❌ Error: Review dates are required for safety stock calculation.")
+            print(f"   Please provide review dates via --review-dates parameter or add them to data/config/data_config.yaml")
+            print(f"   Error details: {e}")
+            return None
     
     # Initialize safety stock calculator
     print("🔧 Initializing safety stock calculator...")
@@ -179,6 +176,9 @@ Examples:
   # Run with custom review dates
   python run_safety_stock_calculation.py forecast_comparison.csv --review-dates "2024-01-01,2024-02-01,2024-03-01"
   
+  # Run with review dates from config file (recommended)
+  python run_safety_stock_calculation.py forecast_comparison.csv
+  
   # Run with custom review interval
   python run_safety_stock_calculation.py forecast_comparison.csv --review-interval 14
   
@@ -193,9 +193,9 @@ Examples:
     
     # Note: Output directory is now handled by DataLoader configuration
     parser.add_argument("--review-dates", 
-                       help="Comma-separated list of review dates (YYYY-MM-DD)")
+                       help="Comma-separated list of review dates (YYYY-MM-DD). If not provided, will use dates from config file.")
     parser.add_argument("--review-interval", type=int, default=30, 
-                       help="Days between review dates if not provided (default: 30)")
+                       help="Days between review dates if not provided (default: 30, deprecated - use config file instead)")
     
     args = parser.parse_args()
     

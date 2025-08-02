@@ -63,7 +63,7 @@ See [Customer Data Guide](CUSTOMER_DATA_GUIDE.md) for detailed format requiremen
 ### 3. **Run Complete Analysis**
 ```bash
 # Single command for complete workflow
-python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
+python run_complete_workflow.py
 ```
 
 This runs:
