@@ -29,7 +29,7 @@ from ..data.aggregator import DemandAggregator
 from ..forecasting.parameter_optimizer import ParameterOptimizerFactory
 from ..forecasting.core_engine import CoreForecastingEngine
 from ..forecasting.base import calculate_forecast_metrics
-from ..utils.logger import ForecasterLogger
+from ..utils.logger import get_logger, configure_workflow_logging
 from ..validation.product_master_schema import ProductMasterSchema
 
 
@@ -42,8 +42,12 @@ class UnifiedBacktester:
     def __init__(self, config: BacktestConfig):
         """Initialize the unified backtester with configuration."""
         self.config = config
-        self.logger = ForecasterLogger(
-            "unified_backtester", config.log_level, config.log_file
+        
+        # Setup logging for this backtesting run
+        self.logger = configure_workflow_logging(
+            workflow_name="unified_backtesting",
+            log_level=config.log_level,
+            log_dir="output/logs"
         )
 
         # Data storage
@@ -85,67 +89,69 @@ class UnifiedBacktester:
         self.logger.info("Starting unified backtesting process")
         self.logger.info(f"Configuration: {self.config.__dict__}")
 
-        print("\n" + "=" * 80)
-        print("🚀 UNIFIED BACKTESTING WORKFLOW")
-        print("=" * 80)
+        self.logger.info("🚀 UNIFIED BACKTESTING WORKFLOW")
 
         try:
             # Step 1: Load and validate data
-            print("\n📂 Step 1/7: Loading and validating data...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Loading and validating data", 1, 7)
             self._load_data()
-            print("✅ Data loading completed")
+            self.logger.log_step_completion("Data loading", time.time() - step_start)
 
             # Step 1.5: Expand product master for multiple methods
-            print("\n📋 Step 1.5/7: Expanding product master for multiple methods...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Expanding product master for multiple methods", 2, 7)
             self._expand_product_master_for_methods()
-            print("✅ Product master expansion completed")
+            self.logger.log_step_completion("Product master expansion", time.time() - step_start)
 
             # Print initial summary
             self._print_initial_summary()
 
             # Step 2: Group products by forecasting method
-            print("\n📊 Step 2/7: Grouping products by forecasting method...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Grouping products by forecasting method", 3, 7)
             self._group_products_by_method()
-            print("✅ Product grouping completed")
+            self.logger.log_step_completion("Product grouping", time.time() - step_start)
 
             # Step 3: Handle outliers across the entire analysis period
-            print("\n🔍 Step 3/7: Handling outliers...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Handling outliers", 4, 7)
             self._handle_outliers()
-            print("✅ Outlier handling completed")
+            self.logger.log_step_completion("Outlier handling", time.time() - step_start)
 
             # Step 4: Optimize parameters once for each product-location-method
-            print("\n🔧 Step 4/7: Optimizing parameters...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Optimizing parameters", 5, 7)
             self._optimize_parameters_once()
+            self.logger.log_step_completion("Parameter optimization", time.time() - step_start)
 
             # Step 5: Run backtesting for each analysis date
-            print("\n🚀 Step 5/7: Running backtesting...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Running backtesting", 6, 7)
             self._run_unified_backtesting()
+            self.logger.log_step_completion("Backtesting", time.time() - step_start)
 
             # Step 6: Calculate accuracy metrics
-            print("\n📈 Step 6/7: Calculating accuracy metrics...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Calculating accuracy metrics", 7, 7)
             self._calculate_accuracy_metrics()
-            print("✅ Accuracy metrics calculated")
+            self.logger.log_step_completion("Accuracy metrics", time.time() - step_start)
 
             # Step 7: Save results
-            print("\n💾 Step 7/7: Saving results...")
+            step_start = time.time()
+            self.logger.log_workflow_step("Saving results", 7, 7)
             self._save_results()
-            print("✅ Results saved")
+            self.logger.log_step_completion("Saving results", time.time() - step_start)
 
             # Generate summary
             total_time = time.time() - start_time
             summary = self._generate_summary(total_time)
 
-            print(f"\n🎉 UNIFIED BACKTESTING COMPLETED SUCCESSFULLY!")
-            print(f"⏱️  Total execution time: {total_time:.2f} seconds")
-            print("=" * 80)
-
             self.logger.info("Unified backtesting completed successfully")
             return summary
 
         except Exception as e:
-            print(f"\n❌ UNIFIED BACKTESTING FAILED: {e}")
-            print("=" * 80)
-            self.logger.error(f"Unified backtesting failed: {e}")
+            self.logger.error(f"Unified backtesting failed: {e}", exc_info=True)
             raise
 
     def _load_data(self):
@@ -201,41 +207,26 @@ class UnifiedBacktester:
 
     def _print_initial_summary(self):
         """Print initial summary of the backtesting configuration and data."""
-        print("\n" + "=" * 60)
-        print("UNIFIED BACKTESTING SUMMARY")
-        print("=" * 60)
-        print(f"Data Configuration:")
-        print(f"  • Total demand records: {len(self.demand_data):,}")
-        print(
-            f"  • Original product-location combinations: {len(self.product_master_data):,}"
-        )
-        print(
-            f"  • Expanded product-method combinations: {len(self.expanded_product_master_data):,}"
-        )
+        self.logger.info("UNIFIED BACKTESTING SUMMARY")
+        self.logger.info("Data Configuration:")
+        self.logger.info(f"  • Total demand records: {len(self.demand_data):,}")
+        self.logger.info(f"  • Original product-location combinations: {len(self.product_master_data):,}")
+        self.logger.info(f"  • Expanded product-method combinations: {len(self.expanded_product_master_data):,}")
 
-        print(f"\nDate Configuration:")
-        print(
-            f"  • Analysis period: {self.config.analysis_start_date} to {self.config.analysis_end_date}"
-        )
-        print(f"  • Analysis dates: {len(self.config.get_analysis_dates())} dates")
+        self.logger.info("Date Configuration:")
+        self.logger.info(f"  • Analysis period: {self.config.analysis_start_date} to {self.config.analysis_end_date}")
+        self.logger.info(f"  • Analysis dates: {len(self.config.get_analysis_dates())} dates")
 
-        print(f"\nForecasting Configuration:")
-        print(f"  • Default horizon: {self.config.default_horizon} risk periods")
-        print(f"  • Demand frequency: {self.config.demand_frequency}")
-        print(
-            f"  • Outlier handling: {'Enabled' if self.config.outlier_enabled else 'Disabled'}"
-        )
-        print(
-            f"  • Aggregation: {'Enabled' if self.config.aggregation_enabled else 'Disabled'}"
-        )
+        self.logger.info("Forecasting Configuration:")
+        self.logger.info(f"  • Default horizon: {self.config.default_horizon} risk periods")
+        self.logger.info(f"  • Demand frequency: {self.config.demand_frequency}")
+        self.logger.info(f"  • Outlier handling: {'Enabled' if self.config.outlier_enabled else 'Disabled'}")
+        self.logger.info(f"  • Aggregation: {'Enabled' if self.config.aggregation_enabled else 'Disabled'}")
 
-        print(f"\nProcessing Configuration:")
-        print(f"  • Batch size: {self.config.batch_size}")
-        print(f"  • Max workers: {self.config.max_workers}")
-        print(
-            f"  • Expected total forecasts: {len(self.config.get_analysis_dates()) * len(self.expanded_product_master_data):,}"
-        )
-        print("=" * 60 + "\n")
+        self.logger.info("Processing Configuration:")
+        self.logger.info(f"  • Batch size: {self.config.batch_size}")
+        self.logger.info(f"  • Max workers: {self.config.max_workers}")
+        self.logger.info(f"  • Expected total forecasts: {len(self.config.get_analysis_dates()) * len(self.expanded_product_master_data):,}")
 
     def _group_products_by_method(self):
         """Group products by their forecasting method for efficient processing."""
@@ -285,25 +276,18 @@ class UnifiedBacktester:
         )
 
     def _optimize_parameters_once(self):
-        """Step 4: Optimize parameters once for each product-location-method using all available data."""
-        self.logger.info(
-            "Step 4: Optimizing parameters once for each product-location-method"
-        )
+        """Step 4: Optimize parameters once for each product-location-method."""
+        self.logger.info("Step 4: Optimizing parameters once for each product-location-method")
 
-        # Calculate total number of products to optimize
-        total_products = sum(len(products) for products in self.product_groups.values())
         optimized_count = 0
         failed_count = 0
+        total_products = sum(len(products) for products in self.product_groups.values())
 
-        print(f"\n🔧 Parameter Optimization Progress")
-        print(f"📊 Total products to optimize: {total_products}")
-        print("=" * 50)
+        self.logger.info(f"📊 Total products to optimize: {total_products}")
 
         for method_name, products in self.product_groups.items():
-            self.logger.info(
-                f"Optimizing parameters for {len(products)} products with method: {method_name}"
-            )
-            print(f"\n📈 Method: {method_name} ({len(products)} products)")
+            self.logger.info(f"Optimizing parameters for {len(products)} products with method: {method_name}")
+            self.logger.info(f"📈 Method: {method_name} ({len(products)} products)")
 
             # Progress bar for each method
             for product_info in tqdm(
@@ -359,9 +343,9 @@ class UnifiedBacktester:
                     failed_count += 1
                     continue
 
-        print(f"\n✅ Parameter optimization completed!")
-        print(f"📊 Successfully optimized: {optimized_count}/{total_products} products")
-        print(f"❌ Failed optimizations: {failed_count} products")
+        self.logger.info(f"✅ Parameter optimization completed!")
+        self.logger.info(f"📊 Successfully optimized: {optimized_count}/{total_products} products")
+        self.logger.info(f"❌ Failed optimizations: {failed_count} products")
         self.logger.info(
             f"Parameter optimization completed for {len(self.optimized_parameters_cache)} product-location-method combinations"
         )
@@ -401,16 +385,10 @@ class UnifiedBacktester:
             f"Running backtesting for {len(analysis_dates)} dates and {len(product_locations)} product-method combinations"
         )
 
-        print(f"\n🚀 Backtesting Progress")
-        print(f"📊 Total analysis dates: {len(analysis_dates)}")
-        print(f"📦 Total product-method combinations: {len(product_locations)}")
-        print(f"🔢 Total forecast tasks: {total_tasks:,}")
-        print(
-            f"⚙️ Processing mode: {'Parallel' if self.config.max_workers > 1 else 'Sequential'}"
-        )
-        if self.config.max_workers > 1:
-            print(f"🚀 Workers: {self.config.max_workers}")
-        print("=" * 60)
+        # Determine mode and show info
+        mode = "Parallel" if self.config.max_workers > 1 else "Sequential"
+        workers_info = f" ({self.config.max_workers} workers)" if self.config.max_workers > 1 else ""
+        self.logger.info(f"🚀 Running {mode} backtesting{workers_info}: {total_tasks:,} forecast tasks")
 
         # Run backtesting (sequential or parallel)
         if self.config.max_workers > 1:
@@ -427,8 +405,6 @@ class UnifiedBacktester:
         total_tasks = len(analysis_dates) * len(product_locations)
         completed_count = 0
         successful_count = 0
-
-        print(f"📋 Processing {total_tasks:,} forecast tasks sequentially...")
 
         for analysis_date in tqdm(analysis_dates, desc="Analysis dates", unit="date"):
             cutoff_date = self._get_cutoff_date(analysis_date)
@@ -447,16 +423,9 @@ class UnifiedBacktester:
                     successful_count += 1
                     self.backtest_results.append(result)
 
-                # Show progress every 50 tasks
-                if completed_count % 50 == 0:
-                    success_rate = (successful_count / completed_count) * 100
-                    print(
-                        f"\n📊 Progress: {completed_count:,}/{total_tasks:,} tasks completed ({success_rate:.1f}% success rate)"
-                    )
-
-        print(f"\n✅ Sequential backtesting completed!")
-        print(f"📊 Successfully processed: {successful_count:,}/{total_tasks:,} tasks")
-        print(f"📈 Generated {len(self.backtest_results):,} forecast results")
+        self.logger.info(f"✅ Sequential backtesting completed!")
+        self.logger.info(f"📊 Successfully processed: {successful_count:,}/{total_tasks:,} tasks")
+        self.logger.info(f"📈 Generated {len(self.backtest_results):,} forecast results")
 
     def _run_unified_backtesting_parallel(
         self, analysis_dates: List[date], product_locations: List[Dict]
@@ -487,11 +456,6 @@ class UnifiedBacktester:
                 }
                 tasks.append(task)
 
-        print(f"📋 Created {len(tasks):,} forecast tasks")
-        print(
-            f"🚀 Starting parallel processing with {self.config.max_workers} workers..."
-        )
-
         # Step 3: Process tasks in parallel
         with ProcessPoolExecutor(max_workers=self.config.max_workers) as executor:
             futures = [
@@ -519,16 +483,10 @@ class UnifiedBacktester:
                             self.forecast_comparisons.extend(comparisons)
                     self.backtest_results.append(result)
 
-                if completed_count % 100 == 0:
-                    success_rate = (successful_count / completed_count) * 100
-                    print(
-                        f"\n📊 Progress: {completed_count:,}/{len(tasks):,} tasks completed ({success_rate:.1f}% success rate)"
-                    )
-
-        print(f"\n✅ Parallel backtesting completed!")
-        print(f"📊 Successfully processed: {successful_count:,}/{len(tasks):,} tasks")
-        print(f"📈 Generated {len(self.backtest_results):,} forecast results")
-        print(f"📋 Generated {len(self.forecast_comparisons):,} forecast comparisons")
+        self.logger.info(f"✅ Parallel backtesting completed!")
+        self.logger.info(f"📊 Successfully processed: {successful_count:,}/{len(tasks):,} tasks")
+        self.logger.info(f"📈 Generated {len(self.backtest_results):,} forecast results")
+        self.logger.info(f"📋 Generated {len(self.forecast_comparisons):,} forecast comparisons")
 
     def _process_single_backtest_task(self, task: Dict) -> Optional[Dict[str, Any]]:
         """Process a single backtest task using preloaded data."""
@@ -884,7 +842,13 @@ class UnifiedBacktester:
 
         visualization_data = []
 
-        for _, row in grouped_data.iterrows():
+        # Add progress bar for visualization data generation
+        for _, row in tqdm(
+            grouped_data.iterrows(),
+            total=len(grouped_data),
+            desc="Generating visualization data",
+            unit="record"
+        ):
             product_id = row["product_id"]
             location_id = row["location_id"]
             forecast_method = row["forecast_method"]

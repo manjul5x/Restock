@@ -49,18 +49,18 @@ def format_demand_data(input_file: str, output_file: str):
     print("Converting data types...")
     
     # Convert date to datetime
-    df['date'] = pd.to_datetime(df['date'])
+    df.loc[:, 'date'] = pd.to_datetime(df['date'])
     print("  ✓ Date column converted to datetime")
     
     # Convert demand and stock_level to float
-    df['demand'] = pd.to_numeric(df['demand'], errors='coerce').astype(float)
-    df['stock_level'] = pd.to_numeric(df['stock_level'], errors='coerce').astype(float)
+    df.loc[:, 'demand'] = pd.to_numeric(df['demand'], errors='coerce').astype(float)
+    df.loc[:, 'stock_level'] = pd.to_numeric(df['stock_level'], errors='coerce').astype(float)
     print("  ✓ Demand and stock_level converted to float")
     
     # Convert string columns
-    df['product_id'] = df['product_id'].astype(str)
-    df['location_id'] = df['location_id'].astype(str)
-    df['product_category'] = df['product_category'].astype(str)
+    df.loc[:, 'product_id'] = df['product_id'].astype(str)
+    df.loc[:, 'location_id'] = df['location_id'].astype(str)
+    df.loc[:, 'product_category'] = df['product_category'].astype(str)
     print("  ✓ String columns converted")
     
     # Sort by date, product, location for consistency

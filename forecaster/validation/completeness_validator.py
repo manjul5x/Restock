@@ -149,9 +149,9 @@ class CompletenessValidator:
         if len(demand_data) == 0:
             return
         
-        # Convert date column
+        # Convert date column to date type
         demand_data = demand_data.copy()
-        demand_data['date'] = pd.to_datetime(demand_data['date'])
+        demand_data.loc[:, 'date'] = pd.to_datetime(demand_data['date']).dt.date
         
         # Check for gaps by product-location
         for _, master_record in product_master_data.iterrows():
@@ -170,9 +170,17 @@ class CompletenessValidator:
             # Sort by date
             product_demand = product_demand.sort_values('date')
             
-            # Calculate gaps
-            date_diffs = product_demand['date'].diff().dt.days
-            large_gaps = date_diffs[date_diffs > 30]  # Gaps larger than 30 days
+            # Calculate gaps using date arithmetic
+            date_diffs = []
+            for i in range(1, len(product_demand)):
+                diff = (product_demand['date'].iloc[i] - product_demand['date'].iloc[i-1]).days
+                date_diffs.append(diff)
+            
+            if not date_diffs:
+                continue
+                
+            date_diffs_series = pd.Series(date_diffs)
+            large_gaps = date_diffs_series[date_diffs_series > 30]  # Gaps larger than 30 days
             
             if len(large_gaps) > 0:
                 max_gap = large_gaps.max()
@@ -204,13 +212,15 @@ class CompletenessValidator:
         if len(demand_data) == 0:
             return
         
-        # Convert date column
+        # Convert date column to date type
         demand_data = demand_data.copy()
-        demand_data['date'] = pd.to_datetime(demand_data['date'])
+        demand_data.loc[:, 'date'] = pd.to_datetime(demand_data['date']).dt.date
         
         # Check for future dates
         today = pd.Timestamp.now().date()
-        future_dates = demand_data[demand_data['date'].dt.date > today]
+        
+        # Filter for future dates using date comparison
+        future_dates = demand_data[demand_data['date'] > today]
         
         if len(future_dates) > 0:
             issues.append(ValidationIssue(
@@ -227,7 +237,7 @@ class CompletenessValidator:
         
         # Check for very old dates (more than 10 years ago)
         ten_years_ago = today - timedelta(days=3650)
-        old_dates = demand_data[demand_data['date'].dt.date < ten_years_ago]
+        old_dates = demand_data[demand_data['date'] < ten_years_ago]
         
         if len(old_dates) > 0:
             issues.append(ValidationIssue(

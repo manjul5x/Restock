@@ -20,8 +20,6 @@ from data.loader import DataLoader
 from ..validation.product_master_schema import ProductMasterSchema
 from ..utils.logger import get_logger
 
-logger = get_logger(__name__)
-
 
 class SimulationDataLoader:
     """
@@ -65,11 +63,13 @@ class SimulationDataLoader:
         expanded_df = ProductMasterSchema.expand_product_master_for_methods(
             self.product_master
         )
+        logger = get_logger(__name__)
         logger.info(f"Expanded product master from {len(self.product_master)} to {len(expanded_df)} entries")
         return expanded_df
 
     def _load_required_data(self):
         """Load all required data files using the DataLoader and direct reads for output files."""
+        logger = get_logger(__name__)
         try:
             logger.info("Loading core data using DataLoader...")
             # Load product master and filtered outflow (demand) data
@@ -127,6 +127,7 @@ class SimulationDataLoader:
             ]
             
             if len(product_safety_stocks) == 0:
+                logger = get_logger(__name__)
                 logger.warning(f"No safety stock data found for {key}")
                 continue
             
@@ -141,13 +142,14 @@ class SimulationDataLoader:
             ]
             
             if len(product_demand) == 0:
+                logger = get_logger(__name__)
                 logger.warning(f"No demand data found for {key}")
                 continue
             
             # Sort by date and calculate frequency
             # TODO: calculate / set frequency in the beginning of this whole thing
             product_demand = product_demand.sort_values('date')
-            product_demand['date'] = pd.to_datetime(product_demand['date'])
+            product_demand.loc[:, 'date'] = pd.to_datetime(product_demand['date'])
             
             if len(product_demand) > 1:
                 date_diffs = product_demand['date'].diff().dropna()
@@ -177,6 +179,7 @@ class SimulationDataLoader:
                 'leadtime': product_record['leadtime']
             }
         
+        logger = get_logger(__name__)
         logger.info(f"Created simulation periods for {len(periods)} product-location-method combinations")
         return periods
     
@@ -222,17 +225,28 @@ class SimulationDataLoader:
             (self.safety_stocks['location_id'] == location_id) &
             (self.safety_stocks['forecast_method'] == forecast_method)
         ]
-        review_dates = set(product_safety_stocks['review_date'].dt.date)
+        # Convert review_date to date if it's datetime
+        if pd.api.types.is_datetime64_any_dtype(product_safety_stocks['review_date']):
+            review_dates = set(product_safety_stocks['review_date'].dt.date)
+        else:
+            review_dates = set(product_safety_stocks['review_date'])
         
         for i, sim_date in enumerate(date_range):
             if sim_date.date() in review_dates:
                 arrays['decision_day'][i] = 1
         
         # Populate safety_stock array (forward fill from review dates)
-        safety_stock_dict = dict(zip(
-            product_safety_stocks['review_date'].dt.date,
-            product_safety_stocks['safety_stock']
-        ))
+        # Convert review_date to date if it's datetime
+        if pd.api.types.is_datetime64_any_dtype(product_safety_stocks['review_date']):
+            safety_stock_dict = dict(zip(
+                product_safety_stocks['review_date'].dt.date,
+                product_safety_stocks['safety_stock']
+            ))
+        else:
+            safety_stock_dict = dict(zip(
+                product_safety_stocks['review_date'],
+                product_safety_stocks['safety_stock']
+            ))
         
         current_safety_stock = None
         for i, sim_date in enumerate(date_range):
@@ -249,10 +263,17 @@ class SimulationDataLoader:
             (self.forecast_comparison['step'] == 1)
         ]
         
-        forecast_dict = dict(zip(
-            product_forecasts['analysis_date'].dt.date,
-            product_forecasts['forecast_demand']
-        ))
+        # Convert analysis_date to date if it's datetime
+        if pd.api.types.is_datetime64_any_dtype(product_forecasts['analysis_date']):
+            forecast_dict = dict(zip(
+                product_forecasts['analysis_date'].dt.date,
+                product_forecasts['forecast_demand']
+            ))
+        else:
+            forecast_dict = dict(zip(
+                product_forecasts['analysis_date'],
+                product_forecasts['forecast_demand']
+            ))
         
         for i, sim_date in enumerate(date_range):
             if sim_date.date() in forecast_dict:
@@ -263,10 +284,11 @@ class SimulationDataLoader:
             (self.customer_demand['product_id'] == product_id) &
             (self.customer_demand['location_id'] == location_id)
         ]
-        product_demand['date'] = pd.to_datetime(product_demand['date'])
+        # Convert date to datetime for processing, then back to date
+        product_demand.loc[:, 'date'] = pd.to_datetime(product_demand['date']).dt.date
         
         demand_dict = dict(zip(
-            product_demand['date'].dt.date,
+            product_demand['date'],
             product_demand['demand']
         ))
         
@@ -280,7 +302,7 @@ class SimulationDataLoader:
         
         # Find the closest stock level to starting date
         starting_stock_data = product_demand_sorted[
-            product_demand_sorted['date'].dt.date >= starting_date
+            product_demand_sorted['date'] >= starting_date
         ]
         
         if len(starting_stock_data) > 0:
@@ -291,7 +313,7 @@ class SimulationDataLoader:
         
         # Initialize inventory_on_order (sum of incoming inventory from start to start + leadtime)
         incoming_dict = dict(zip(
-            product_demand['date'].dt.date,
+            product_demand['date'],
             product_demand['incoming_inventory']
         ))
         
@@ -311,7 +333,7 @@ class SimulationDataLoader:
         
         # Populate actual_inventory array
         stock_level_dict = dict(zip(
-            product_demand['date'].dt.date,
+            product_demand['date'],
             product_demand['stock_level']
         ))
         
@@ -322,6 +344,7 @@ class SimulationDataLoader:
         # Calculate initial net_stock
         arrays['net_stock'][0] = arrays['inventory_on_hand'][0] + arrays['inventory_on_order'][0]
         
+        logger = get_logger(__name__)
         logger.debug(f"Created simulation arrays for {product_location_key} with {num_steps} steps")
         return arrays
     
@@ -343,8 +366,10 @@ class SimulationDataLoader:
                     'arrays': arrays
                 }
             except Exception as e:
+                logger = get_logger(__name__)
                 logger.error(f"Error creating simulation arrays for {key}: {e}")
                 continue
         
+        logger = get_logger(__name__)
         logger.info(f"Created simulation data for {len(simulation_data)} product-location-method combinations")
         return simulation_data 

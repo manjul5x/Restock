@@ -22,7 +22,7 @@ def create_simulation_plot():
     
     # Load data
     simulation_data = pd.read_csv(simulation_file)
-    simulation_data['date'] = pd.to_datetime(simulation_data['date'])
+    simulation_data.loc[:, 'date'] = pd.to_datetime(simulation_data['date'])
     
     # Ensure numeric columns are properly formatted
     numeric_columns = ['actual_inventory', 'inventory_on_hand', 'actual_demand', 'safety_stock', 'order_placed', 'min_level', 'max_level']

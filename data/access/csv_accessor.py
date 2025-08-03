@@ -86,7 +86,7 @@ class CSVAccessor(DataAccessor):
             
             # Convert date column to datetime if it exists
             if 'date' in df.columns:
-                df['date'] = pd.to_datetime(df['date']).dt.date
+                df.loc[:, 'date'] = pd.to_datetime(df['date']).dt.date
             
             # Update tracking info
             self.file_hashes[str(path)] = self._get_file_hash(path)

@@ -22,11 +22,9 @@ import time
 # Add forecaster package to path
 sys.path.append(str(Path(__file__).parent))
 
-from forecaster.utils.logger import get_logger
+from forecaster.utils.logger import configure_workflow_logging, get_logger
 from datetime import date, timedelta
 import pandas as pd
-
-logger = get_logger(__name__)
 
 
 def calculate_analysis_dates(loader, demand_frequency: str = "d") -> tuple[str, str]:
@@ -69,26 +67,16 @@ def calculate_analysis_dates(loader, demand_frequency: str = "d") -> tuple[str, 
         # Calculate analysis start date
         analysis_start_date = first_review_date - timedelta(days=days_to_subtract)
         
-        print(f"📊 Calculated analysis dates:")
-        print(f"   Max ss_window_length: {max_ss_window_length} {demand_frequency}")
-        print(f"   First review date: {first_review_date}")
-        print(f"   Last review date: {last_review_date}")
-        print(f"   Analysis start date: {analysis_start_date}")
-        print(f"   Analysis end date: {last_review_date}")
-        
         return analysis_start_date.isoformat(), last_review_date.isoformat()
         
     except Exception as e:
-        print(f"❌ Error calculating analysis dates: {e}")
         raise ValueError(f"Failed to calculate analysis dates: {e}")
 
 
-def run_command(command, description, check=True, real_time_output=False):
+def run_command(command, description, logger, check=True, real_time_output=False):
     """Run a command and handle errors."""
-    print(f"\n{'='*60}")
-    print(f"🚀 {description}")
-    print(f"{'='*60}")
-    print(f"Running: {command}")
+    logger.info(f"🚀 {description}")
+    logger.info(f"Running: {command}")
 
     start_time = time.time()
 
@@ -99,38 +87,23 @@ def run_command(command, description, check=True, real_time_output=False):
         else:
             # Run with captured output for other commands
             result = subprocess.run(
-                command, shell=True, check=check, capture_output=True, text=True
+                command, shell=True, check=check, text=True, capture_output=True
             )
+            if result.stdout:
+                logger.info(f"Output: {result.stdout.strip()}")
 
-        end_time = time.time()
-
-        if result.returncode == 0:
-            print(f"✅ {description} completed successfully!")
-            print(f"⏱️  Execution time: {end_time - start_time:.2f} seconds")
-            if not real_time_output and result.stdout:
-                print("Output:")
-                print(result.stdout)
-            return True
-        else:
-            print(f"⚠️  {description} completed with warnings")
-            if not real_time_output:
-                if result.stdout:
-                    print("STDOUT:", result.stdout)
-                if result.stderr:
-                    print("STDERR:", result.stderr)
-            return True if not check else False
+        execution_time = time.time() - start_time
+        logger.log_step_completion(description, execution_time)
+        return result
 
     except subprocess.CalledProcessError as e:
-        end_time = time.time()
-        print(f"❌ {description} failed:")
-        print(f"Exit code: {e.returncode}")
-        print(f"Execution time: {end_time - start_time:.2f} seconds")
-        if not real_time_output:
-            if e.stdout:
-                print("STDOUT:", e.stdout)
-            if e.stderr:
-                print("STDERR:", e.stderr)
-        return False
+        execution_time = time.time() - start_time
+        logger.log_error_with_context(e, f"Command failed: {command}")
+        if e.stdout:
+            logger.info(f"stdout: {e.stdout}")
+        if e.stderr:
+            logger.error(f"stderr: {e.stderr}")
+        raise
 
 
 
@@ -149,6 +122,7 @@ def run_complete_workflow(
     web_interface: bool = False,
     log_level: str = "INFO",
     review_dates: str = None,
+    logger=None,
 ):
     """
     Run the complete inventory analysis workflow.
@@ -166,7 +140,11 @@ def run_complete_workflow(
         web_interface: Whether to start web interface
         log_level: Logging level
         review_dates: Comma-separated list of review dates (YYYY-MM-DD format). If not provided, will use dates from config file.
+        logger: Logger instance for logging workflow steps.
     """
+
+    if logger is None:
+        logger = get_logger(__name__)
 
     print("🔍 Complete Inventory Analysis Workflow")
     print("=" * 60)
@@ -238,7 +216,7 @@ def run_complete_workflow(
         if log_level:
             validation_cmd += f" --log-level {log_level}"
 
-        if run_command(validation_cmd, "Data Validation", check=True):
+        if run_command(validation_cmd, "Data Validation", logger, check=True):
             success_count += 1
             print("✅ Data validation completed successfully!")
         else:
@@ -266,7 +244,7 @@ def run_complete_workflow(
                 backtest_cmd += f" --log-level {log_level}"
 
             if run_command(
-                backtest_cmd, "Backtesting", check=True, real_time_output=True
+                backtest_cmd, "Backtesting", logger, check=True, real_time_output=True
             ):
                 success_count += 1
                 print("✅ Backtesting completed successfully!")
@@ -309,11 +287,12 @@ def run_complete_workflow(
                         # Skip safety stock calculation if no review dates available
                         pass
                     else:
-                        safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}"'
+                        safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --log-level {log_level}'
 
                         if run_command(
                             safety_stock_cmd,
                             "Safety Stock Calculation",
+                            logger,
                             check=False,
                             real_time_output=True,
                         ):
@@ -325,11 +304,12 @@ def run_complete_workflow(
                             )
                 else:
                     review_dates_str = review_dates
-                    safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}"'
+                    safety_stock_cmd = f'python run_safety_stock_calculation.py {forecast_comparison_file} --review-dates "{review_dates_str}" --log-level {log_level}'
 
                     if run_command(
                         safety_stock_cmd,
                         "Safety Stock Calculation",
+                        logger,
                         check=False,
                         real_time_output=True,
                     ):
@@ -361,11 +341,12 @@ def run_complete_workflow(
                 )
                 print("Skipping simulation...")
             else:
-                simulation_cmd = f"python run_simulation.py --safety-stock-file {safety_stock_file} --forecast-comparison-file {forecast_comparison_file} --max-workers {max_workers}"
+                simulation_cmd = f"python run_simulation.py --safety-stock-file {safety_stock_file} --forecast-comparison-file {forecast_comparison_file} --max-workers {max_workers} --log-level {log_level}"
 
                 if run_command(
                     simulation_cmd,
                     "Inventory Simulation",
+                    logger,
                     check=False,
                     real_time_output=True,
                 ):
@@ -431,7 +412,7 @@ def run_complete_workflow(
         if web_interface:
             print("\n🌐 Starting web interface...")
             web_cmd = "python webapp/app.py"
-            if run_command(web_cmd, "Web Interface", check=True, real_time_output=True):
+            if run_command(web_cmd, "Web Interface", logger, check=True, real_time_output=True):
                 print("\n🌐 Web Interface:")
                 print("  • URL: http://localhost:5001")
                 print("  • Navigate to different tabs to view results")
@@ -452,23 +433,23 @@ def run_complete_workflow(
 
 
 def main():
-    """Main function."""
+    """Main entry point for the complete workflow."""
     parser = argparse.ArgumentParser(
-        description="Run complete inventory analysis workflow",
+        description="Run the complete inventory analysis workflow",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run with default settings
+  # Run complete workflow with default settings
   python run_complete_workflow.py
   
   # Run with custom analysis period
-  python run_complete_workflow.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
+  python run_complete_workflow.py --analysis-start-date 2023-01-01 --analysis-end-date 2024-12-31
   
-  # Run with auto-calculated dates (based on ss_window_length and review dates)
-  python run_complete_workflow.py
+  # Run with custom demand frequency
+  python run_complete_workflow.py --demand-frequency w
   
   # Run with custom processing settings
-  python run_complete_workflow.py --batch-size 20 --max-workers 8 --log-level DEBUG
+  python run_complete_workflow.py --batch-size 20 --max-workers 16
   
   # Run without simulation
   python run_complete_workflow.py --no-simulation
@@ -546,9 +527,9 @@ Examples:
     # Logging
     parser.add_argument(
         "--log-level",
-        default="INFO",
+        default="WARNING",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level (default: INFO)",
+        help="Logging level (default: WARNING)",
     )
 
     args = parser.parse_args()
@@ -559,20 +540,32 @@ Examples:
     safety_stock_enabled = not args.no_safety_stock
     simulation_enabled = not args.no_simulation
 
-    run_complete_workflow(
-        analysis_start_date=args.analysis_start_date if args.analysis_start_date else None,
-        analysis_end_date=args.analysis_end_date if args.analysis_end_date else None,
-        demand_frequency=args.demand_frequency,
-        batch_size=args.batch_size,
-        max_workers=args.max_workers,
-        outlier_enabled=outlier_enabled,
-        backtesting_enabled=backtesting_enabled,
-        safety_stock_enabled=safety_stock_enabled,
-        simulation_enabled=simulation_enabled,
-        web_interface=args.web_interface,
+    # Setup logging for the workflow
+    logger = configure_workflow_logging(
+        workflow_name="complete_workflow",
         log_level=args.log_level,
-        review_dates=args.review_dates,
+        log_dir="output/logs"
     )
+
+    try:
+        run_complete_workflow(
+            analysis_start_date=args.analysis_start_date if args.analysis_start_date else None,
+            analysis_end_date=args.analysis_end_date if args.analysis_end_date else None,
+            demand_frequency=args.demand_frequency,
+            batch_size=args.batch_size,
+            max_workers=args.max_workers,
+            outlier_enabled=outlier_enabled,
+            backtesting_enabled=backtesting_enabled,
+            safety_stock_enabled=safety_stock_enabled,
+            simulation_enabled=simulation_enabled,
+            web_interface=args.web_interface,
+            log_level=args.log_level,
+            review_dates=args.review_dates,
+            logger=logger
+        )
+    except Exception as e:
+        logger.log_error_with_context(e, "Complete workflow failed")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

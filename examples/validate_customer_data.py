@@ -42,15 +42,15 @@ def validate_demand_data(file_path: str) -> dict:
         
         # Check data types
         try:
-            df['date'] = pd.to_datetime(df['date'])
+            df.loc[:, 'date'] = pd.to_datetime(df['date'])
             print(f"  ✓ Date column converted to datetime")
         except Exception as e:
             return {"valid": False, "error": f"Date column conversion failed: {e}"}
         
         # Check numeric columns
         try:
-            df['demand'] = pd.to_numeric(df['demand'], errors='coerce')
-            df['stock_level'] = pd.to_numeric(df['stock_level'], errors='coerce')
+            df.loc[:, 'demand'] = pd.to_numeric(df['demand'], errors='coerce')
+            df.loc[:, 'stock_level'] = pd.to_numeric(df['stock_level'], errors='coerce')
             print(f"  ✓ Numeric columns converted")
         except Exception as e:
             return {"valid": False, "error": f"Numeric conversion failed: {e}"}

@@ -139,10 +139,17 @@ class QualityValidator:
                     if len(group) > 1:
                         # Check for consecutive dates with zero demand
                         group = group.sort_values('date')
-                        date_diffs = pd.to_datetime(group['date']).diff().dt.days
-                        consecutive_periods = (date_diffs == 1).sum()
-                        if consecutive_periods > 7:  # More than a week of consecutive zeros
-                            consecutive_zeros += consecutive_periods
+                        # Calculate date differences using date arithmetic
+                        date_diffs = []
+                        for i in range(1, len(group)):
+                            diff = (group['date'].iloc[i] - group['date'].iloc[i-1]).days
+                            date_diffs.append(diff)
+                        
+                        if date_diffs:
+                            date_diffs_series = pd.Series(date_diffs)
+                            consecutive_periods = (date_diffs_series == 1).sum()
+                            if consecutive_periods > 7:  # More than a week of consecutive zeros
+                                consecutive_zeros += consecutive_periods
                 
                 if consecutive_zeros > 0:
                     issues.append(ValidationIssue(

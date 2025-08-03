@@ -30,17 +30,25 @@ class DemandValidator:
         if len(dates) < 2:
             return 'd'  # Default to daily if insufficient data
         
+        # Ensure dates are date type (not datetime)
+        if not pd.api.types.is_object_dtype(dates) and not pd.api.types.is_datetime64_any_dtype(dates):
+            dates = pd.to_datetime(dates).dt.date
+        
         # Sort dates
         sorted_dates = dates.sort_values().reset_index(drop=True)
         
-        # Calculate time differences
-        time_diffs = sorted_dates.diff().dropna()
+        # Calculate time differences using date arithmetic
+        time_diffs = []
+        for i in range(1, len(sorted_dates)):
+            diff = (sorted_dates.iloc[i] - sorted_dates.iloc[i-1]).days
+            time_diffs.append(diff)
         
-        # Convert to days
-        time_diffs_days = time_diffs.dt.total_seconds() / (24 * 3600)
+        if not time_diffs:
+            return 'd'  # Default to daily if no differences
         
         # Analyze the most common difference
-        mode_diff = time_diffs_days.mode().iloc[0]
+        time_diffs_series = pd.Series(time_diffs)
+        mode_diff = time_diffs_series.mode().iloc[0]
         
         # Determine frequency based on mode difference
         if mode_diff <= 1.5:  # Allow some tolerance for daily

@@ -220,7 +220,7 @@ def create_weekly_dataset(daily_df: pd.DataFrame) -> pd.DataFrame:
     """
     # Group by week, product, and location
     weekly_df = daily_df.copy()
-    weekly_df['date'] = pd.to_datetime(weekly_df['date'])
+    weekly_df.loc[:, 'date'] = pd.to_datetime(weekly_df['date'])
     weekly_df['week_start'] = weekly_df['date'].dt.to_period('W').dt.start_time
     
     # Aggregate by week

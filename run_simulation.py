@@ -14,16 +14,15 @@ import pandas as pd
 sys.path.append(str(Path(__file__).parent))
 
 from forecaster.simulation import InventorySimulator, OrderPolicyFactory
-from forecaster.utils.logger import get_logger
-
-logger = get_logger(__name__)
+from forecaster.utils.logger import get_logger, configure_workflow_logging
 
 
 def run_simulation(order_policy: str = "review_ordering",
                   max_workers: int = 8,
                   product_location_keys: list = None,
                   safety_stock_file: str = None,
-                  forecast_comparison_file: str = None):
+                  forecast_comparison_file: str = None,
+                  log_level: str = "INFO"):
     """
     Run inventory simulation.
     
@@ -33,23 +32,34 @@ def run_simulation(order_policy: str = "review_ordering",
         product_location_keys: Specific product-location keys to simulate (None for all)
         safety_stock_file: Path to safety stock results file (optional)
         forecast_comparison_file: Path to forecast comparison file (optional)
+        log_level: Logging level for the simulation
     """
     
-    print("🔍 Inventory Simulation")
-    print("=" * 50)
+    # Setup logging FIRST before any other imports or logger creation
+    from forecaster.utils.logger import setup_logging, configure_workflow_logging
+    setup_logging(level=log_level, console_output=True, file_output=False)
+    
+    # Setup workflow logging
+    logger = configure_workflow_logging(
+        workflow_name="inventory_simulation",
+        log_level=log_level,
+        log_dir="output/logs"
+    )
+    
+    logger.info("🔍 Inventory Simulation")
     
     # Validate order policy
     available_policies = OrderPolicyFactory.list_policies()
     if order_policy not in available_policies:
-        print(f"❌ Error: Unknown order policy '{order_policy}'")
-        print(f"Available policies: {available_policies}")
+        logger.error(f"❌ Error: Unknown order policy '{order_policy}'")
+        logger.error(f"Available policies: {available_policies}")
         sys.exit(1)
     
-    print(f"📋 Order Policy: {order_policy}")
+    logger.info(f"📋 Order Policy: {order_policy}")
     
     try:
         # Initialize simulator
-        print("\n🔧 Initializing simulator...")
+        logger.info("🔧 Initializing simulator...")
         simulator = InventorySimulator(
             default_policy=order_policy,
             safety_stock_file=safety_stock_file,
@@ -57,23 +67,23 @@ def run_simulation(order_policy: str = "review_ordering",
         )
         
         # Run simulation
-        print("🚀 Running simulation...")
+        logger.info("🚀 Running simulation...")
         results = simulator.run_batch_simulation(
             product_location_keys=product_location_keys,
             max_workers=max_workers
         )
         
         if not results:
-            print("❌ No simulation results generated")
+            logger.error("❌ No simulation results generated")
             sys.exit(1)
         
         # Save results
-        print("\n💾 Saving results...")
+        logger.info("💾 Saving results...")
         simulator.save_results()
         
         # Display summary
-        print("\n📊 Simulation Summary:")
-        print(f"  Product-location combinations simulated: {len(results)}")
+        logger.info("📊 Simulation Summary:")
+        logger.info(f"  Product-location combinations simulated: {len(results)}")
         
         # Calculate aggregate metrics
         all_metrics = [result['metrics'] for result in results.values()]
@@ -83,15 +93,14 @@ def run_simulation(order_policy: str = "review_ordering",
             avg_stockout_rate = sum(m['stockout_rate'] for m in all_metrics) / len(all_metrics)
             avg_inventory_turns = sum(m['inventory_turns'] for m in all_metrics) / len(all_metrics)
             
-            print(f"  Average service level: {avg_service_level:.2%}")
-            print(f"  Average stockout rate: {avg_stockout_rate:.2%}")
-            print(f"  Average inventory turns: {avg_inventory_turns:.2f}")
+            logger.info(f"  Average service level: {avg_service_level:.2%}")
+            logger.info(f"  Average stockout rate: {avg_stockout_rate:.2%}")
+            logger.info(f"  Average inventory turns: {avg_inventory_turns:.2f}")
         
-        print("\n✅ Simulation completed successfully!")
+        logger.info("✅ Simulation completed successfully!")
         
     except Exception as e:
-        print(f"❌ Error during simulation: {e}")
-        logger.error(f"Simulation failed: {e}")
+        logger.log_error_with_context(e, "Simulation failed")
         sys.exit(1)
 
 
@@ -110,9 +119,14 @@ def main():
                        help="Path to safety stock results file")
     parser.add_argument("--forecast-comparison-file",
                        help="Path to forecast comparison file")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                       help="Logging level for the simulation")
     
     args = parser.parse_args()
     
+    # Setup logging FIRST before any other operations
+    from forecaster.utils.logger import setup_logging
+    setup_logging(level=args.log_level, console_output=True, file_output=False)
 
     # Run simulation
     run_simulation(
@@ -120,7 +134,8 @@ def main():
         max_workers=args.max_workers,
         product_location_keys=args.product_location_keys,
         safety_stock_file=args.safety_stock_file,
-        forecast_comparison_file=args.forecast_comparison_file
+        forecast_comparison_file=args.forecast_comparison_file,
+        log_level=args.log_level
     )
 
 
