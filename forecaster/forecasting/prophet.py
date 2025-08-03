@@ -10,7 +10,9 @@ import numpy as np
 from typing import Dict, List, Optional, Union, Tuple
 from datetime import date, timedelta
 import warnings
+import logging
 from .base import BaseForecaster, ForecastingError, validate_forecast_parameters
+from ..utils.logger import get_logger
 
 # Try to import Prophet, handle gracefully if not available
 try:
@@ -58,6 +60,7 @@ class ProphetForecaster(BaseForecaster):
         include_monsoon_effect: bool = True,
         min_data_points: int = 10,
         window_length: Optional[int] = None,
+        log_level: str = "INFO",
     ):
         """
         Initialize Prophet forecaster
@@ -102,6 +105,7 @@ class ProphetForecaster(BaseForecaster):
         self.include_monsoon_effect = include_monsoon_effect
         self.min_data_points = min_data_points
         self.window_length = window_length
+        self.log_level = log_level.upper()
 
         self.data = None
         self.model = None
@@ -109,6 +113,11 @@ class ProphetForecaster(BaseForecaster):
         self.holidays_df = None
         self.risk_period_days = None  # Will be set during fit
         self.fallback_forecaster = None  # Moving Average fallback
+
+        level = getattr(logging, self.log_level, logging.WARNING)
+        logging.getLogger("cmdstanpy").setLevel(level)
+        logging.getLogger("prophet").setLevel(level)
+        logging.getLogger("prophet.forecaster").setLevel(level)
 
     def _determine_risk_period(self, data: pd.DataFrame, **kwargs) -> int:
         """
@@ -336,6 +345,7 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             Configured Prophet model
         """
+        
         model = Prophet(
             changepoint_range=self.changepoint_range,
             n_changepoints=self.n_changepoints,
@@ -355,7 +365,7 @@ class ProphetForecaster(BaseForecaster):
         ):
             holidays_df = self._create_indian_holidays()
             if not holidays_df.empty:
-                model.add_country_holidays(country_name="IN")
+                # Use only custom holidays, not built-in country holidays to avoid warnings
                 model.holidays = holidays_df
 
         # Add custom seasonalities
@@ -380,6 +390,7 @@ class ProphetForecaster(BaseForecaster):
         """
         # Validate data
         self.validate_data(data)
+        logger = get_logger(__name__, level=self.log_level)
 
         # Prepare data for Prophet (this data is already aggregated into buckets)
         prophet_data = self._prepare_data_for_prophet(data)
@@ -402,7 +413,7 @@ class ProphetForecaster(BaseForecaster):
 
         # Check if we have enough data for Prophet
         if len(prophet_data) < self.min_data_points:
-            print(
+            logger.info(
                 f"⚠️  Insufficient data points for Prophet ({len(prophet_data)} < {self.min_data_points}). Falling back to Moving Average."
             )
             return self._fallback_to_moving_average(data, **kwargs)
@@ -418,7 +429,7 @@ class ProphetForecaster(BaseForecaster):
                 warnings.simplefilter("ignore")
                 self.model.fit(prophet_data)
         except Exception as e:
-            print(
+            logger.warning(
                 f"⚠️  Failed to fit Prophet model: {str(e)}. Falling back to Moving Average."
             )
             return self._fallback_to_moving_average(data, **kwargs)
@@ -437,23 +448,25 @@ class ProphetForecaster(BaseForecaster):
 
         # Perform seasonality analysis if model is fitted successfully
         if self.is_fitted and self.model is not None:
-            self._perform_seasonality_analysis(data, prophet_data)
+            self._perform_seasonality_analysis(data, prophet_data, self.log_level)
 
         return self
 
     def _perform_seasonality_analysis(
-        self, original_data: pd.DataFrame, fitted_data: pd.DataFrame
+        self, original_data: pd.DataFrame, fitted_data: pd.DataFrame, log_level: str = "INFO"
     ):
         """
-        Perform comprehensive seasonality analysis on the fitted Prophet model.
+        Perform seasonality analysis on the fitted model.
 
         Args:
             original_data: Original input data
             fitted_data: Data used for fitting (after preprocessing)
+            log_level: Logging level to use for seasonality analysis
         """
+        logger = get_logger(__name__, level=self.log_level)
         try:
-            # Initialize seasonality analyzer
-            analyzer = SeasonalityAnalyzer()
+            # Initialize seasonality analyzer with specific log level
+            analyzer = SeasonalityAnalyzer(log_level=log_level)
 
             # Perform analysis
             analysis_results = analyzer.analyze_seasonality_components(
@@ -473,7 +486,7 @@ class ProphetForecaster(BaseForecaster):
                 )
 
         except Exception as e:
-            print(f"⚠️  Seasonality analysis failed: {str(e)}")
+            logger.warning(f"Seasonality analysis failed: {str(e)}")
             self.seasonality_analysis = None
 
     def _apply_regularization_settings(self, regularization_settings: Dict):
@@ -483,13 +496,14 @@ class ProphetForecaster(BaseForecaster):
         Args:
             regularization_settings: Dictionary of regularization parameters
         """
+        logger = get_logger(__name__, level=self.log_level)
         try:
             # Update model parameters for regularization
             if "seasonality_prior_scale" in regularization_settings:
                 self.seasonality_prior_scale = regularization_settings[
                     "seasonality_prior_scale"
                 ]
-                print(
+                logger.info(
                     f"Applied regularization: seasonality_prior_scale = {self.seasonality_prior_scale}"
                 )
 
@@ -497,7 +511,7 @@ class ProphetForecaster(BaseForecaster):
                 self.holidays_prior_scale = regularization_settings[
                     "holidays_prior_scale"
                 ]
-                print(
+                logger.info(
                     f"Applied regularization: holidays_prior_scale = {self.holidays_prior_scale}"
                 )
 
@@ -505,12 +519,12 @@ class ProphetForecaster(BaseForecaster):
                 self.changepoint_prior_scale = regularization_settings[
                     "changepoint_prior_scale"
                 ]
-                print(
+                logger.info(
                     f"Applied regularization: changepoint_prior_scale = {self.changepoint_prior_scale}"
                 )
 
         except Exception as e:
-            print(f"⚠️  Failed to apply regularization settings: {str(e)}")
+            logger.warning(f"Failed to apply regularization settings: {str(e)}")
 
     def get_seasonality_analysis(self) -> Optional[Dict]:
         """
@@ -534,7 +548,8 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             Self for chaining
         """
-        print("🔄 Switching to Moving Average forecaster...")
+        logger = get_logger(__name__, level=self.log_level)
+        logger.info("Switching to Moving Average forecaster...")
 
         # Import here to avoid circular imports
         from .moving_average import MovingAverageForecaster
@@ -552,7 +567,7 @@ class ProphetForecaster(BaseForecaster):
         self.risk_period_days = self.fallback_forecaster.risk_period_days
         self.is_fitted = True
 
-        print("✅ Successfully switched to Moving Average forecaster")
+        logger.info("✅ Successfully switched to Moving Average forecaster")
         return self
 
     def forecast(self, steps: Optional[int] = None, **kwargs) -> pd.Series:
@@ -566,12 +581,13 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             Series with forecast values
         """
+        logger = get_logger(__name__, level=self.log_level)
         if not self.is_fitted:
             raise ForecastingError("Model must be fitted before forecasting")
 
         # Check if we're using fallback forecaster
         if self.fallback_forecaster is not None:
-            print("📊 Using Moving Average fallback for forecasting")
+            logger.info("📊 Using Moving Average fallback for forecasting")
             return self.fallback_forecaster.forecast(steps, **kwargs)
 
         if steps is None:
@@ -597,7 +613,7 @@ class ProphetForecaster(BaseForecaster):
                 warnings.simplefilter("ignore")
                 forecast = self.model.predict(future_df)
         except Exception as e:
-            print(
+            logger.info(
                 f"⚠️  Failed to generate Prophet forecast: {str(e)}. Using Moving Average fallback."
             )
             # Create fallback forecaster on the fly if not already created
@@ -744,6 +760,7 @@ def create_prophet_forecaster(parameters: Dict) -> ProphetForecaster:
         include_monsoon_effect=parameters.get("include_monsoon_effect", True),
         min_data_points=parameters.get("min_data_points", 10),
         window_length=parameters.get("window_length"),
+        log_level=parameters.get("log_level", "INFO"),
     )
 
     # Set risk period if provided

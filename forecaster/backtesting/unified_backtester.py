@@ -323,6 +323,10 @@ class UnifiedBacktester:
                 # Optimize parameters using all available data
                 try:
                     optimizer = ParameterOptimizerFactory.get_optimizer(forecast_method)
+                    
+                    # Add log_level to base_parameters so it gets passed to the forecaster
+                    base_parameters["log_level"] = self.config.log_level
+                    
                     optimized_parameters = optimizer.optimize_parameters(
                         all_data, product_record, base_parameters
                     )

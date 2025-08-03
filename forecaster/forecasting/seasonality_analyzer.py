@@ -12,10 +12,7 @@ from typing import Dict, List, Tuple, Optional, Any
 from datetime import date, timedelta
 import warnings
 from prophet import Prophet
-import logging
-
-# Configure logging
-logger = logging.getLogger(__name__)
+from ..utils.logger import get_logger
 
 
 class SeasonalityAnalyzer:
@@ -26,10 +23,16 @@ class SeasonalityAnalyzer:
     for Prophet models, including Fourier term analysis and strength assessment.
     """
 
-    def __init__(self):
-        """Initialize the seasonality analyzer."""
+    def __init__(self, log_level: str = "INFO"):
+        """
+        Initialize the seasonality analyzer.
+        
+        Args:
+            log_level: Logging level to use for analysis output
+        """
         self.analysis_results = {}
         self.recommendations = {}
+        self.log_level = log_level
 
     def analyze_seasonality_components(
         self, data: pd.DataFrame, model: Prophet, fitted_data: pd.DataFrame
@@ -45,6 +48,7 @@ class SeasonalityAnalyzer:
         Returns:
             Dictionary containing comprehensive seasonality analysis
         """
+        logger = get_logger(__name__, level=self.log_level)
         logger.info("=" * 80)
         logger.info("FOURIER TERMS ANALYSIS - SEASONALITY ASSESSMENT")
         logger.info("=" * 80)
@@ -97,6 +101,7 @@ class SeasonalityAnalyzer:
         Returns:
             Dictionary of seasonality components and their parameters
         """
+        logger = get_logger(__name__, level=self.log_level)
         seasonalities = {}
 
         # Debug logging
@@ -315,6 +320,7 @@ class SeasonalityAnalyzer:
             seasonality_name: Name of the seasonality
             analysis: Analysis results
         """
+        logger = get_logger(__name__, level=self.log_level)
         logger.info(f"  Period: {analysis['period']} days")
         logger.info(f"  Fourier Order: {analysis['fourier_order']}")
         logger.info(f"  Number of Fourier Terms: {analysis['num_terms']}")
@@ -341,6 +347,7 @@ class SeasonalityAnalyzer:
             seasonality_name: Name of the seasonality
             analysis: Analysis results
         """
+        logger = get_logger(__name__, level=self.log_level)
         if seasonality_name == "quarterly":
             logger.info(f"  Quarterly Seasonality Analysis:")
             logger.info(f"    Expected business cycle patterns every ~3 months")
@@ -557,6 +564,7 @@ class SeasonalityAnalyzer:
             summary: Seasonality summary
             recommendations: Recommendations
         """
+        logger = get_logger(__name__, level=self.log_level)
         logger.info("=" * 80)
         logger.info("SEASONALITY STRENGTH SUMMARY")
         logger.info("=" * 80)

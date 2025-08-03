@@ -9,15 +9,13 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Optional, Union
 from abc import ABC, abstractmethod
-import logging
 from datetime import date
 
 from .seasonality_analyzer import SeasonalityAnalyzer
 from .prophet import ProphetForecaster, create_prophet_forecaster
 from .moving_average import MovingAverageForecaster
 from .arima import ARIMAForecaster
-
-logger = logging.getLogger(__name__)
+from ..utils.logger import get_logger
 
 
 class ParameterOptimizer(ABC):
@@ -88,6 +86,7 @@ class MovingAverageParameterOptimizer(ParameterOptimizer):
         For Moving Average, no optimization is needed.
         Returns the base parameters from product master.
         """
+        logger = get_logger(__name__)
         logger.debug(f"No parameter optimization needed for Moving Average")
         
         # Get risk period to convert window_length from risk periods to data points
@@ -135,6 +134,7 @@ class ProphetParameterOptimizer(ParameterOptimizer):
         """
         Optimize Prophet parameters using seasonality analysis.
         """
+        logger = get_logger(__name__)
         logger.info(f"Optimizing Prophet parameters for {product_record['product_id']}")
         
         try:
@@ -180,16 +180,35 @@ class ProphetParameterOptimizer(ParameterOptimizer):
                 # Update with best parameters from seasonality analysis
                 optimized_parameters = {**default_parameters, **best_parameters}
                 
+                # Ensure log_level is passed through
+                if "log_level" in base_parameters:
+                    optimized_parameters["log_level"] = base_parameters["log_level"]
+                
+                logger = get_logger(__name__)
                 logger.debug(f"Optimized Prophet parameters: {optimized_parameters}")
                 return optimized_parameters
             else:
                 # Fallback to default parameters
+                logger = get_logger(__name__)
                 logger.warning(f"No seasonality analysis available, using default parameters")
-                return self._get_default_prophet_parameters(product_record, base_parameters)
+                default_params = self._get_default_prophet_parameters(product_record, base_parameters)
+                
+                # Ensure log_level is passed through
+                if "log_level" in base_parameters:
+                    default_params["log_level"] = base_parameters["log_level"]
+                
+                return default_params
                 
         except Exception as e:
+            logger = get_logger(__name__)
             logger.error(f"Error optimizing Prophet parameters: {e}")
-            return self._get_default_prophet_parameters(product_record, base_parameters)
+            default_params = self._get_default_prophet_parameters(product_record, base_parameters)
+            
+            # Ensure log_level is passed through
+            if "log_level" in base_parameters:
+                default_params["log_level"] = base_parameters["log_level"]
+            
+            return default_params
     
     def _get_default_prophet_parameters(
         self, 
@@ -241,6 +260,7 @@ class ARIMAParameterOptimizer(ParameterOptimizer):
         """
         Optimize ARIMA parameters using auto-ARIMA.
         """
+        logger = get_logger(__name__)
         logger.info(f"Optimizing ARIMA parameters for {product_record['product_id']}")
         
         try:
@@ -275,10 +295,12 @@ class ARIMAParameterOptimizer(ParameterOptimizer):
                 'method_name': self.method_name
             }
             
+            logger = get_logger(__name__)
             logger.debug(f"Optimized ARIMA parameters: {optimized_parameters}")
             return optimized_parameters
             
         except Exception as e:
+            logger = get_logger(__name__)
             logger.error(f"Error optimizing ARIMA parameters: {e}")
             return self._get_default_arima_parameters(product_record, base_parameters)
     

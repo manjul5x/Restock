@@ -9,12 +9,10 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Optional
 from datetime import date
-import logging
 
 from .parameter_optimizer import ParameterOptimizerFactory
 from .base import calculate_forecast_metrics
-
-logger = logging.getLogger(__name__)
+from ..utils.logger import get_logger
 
 
 class CoreForecastingEngine:
@@ -47,6 +45,7 @@ class CoreForecastingEngine:
         Returns:
             Dictionary containing forecast results
         """
+        logger = get_logger(__name__)
         try:
             # Get forecasting method
             forecast_method = product_record.get('forecast_method', 'moving_average')
@@ -98,31 +97,32 @@ class CoreForecastingEngine:
         product_record: pd.Series
     ) -> List[float]:
         """
-        Aggregate daily forecast values to risk period level.
+        Aggregate daily forecast values to risk period values.
         
         Args:
             daily_forecast: List of daily forecast values
             product_record: Product master record containing risk_period
             
         Returns:
-            List of aggregated forecast values at risk period level
+            List of aggregated forecast values for risk periods
         """
+        logger = get_logger(__name__)
         try:
             risk_period = product_record.get('risk_period', 1)
             
             if risk_period == 1:
-                # If risk period is 1 day, return daily forecasts as-is
+                # No aggregation needed
                 return daily_forecast
             
-            # Aggregate daily forecasts into risk period buckets
-            aggregated_forecasts = []
+            # Aggregate daily values to risk period values
+            aggregated_forecast = []
             for i in range(0, len(daily_forecast), risk_period):
-                period_forecasts = daily_forecast[i:i + risk_period]
-                aggregated_value = sum(period_forecasts)
-                aggregated_forecasts.append(aggregated_value)
+                period_values = daily_forecast[i:i + risk_period]
+                aggregated_value = sum(period_values)
+                aggregated_forecast.append(aggregated_value)
             
-            return aggregated_forecasts
+            return aggregated_forecast
             
         except Exception as e:
             logger.error(f"Error aggregating forecast to risk period: {e}")
-            return daily_forecast  # Return original if aggregation fails 
+            return daily_forecast 
