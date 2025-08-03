@@ -1630,6 +1630,30 @@ def get_demand_analysis_plot():
         first_risk_forecasts["analysis_date"] = pd.to_datetime(
             first_risk_forecasts["analysis_date"]
         )
+        
+        # Determine simulation date range from the simulation data
+        simulation_start_date = None
+        simulation_end_date = None
+        
+        for file_path in detailed_dir.glob("*_simulation.csv"):
+            try:
+                data = pd.read_csv(file_path)
+                data["date"] = pd.to_datetime(data["date"])
+                if simulation_start_date is None or data["date"].min() < simulation_start_date:
+                    simulation_start_date = data["date"].min()
+                if simulation_end_date is None or data["date"].max() > simulation_end_date:
+                    simulation_end_date = data["date"].max()
+            except Exception as e:
+                print(f"Error reading {file_path}: {e}")
+                continue
+        
+        # Filter forecast data to only include data within the simulation period
+        if simulation_start_date and simulation_end_date:
+            first_risk_forecasts = first_risk_forecasts[
+                (first_risk_forecasts["analysis_date"] >= simulation_start_date) &
+                (first_risk_forecasts["analysis_date"] <= simulation_end_date)
+            ]
+            print(f"Filtered forecast data to simulation period: {simulation_start_date} to {simulation_end_date}")
 
         # Find matching simulation files
         all_simulation_data = []
@@ -1724,7 +1748,7 @@ def get_demand_analysis_plot():
             )
 
             if forecast_filter.any():
-                forecast_group = first_risk_forecasts[forecast_filter]
+                forecast_group = first_risk_forecasts[forecast_filter].sort_values("analysis_date")
 
                 # Plot first risk period forecasted demand (green line without markers)
                 ax.plot(
@@ -1748,8 +1772,12 @@ def get_demand_analysis_plot():
                 )
 
         # Customize the plot
+        title = "Demand Analysis: Actual vs Forecasted vs Orders"
+        if simulation_start_date and simulation_end_date:
+            title += f"\nSimulation Period: {simulation_start_date.strftime('%Y-%m-%d')} to {simulation_end_date.strftime('%Y-%m-%d')}"
+        
         ax.set_title(
-            "Demand Analysis: Actual vs Forecasted vs Orders",
+            title,
             fontsize=16,
             fontweight="bold",
         )
