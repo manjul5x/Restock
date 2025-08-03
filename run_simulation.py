@@ -56,6 +56,7 @@ def run_simulation(order_policy: str = "review_ordering",
         sys.exit(1)
     
     logger.info(f"📋 Order Policy: {order_policy}")
+    # MOQ status will be logged by the simulator after initialization
     
     try:
         # Initialize simulator
@@ -119,6 +120,7 @@ def main():
                        help="Path to safety stock results file")
     parser.add_argument("--forecast-comparison-file",
                        help="Path to forecast comparison file")
+
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                        help="Logging level for the simulation")
     

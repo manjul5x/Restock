@@ -144,6 +144,7 @@ Required columns:
 - `service_level`: Service level percentage (0.0 to 1.0)
 - `leadtime`: Lead time in demand frequency units
 - `inventory_cost`: Unit cost of inventory
+- `moq`: Minimum order quantity
 
 ## 🔧 Configuration Options
 

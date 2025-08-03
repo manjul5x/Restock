@@ -52,6 +52,9 @@ class ProductMasterRecord(BaseModel):
     inventory_cost: Optional[float] = Field(
         0.0, ge=0.0, description="Unit cost of inventory"
     )
+    moq: Optional[float] = Field(
+        1.0, ge=0.0, description="Minimum order quantity"
+    )
 
     @validator("risk_period")
     def validate_risk_period(cls, v, values):
@@ -98,6 +101,7 @@ class ProductMasterSchema:
         "risk_period",
         "leadtime",
         "inventory_cost",
+        "moq",
     ]
     VALID_FREQUENCIES = ["d", "w", "m"]
     VALID_FORECAST_METHODS = {"moving_average", "prophet", "arima"}
@@ -147,6 +151,10 @@ class ProductMasterSchema:
         # Check for non-negative inventory costs
         if "inventory_cost" in df.columns and (df["inventory_cost"] < 0).any():
             raise ValueError("Inventory cost values must be non-negative")
+
+        # Check for non-negative MOQ values
+        if "moq" in df.columns and (df["moq"] < 0).any():
+            raise ValueError("MOQ values must be non-negative")
 
         # Check for reasonable risk period limits
         daily_risk = df[df["demand_frequency"] == "d"]["risk_period"]
@@ -228,6 +236,12 @@ class ProductMasterSchema:
             df["ss_window_length"] = 180
         else:
             df["ss_window_length"] = df["ss_window_length"].fillna(180).astype(int)
+
+        # Handle optional MOQ column
+        if "moq" not in df.columns:
+            df["moq"] = 1.0
+        else:
+            df["moq"] = df["moq"].fillna(1.0).astype(float)
 
         # Sort for consistency
         df = df.sort_values(

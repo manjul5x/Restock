@@ -45,6 +45,17 @@ class InventorySimulator:
             forecast_comparison_file=forecast_comparison_file
         )
         self.default_policy = default_policy
+        
+        # Get MOQ configuration from data loader config
+        self.enable_moq = self.data_loader.loader.config.get('simulation', {}).get('enable_moq', False)
+        
+        # Log MOQ status
+        logger = get_logger(__name__)
+        if self.enable_moq:
+            logger.info("🔒 MOQ Constraints: Enabled")
+        else:
+            logger.info("🔓 MOQ Constraints: Disabled")
+        
         self.results = {}
         
     def run_single_simulation(self, product_location_key: str, 
@@ -73,7 +84,10 @@ class InventorySimulator:
             
             # Create order policy if not provided
             if order_policy is None:
-                order_policy = OrderPolicyFactory.create_policy(self.default_policy)
+                order_policy = OrderPolicyFactory.create_policy_with_moq(
+                    self.default_policy, 
+                    enable_moq=self.enable_moq
+                )
             
             # Run simulation
             arrays = self._execute_simulation(arrays, period_info, order_policy)
@@ -165,6 +179,7 @@ class InventorySimulator:
         logger.info(f"Completed batch simulation. Successfully simulated {len(results)} combinations")
         return results
     
+
     def _execute_simulation(self, arrays: Dict[str, np.ndarray], 
                           period_info: Dict[str, Any], 
                           order_policy: OrderPolicy) -> Dict[str, np.ndarray]:

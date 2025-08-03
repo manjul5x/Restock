@@ -76,6 +76,30 @@ def create_daily_product_master():
             else:
                 forecast_horizon = base_horizon
 
+            # Add leadtime and inventory cost with some variation
+            if category == "ELECTRONICS":
+                leadtime = 7  # Longer leadtime for electronics
+                inventory_cost = 10.0
+            elif category == "FOOD":
+                leadtime = 3  # Shorter leadtime for food
+                inventory_cost = 5.0
+            elif category == "SPORTS":
+                leadtime = 10  # Longer leadtime for sports
+                inventory_cost = 25.0
+            else:
+                leadtime = 5  # Default leadtime
+                inventory_cost = 15.0
+
+            # Add MOQ with some variation based on category
+            if category == "ELECTRONICS":
+                moq = 1.0  # Electronics often have MOQ of 1
+            elif category == "FOOD":
+                moq = 5.0  # Food items often have higher MOQ
+            elif category == "SPORTS":
+                moq = 2.0  # Sports items moderate MOQ
+            else:
+                moq = 3.0  # Default MOQ
+
             records.append(
                 {
                     "product_id": product_id,
@@ -87,6 +111,9 @@ def create_daily_product_master():
                     "outlier_threshold": outlier_threshold,
                     "forecast_window_length": forecast_window_length,
                     "forecast_horizon": forecast_horizon,
+                    "leadtime": leadtime,
+                    "inventory_cost": inventory_cost,
+                    "moq": moq,
                 }
             )
 
@@ -161,6 +188,30 @@ def create_weekly_product_master():
             else:
                 forecast_horizon = base_horizon
 
+            # Add leadtime and inventory cost with some variation
+            if category == "ELECTRONICS":
+                leadtime = 7  # Longer leadtime for electronics
+                inventory_cost = 10.0
+            elif category == "FOOD":
+                leadtime = 3  # Shorter leadtime for food
+                inventory_cost = 5.0
+            elif category == "SPORTS":
+                leadtime = 10  # Longer leadtime for sports
+                inventory_cost = 25.0
+            else:
+                leadtime = 5  # Default leadtime
+                inventory_cost = 15.0
+
+            # Add MOQ with some variation based on category
+            if category == "ELECTRONICS":
+                moq = 1.0  # Electronics often have MOQ of 1
+            elif category == "FOOD":
+                moq = 5.0  # Food items often have higher MOQ
+            elif category == "SPORTS":
+                moq = 2.0  # Sports items moderate MOQ
+            else:
+                moq = 3.0  # Default MOQ
+
             records.append(
                 {
                     "product_id": product_id,
@@ -172,6 +223,9 @@ def create_weekly_product_master():
                     "outlier_threshold": outlier_threshold,
                     "forecast_window_length": forecast_window_length,
                     "forecast_horizon": forecast_horizon,
+                    "leadtime": leadtime,
+                    "inventory_cost": inventory_cost,
+                    "moq": moq,
                 }
             )
 

@@ -5,8 +5,9 @@ Defines different strategies for calculating order quantities.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import numpy as np
+import pandas as pd
 
 
 class OrderPolicy(ABC):
@@ -31,6 +32,49 @@ class OrderPolicy(ABC):
             Order quantity to place
         """
         pass
+
+
+class MOQOrderPolicy(OrderPolicy):
+    """
+    Wrapper order policy that applies Minimum Order Quantity (MOQ) constraints.
+    
+    Takes the maximum of the recommended order quantity and the MOQ for the product.
+    """
+    
+    def __init__(self, base_policy: OrderPolicy):
+        """
+        Initialize MOQ order policy.
+        
+        Args:
+            base_policy: The base order policy to wrap
+        """
+        self.base_policy = base_policy
+    
+    def calculate_order(self, step: int, arrays: Dict[str, np.ndarray], 
+                       period_info: Dict[str, Any]) -> float:
+        """
+        Calculate order quantity using base policy and apply MOQ constraint.
+        
+        Args:
+            step: Current simulation step
+            arrays: Dictionary containing all simulation arrays
+            period_info: Period information for the product-location (contains MOQ)
+            
+        Returns:
+            Order quantity to place (max of recommended order and MOQ)
+        """
+        # Get base order quantity
+        base_order = self.base_policy.calculate_order(step, arrays, period_info)
+        
+        # If no order is recommended, return 0
+        if base_order <= 0:
+            return 0.0
+        
+        # Get MOQ from period_info
+        moq = period_info.get('moq', 1.0)  # Default MOQ if not found
+        
+        # Return the maximum of base order and MOQ
+        return max(base_order, moq)
 
 
 class ReviewOrderingPolicy(OrderPolicy):
@@ -156,6 +200,29 @@ class OrderPolicyFactory:
         'continuous_review': ContinuousReviewPolicy,
         'min_max': MinMaxPolicy
     }
+    
+    @classmethod
+    def create_policy_with_moq(cls, policy_name: str, enable_moq: bool = False, **kwargs) -> OrderPolicy:
+        """
+        Create an order policy by name, optionally wrapped with MOQ constraints.
+        
+        Args:
+            policy_name: Name of the policy to create
+            enable_moq: If True, wrap the policy with MOQ constraints
+            **kwargs: Additional arguments for the policy constructor
+            
+        Returns:
+            OrderPolicy instance (wrapped with MOQ if enabled)
+            
+        Raises:
+            ValueError: If policy name is not recognized
+        """
+        base_policy = cls.create_policy(policy_name, **kwargs)
+        
+        if enable_moq:
+            return MOQOrderPolicy(base_policy)
+        else:
+            return base_policy
     
     @classmethod
     def create_policy(cls, policy_name: str, **kwargs) -> OrderPolicy:

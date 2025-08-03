@@ -79,6 +79,7 @@ Replace the example data files with your own:
 - `ss_window_length` - Rolling window length for safety stock calculation in demand frequency units (optional, default: 180)
 - `leadtime` - Lead time in demand frequency units (e.g., 7 for weekly = 7 weeks)
 - `inventory_cost` - Unit cost of inventory (optional, default: 0.0)
+- `moq` - Minimum order quantity (optional, default: 1.0)
 
 ## Step 3: Run the Complete Workflow
 

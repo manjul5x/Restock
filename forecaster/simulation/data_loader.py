@@ -176,7 +176,8 @@ class SimulationDataLoader:
                 'frequency_days': frequency_days,
                 'date_range': date_range,
                 'num_steps': len(date_range),
-                'leadtime': product_record['leadtime']
+                'leadtime': product_record['leadtime'],
+                'moq': product_record.get('moq', 1.0)  # Get MOQ from product master, default to 1.0
             }
         
         logger = get_logger(__name__)

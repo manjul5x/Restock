@@ -235,6 +235,28 @@ class SchemaValidator:
                             affected_records=len(product_master_data)
                         ))
                 
+                # MOQ validation
+                if 'moq' in product_master_data.columns:
+                    try:
+                        moq_values = pd.to_numeric(product_master_data['moq'], errors='coerce')
+                        invalid_moq = (moq_values < 0).sum()
+                        if invalid_moq > 0:
+                            issues.append(ValidationIssue(
+                                severity=ValidationSeverity.ERROR,
+                                category="schema",
+                                message=f"Found {invalid_moq} negative MOQ values",
+                                details={"invalid_moq_count": int(invalid_moq)},
+                                affected_records=int(invalid_moq)
+                            ))
+                    except Exception as e:
+                        issues.append(ValidationIssue(
+                            severity=ValidationSeverity.CRITICAL,
+                            category="schema",
+                            message=f"MOQ conversion failed: {str(e)}",
+                            details={"error": str(e)},
+                            affected_records=len(product_master_data)
+                        ))
+                
                 # Check for duplicate product-location combinations
                 if all(col in product_master_data.columns for col in ['product_id', 'location_id']):
                     duplicates = product_master_data.duplicated(subset=['product_id', 'location_id']).sum()
