@@ -23,7 +23,6 @@ def run_unified_backtest_script(
     demand_frequency: str = "d",
     max_workers: int = 8,
     batch_size: int = 20,
-    outlier_enabled: bool = True,
     log_level: str = "INFO",
 ):
     """Run unified backtesting on customer data with method-specific parameter optimization."""
@@ -67,7 +66,6 @@ def run_unified_backtest_script(
         batch_size=batch_size,
         max_workers=max_workers,
         validate_data=True,
-        outlier_enabled=outlier_enabled,
         aggregation_enabled=True,
         # Logging
         log_level=log_level,
@@ -87,7 +85,6 @@ def run_unified_backtest_script(
     print(f"🔄 Demand Frequency: {demand_frequency}")
     print(f"⚙️ Batch Size: {batch_size}")
     print(f"🚀 Max Workers: {max_workers}")
-    print(f"🔍 Outlier Handling: {'Enabled' if outlier_enabled else 'Disabled'}")
     print("=" * 70)
     print("⏱️  Starting backtesting process...")
     print("📊 Progress tracking and logging enabled")
@@ -98,57 +95,24 @@ def run_unified_backtest_script(
         result = run_unified_backtest_func(config)
 
         # The result is the summary itself, not a dict with success field
-        print("\n✅ Unified backtesting completed successfully!")
-
-        # Print summary
         if result:
-            print(f"⏱️  Total time: {result.get('execution_time', 0):.2f} seconds")
-            print(
-                f"📊 Total forecasts: {result.get('results_summary', {}).get('total_forecasts', 0)}"
-            )
-            print(
-                f"📈 Total comparisons: {result.get('results_summary', {}).get('total_comparisons', 0)}"
-            )
-            print(
-                f"🔧 Products optimized: {result.get('results_summary', {}).get('products_optimized', 0)}"
-            )
-
-        return True
+            print("✅ Unified backtesting completed successfully!")
+            return True
+        else:
+            print("❌ Unified backtesting failed")
+            return False
 
     except Exception as e:
-        print(f"❌ Error during unified backtesting: {e}")
-        return False
-
-    except Exception as e:
-        print(f"❌ Error during unified backtesting: {e}")
+        print(f"❌ Unified backtesting failed with error: {e}")
         return False
 
 
 def main():
-    """Main function for command line usage."""
+    """Main function to run unified backtesting from command line."""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Run unified backtesting with method-specific parameter optimization",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Basic usage with required parameters
-  python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01
-
-  # With custom processing settings
-  python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --max-workers 8 --batch-size 20
-
-
-
-  # Without outlier handling
-  python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --no-outliers
-
-  # With custom log level for progress tracking
-  python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-12-01 --log-level DEBUG
-
-  # Note: For automatic date calculation, use run_complete_workflow.py instead
-        """,
+        description="Run unified backtesting with method-specific parameter optimization"
     )
 
     # Required arguments
@@ -163,33 +127,30 @@ Examples:
         help="Analysis end date (YYYY-MM-DD format)",
     )
 
-    # Note: Output directory is now handled by DataLoader configuration
+    # Optional arguments
     parser.add_argument(
         "--demand-frequency",
         default="d",
         choices=["d", "w", "m"],
-        help="Demand frequency: 'd' for daily, 'w' for weekly, 'm' for monthly (default: d)",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=20,
-        help="Batch size for processing (default: 20)",
+        help="Demand frequency (d=daily, w=weekly, m=monthly)",
     )
     parser.add_argument(
         "--max-workers",
         type=int,
         default=8,
-        help="Maximum number of parallel workers (default: 8)",
+        help="Maximum number of parallel workers",
     )
     parser.add_argument(
-        "--no-outliers", action="store_true", help="Disable outlier handling"
+        "--batch-size",
+        type=int,
+        default=20,
+        help="Batch size for processing",
     )
     parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level (default: INFO)",
+        help="Logging level",
     )
 
     args = parser.parse_args()
@@ -201,15 +162,10 @@ Examples:
         demand_frequency=args.demand_frequency,
         max_workers=args.max_workers,
         batch_size=args.batch_size,
-        outlier_enabled=not args.no_outliers,
         log_level=args.log_level,
     )
 
-    if success:
-        print("\n🎉 Unified backtesting completed successfully!")
-        sys.exit(0)
-    else:
-        print("\n❌ Unified backtesting failed!")
+    if not success:
         sys.exit(1)
 
 

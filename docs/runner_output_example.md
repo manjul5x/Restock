@@ -18,7 +18,7 @@ When you run the pipeline, you'll see detailed logging output like this:
     'batch_size': 5, 
     'max_workers': 2, 
     'validate_data': True, 
-    'outlier_enabled': True, 
+     
     'aggregation_enabled': True, 
     'forecasting_enabled': True, 
     'forecast_model': 'moving_average', 

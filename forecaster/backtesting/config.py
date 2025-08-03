@@ -30,7 +30,6 @@ class BacktestConfig:
         default_factory=lambda: os.cpu_count() or 4
     )  # Use max CPU cores
     validate_data: bool = True
-    outlier_enabled: bool = True
     aggregation_enabled: bool = True
 
     # Logging

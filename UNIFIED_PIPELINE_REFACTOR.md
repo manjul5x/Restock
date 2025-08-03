@@ -142,7 +142,7 @@ python run_unified_pipeline.py --batch-size 20 --max-workers 8
 ### Advanced Usage
 ```bash
 # Disable outlier handling
-python run_unified_pipeline.py --no-outliers
+python run_unified_pipeline.py
 
 # Data validation only (no forecasting)
 python run_unified_pipeline.py --no-forecasting

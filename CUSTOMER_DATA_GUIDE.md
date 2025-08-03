@@ -92,7 +92,6 @@ config = BacktestConfig(
     batch_size=10,
     max_workers=4,  # Adjust based on your system
     validate_data=True,
-    outlier_enabled=True,
     aggregation_enabled=True,
     
     # Logging
@@ -282,7 +281,6 @@ def run_customer_backtest():
         batch_size=20,
         max_workers=4,
         validate_data=True,
-        outlier_enabled=True,
         aggregation_enabled=True,
         
         # Logging

@@ -115,7 +115,6 @@ def run_complete_workflow(
     demand_frequency: str = "d",
     batch_size: int = 10,
     max_workers: int = 8,
-    outlier_enabled: bool = True,
     backtesting_enabled: bool = True,
     safety_stock_enabled: bool = True,
     simulation_enabled: bool = True,
@@ -133,7 +132,6 @@ def run_complete_workflow(
         demand_frequency: Demand frequency ('d', 'w', 'm')
         batch_size: Batch size for processing
         max_workers: Maximum number of parallel workers
-        outlier_enabled: Whether to enable outlier handling
         backtesting_enabled: Whether to enable backtesting
         safety_stock_enabled: Whether to enable safety stock calculation
         simulation_enabled: Whether to enable simulation
@@ -189,7 +187,6 @@ def run_complete_workflow(
     print(f"🔄 Demand Frequency: {demand_frequency}")
     print(f"⚙️ Batch Size: {batch_size}")
     print(f"🚀 Max Workers: {max_workers}")
-    print(f"🔍 Outlier Handling: {'Enabled' if outlier_enabled else 'Disabled'}")
     print(f"📈 Backtesting: {'Enabled' if backtesting_enabled else 'Disabled'}")
     print(
         f"🛡️ Safety Stock Calculation: {'Enabled' if safety_stock_enabled else 'Disabled'}"
@@ -235,9 +232,6 @@ def run_complete_workflow(
             backtest_cmd = f"python run_unified_backtest.py --analysis-start-date {analysis_start_date} --analysis-end-date {analysis_end_date}"
 
             backtest_cmd += f" --demand-frequency {demand_frequency} --batch-size {batch_size} --max-workers {max_workers}"
-
-            if not outlier_enabled:
-                backtest_cmd += " --no-outliers"
 
             # Ensure log level is passed for progress tracking
             if log_level:
@@ -505,9 +499,6 @@ Examples:
 
     # Feature flags
     parser.add_argument(
-        "--no-outliers", action="store_true", help="Disable outlier handling"
-    )
-    parser.add_argument(
         "--no-backtesting", action="store_true", help="Disable backtesting"
     )
     parser.add_argument(
@@ -535,7 +526,6 @@ Examples:
     args = parser.parse_args()
 
     # Convert feature flags
-    outlier_enabled = not args.no_outliers
     backtesting_enabled = not args.no_backtesting
     safety_stock_enabled = not args.no_safety_stock
     simulation_enabled = not args.no_simulation
@@ -554,7 +544,6 @@ Examples:
             demand_frequency=args.demand_frequency,
             batch_size=args.batch_size,
             max_workers=args.max_workers,
-            outlier_enabled=outlier_enabled,
             backtesting_enabled=backtesting_enabled,
             safety_stock_enabled=safety_stock_enabled,
             simulation_enabled=simulation_enabled,

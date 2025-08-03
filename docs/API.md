@@ -107,7 +107,7 @@ config = BacktestConfig(
     batch_size=10,
     max_workers=4,
     validate_data=True,
-    outlier_enabled=True,
+
     aggregation_enabled=True,
     log_level="INFO"
 )

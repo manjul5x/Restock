@@ -244,35 +244,86 @@ class OutlierHandler:
             # No outlier detection - return all False
             return pd.Series([False] * len(demand_series), index=demand_series.index)
         elif method == "iqr":
-            Q1 = demand_series.quantile(0.25)
-            Q3 = demand_series.quantile(0.75)
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, no outliers
+            if len(non_zero_demand) <= 1:
+                return pd.Series([False] * len(demand_series), index=demand_series.index)
+            
+            Q1 = non_zero_demand.quantile(0.25)
+            Q3 = non_zero_demand.quantile(0.75)
             IQR = Q3 - Q1
             upper_bound = Q3 + threshold * IQR
             return demand_series > upper_bound
         elif method == "zscore":
-            z_scores = (demand_series - demand_series.mean()) / demand_series.std()
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, no outliers
+            if len(non_zero_demand) <= 1:
+                return pd.Series([False] * len(demand_series), index=demand_series.index)
+            
+            mean_val = non_zero_demand.mean()
+            std_val = non_zero_demand.std()
+            
+            # Avoid division by zero
+            if std_val == 0:
+                return pd.Series([False] * len(demand_series), index=demand_series.index)
+            
+            z_scores = (demand_series - mean_val) / std_val
             return z_scores > threshold
         elif method == "mad":
-            median = demand_series.median()
-            mad = np.median(np.abs(demand_series - median))
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, no outliers
+            if len(non_zero_demand) <= 1:
+                return pd.Series([False] * len(demand_series), index=demand_series.index)
+            
+            median = non_zero_demand.median()
+            mad = np.median(np.abs(non_zero_demand - median))
             mad_std = mad * 1.4826
+            
+            # Avoid division by zero
+            if mad_std == 0:
+                return pd.Series([False] * len(demand_series), index=demand_series.index)
+            
             z_scores = (demand_series - median) / mad_std
             return z_scores > threshold
         elif method == "rolling":
-            rolling_mean = demand_series.rolling(
-                window=int(threshold), center=True
-            ).mean()
-            rolling_std = demand_series.rolling(
-                window=int(threshold), center=True
-            ).std()
-            upper_bound = (
-                rolling_mean + 2.0 * rolling_std
-            )  # Use 2.0 as default multiplier
+            # For rolling method, use the detector class method
+            detector = OutlierDetector()
+            outliers = detector.detect_outliers_rolling(demand_series, window=int(threshold), multiplier=2.0)
+            # Only return high outliers
+            rolling_mean = demand_series.rolling(window=int(threshold), center=True, min_periods=1).mean()
+            rolling_std = demand_series.rolling(window=int(threshold), center=True, min_periods=1).std()
+            
+            # Fill NaN values with overall statistics (excluding zeros)
+            non_zero_demand = demand_series[demand_series > 0]
+            if len(non_zero_demand) > 0:
+                overall_mean = non_zero_demand.mean()
+                overall_std = non_zero_demand.std()
+            else:
+                overall_mean = 0
+                overall_std = 0
+            
+            rolling_mean = rolling_mean.fillna(overall_mean)
+            rolling_std = rolling_std.fillna(overall_std)
+            
+            upper_bound = rolling_mean + 2.0 * rolling_std
             return demand_series > upper_bound
         else:
             # Default to IQR
-            Q1 = demand_series.quantile(0.25)
-            Q3 = demand_series.quantile(0.75)
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, no outliers
+            if len(non_zero_demand) <= 1:
+                return pd.Series([False] * len(demand_series), index=demand_series.index)
+            
+            Q1 = non_zero_demand.quantile(0.25)
+            Q3 = non_zero_demand.quantile(0.75)
             IQR = Q3 - Q1
             upper_bound = Q3 + 1.5 * IQR
             return demand_series > upper_bound
@@ -287,28 +338,75 @@ class OutlierHandler:
             # No outlier capping - return a very high value
             return float("inf")
         elif method == "iqr":
-            Q1 = demand_series.quantile(0.25)
-            Q3 = demand_series.quantile(0.75)
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, return a high value
+            if len(non_zero_demand) <= 1:
+                return float("inf")
+            
+            Q1 = non_zero_demand.quantile(0.25)
+            Q3 = non_zero_demand.quantile(0.75)
             IQR = Q3 - Q1
             return Q3 + threshold * IQR
         elif method == "zscore":
-            mean_val = demand_series.mean()
-            std_val = demand_series.std()
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, return a high value
+            if len(non_zero_demand) <= 1:
+                return float("inf")
+            
+            mean_val = non_zero_demand.mean()
+            std_val = non_zero_demand.std()
+            
+            # Avoid division by zero
+            if std_val == 0:
+                return mean_val
+            
             return mean_val + threshold * std_val
         elif method == "mad":
-            median = demand_series.median()
-            mad = np.median(np.abs(demand_series - median))
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, return a high value
+            if len(non_zero_demand) <= 1:
+                return float("inf")
+            
+            median = non_zero_demand.median()
+            mad = np.median(np.abs(non_zero_demand - median))
             mad_std = mad * 1.4826
+            
+            # Avoid division by zero
+            if mad_std == 0:
+                return median
+            
             return median + threshold * mad_std
         elif method == "rolling":
-            # For rolling, we'll use a simple approach with the overall statistics
-            mean_val = demand_series.mean()
-            std_val = demand_series.std()
+            # For rolling, we'll use a simple approach with the overall statistics (excluding zeros)
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            if len(non_zero_demand) <= 1:
+                return float("inf")
+            
+            mean_val = non_zero_demand.mean()
+            std_val = non_zero_demand.std()
+            
+            if std_val == 0:
+                return mean_val
+            
             return mean_val + 2.0 * std_val  # Use 2.0 as default multiplier
         else:
             # Default to IQR
-            Q1 = demand_series.quantile(0.25)
-            Q3 = demand_series.quantile(0.75)
+            # Exclude zeros for threshold calculation
+            non_zero_demand = demand_series[demand_series > 0]
+            
+            # If all values are zero or only one non-zero value, return a high value
+            if len(non_zero_demand) <= 1:
+                return float("inf")
+            
+            Q1 = non_zero_demand.quantile(0.25)
+            Q3 = non_zero_demand.quantile(0.75)
             IQR = Q3 - Q1
             return Q3 + 1.5 * IQR
 

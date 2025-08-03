@@ -220,7 +220,6 @@ class UnifiedBacktester:
         self.logger.info("Forecasting Configuration:")
         self.logger.info(f"  • Default horizon: {self.config.default_horizon} risk periods")
         self.logger.info(f"  • Demand frequency: {self.config.demand_frequency}")
-        self.logger.info(f"  • Outlier handling: {'Enabled' if self.config.outlier_enabled else 'Disabled'}")
         self.logger.info(f"  • Aggregation: {'Enabled' if self.config.aggregation_enabled else 'Disabled'}")
 
         self.logger.info("Processing Configuration:")

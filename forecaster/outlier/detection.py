@@ -29,8 +29,15 @@ class OutlierDetector:
         Returns:
             Boolean series indicating outliers
         """
-        Q1 = demand_series.quantile(0.25)
-        Q3 = demand_series.quantile(0.75)
+        # Exclude zeros for threshold calculation
+        non_zero_demand = demand_series[demand_series > 0]
+        
+        # If all values are zero or only one non-zero value, no outliers
+        if len(non_zero_demand) <= 1:
+            return pd.Series([False] * len(demand_series), index=demand_series.index)
+        
+        Q1 = non_zero_demand.quantile(0.25)
+        Q3 = non_zero_demand.quantile(0.75)
         IQR = Q3 - Q1
         
         lower_bound = Q1 - multiplier * IQR
@@ -52,7 +59,21 @@ class OutlierDetector:
         Returns:
             Boolean series indicating outliers
         """
-        z_scores = np.abs((demand_series - demand_series.mean()) / demand_series.std())
+        # Exclude zeros for threshold calculation
+        non_zero_demand = demand_series[demand_series > 0]
+        
+        # If all values are zero or only one non-zero value, no outliers
+        if len(non_zero_demand) <= 1:
+            return pd.Series([False] * len(demand_series), index=demand_series.index)
+        
+        mean_val = non_zero_demand.mean()
+        std_val = non_zero_demand.std()
+        
+        # Avoid division by zero
+        if std_val == 0:
+            return pd.Series([False] * len(demand_series), index=demand_series.index)
+        
+        z_scores = np.abs((demand_series - mean_val) / std_val)
         outliers = z_scores > threshold
         return outliers
     
@@ -69,11 +90,22 @@ class OutlierDetector:
         Returns:
             Boolean series indicating outliers
         """
-        median = demand_series.median()
-        mad = np.median(np.abs(demand_series - median))
+        # Exclude zeros for threshold calculation
+        non_zero_demand = demand_series[demand_series > 0]
+        
+        # If all values are zero or only one non-zero value, no outliers
+        if len(non_zero_demand) <= 1:
+            return pd.Series([False] * len(demand_series), index=demand_series.index)
+        
+        median = non_zero_demand.median()
+        mad = np.median(np.abs(non_zero_demand - median))
         
         # Convert MAD to standard deviation approximation
         mad_std = mad * 1.4826
+        
+        # Avoid division by zero
+        if mad_std == 0:
+            return pd.Series([False] * len(demand_series), index=demand_series.index)
         
         z_scores = np.abs((demand_series - median) / mad_std)
         outliers = z_scores > threshold
@@ -94,8 +126,26 @@ class OutlierDetector:
         Returns:
             Boolean series indicating outliers
         """
-        rolling_mean = demand_series.rolling(window=window, center=True).mean()
-        rolling_std = demand_series.rolling(window=window, center=True).std()
+        # For rolling method, we need to handle zeros differently
+        # We'll use a minimum window size and handle edge cases
+        min_window = min(window, len(demand_series) // 2)
+        if min_window < 3:
+            min_window = 3
+        
+        rolling_mean = demand_series.rolling(window=min_window, center=True, min_periods=1).mean()
+        rolling_std = demand_series.rolling(window=min_window, center=True, min_periods=1).std()
+        
+        # Fill NaN values with overall statistics (excluding zeros)
+        non_zero_demand = demand_series[demand_series > 0]
+        if len(non_zero_demand) > 0:
+            overall_mean = non_zero_demand.mean()
+            overall_std = non_zero_demand.std()
+        else:
+            overall_mean = 0
+            overall_std = 0
+        
+        rolling_mean = rolling_mean.fillna(overall_mean)
+        rolling_std = rolling_std.fillna(overall_std)
         
         upper_bound = rolling_mean + multiplier * rolling_std
         lower_bound = rolling_mean - multiplier * rolling_std
