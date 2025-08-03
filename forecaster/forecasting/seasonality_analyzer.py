@@ -33,6 +33,8 @@ class SeasonalityAnalyzer:
         self.analysis_results = {}
         self.recommendations = {}
         self.log_level = log_level
+        # Create logger instance once during initialization
+        self.logger = get_logger(__name__, level=self.log_level)
 
     def analyze_seasonality_components(
         self, data: pd.DataFrame, model: Prophet, fitted_data: pd.DataFrame
@@ -48,22 +50,21 @@ class SeasonalityAnalyzer:
         Returns:
             Dictionary containing comprehensive seasonality analysis
         """
-        logger = get_logger(__name__, level=self.log_level)
-        logger.info("=" * 80)
-        logger.info("FOURIER TERMS ANALYSIS - SEASONALITY ASSESSMENT")
-        logger.info("=" * 80)
+        self.logger.info("=" * 80)
+        self.logger.info("FOURIER TERMS ANALYSIS - SEASONALITY ASSESSMENT")
+        self.logger.info("=" * 80)
 
         analysis_results = {"seasonalities": {}, "summary": {}, "recommendations": {}}
 
         # Analyze each seasonality component
         seasonality_components = self._get_seasonality_components(model)
-        logger.debug(
+        self.logger.debug(
             f"Found {len(seasonality_components)} seasonality components: {list(seasonality_components.keys())}"
         )
 
         for seasonality_name, seasonality_info in seasonality_components.items():
-            logger.info(f"\nSeasonality: {seasonality_name}")
-            logger.debug(f"Analyzing {seasonality_name} with info: {seasonality_info}")
+            self.logger.info(f"\nSeasonality: {seasonality_name}")
+            self.logger.debug(f"Analyzing {seasonality_name} with info: {seasonality_info}")
 
             try:
                 # Analyze Fourier terms for this seasonality
@@ -76,7 +77,7 @@ class SeasonalityAnalyzer:
                 # Log detailed analysis
                 self._log_seasonality_analysis(seasonality_name, fourier_analysis)
             except Exception as e:
-                logger.error(f"Error analyzing {seasonality_name}: {e}")
+                self.logger.error(f"Error analyzing {seasonality_name}: {e}")
                 continue
 
         # Generate summary and recommendations
@@ -101,15 +102,14 @@ class SeasonalityAnalyzer:
         Returns:
             Dictionary of seasonality components and their parameters
         """
-        logger = get_logger(__name__, level=self.log_level)
         seasonalities = {}
 
         # Debug logging
-        logger.debug(
+        self.logger.debug(
             f"Model seasonalities attribute: {hasattr(model, 'seasonalities')}"
         )
         if hasattr(model, "seasonalities"):
-            logger.debug(f"Model seasonalities: {model.seasonalities}")
+            self.logger.debug(f"Model seasonalities: {model.seasonalities}")
 
         # Built-in seasonalities
         if hasattr(model, "seasonalities") and model.seasonalities:
@@ -130,7 +130,7 @@ class SeasonalityAnalyzer:
                             "type": "custom",
                         }
                 except AttributeError as e:
-                    logger.warning(
+                    self.logger.warning(
                         f"Could not access attributes for seasonality {name}: {e}"
                     )
                     # Try to get attributes from the seasonality object
@@ -200,7 +200,7 @@ class SeasonalityAnalyzer:
         if "daily" in seasonalities:
             seasonalities["daily"]["period"] = 1
 
-        logger.debug(f"Final seasonalities: {seasonalities}")
+        self.logger.debug(f"Final seasonalities: {seasonalities}")
         return seasonalities
 
     def _analyze_fourier_terms(
@@ -320,19 +320,18 @@ class SeasonalityAnalyzer:
             seasonality_name: Name of the seasonality
             analysis: Analysis results
         """
-        logger = get_logger(__name__, level=self.log_level)
-        logger.info(f"  Period: {analysis['period']} days")
-        logger.info(f"  Fourier Order: {analysis['fourier_order']}")
-        logger.info(f"  Number of Fourier Terms: {analysis['num_terms']}")
-        logger.info(f"  Max Magnitude: {analysis['max_magnitude']:.6f}")
-        logger.info(f"  Mean Magnitude: {analysis['mean_magnitude']:.6f}")
-        logger.info(f"  Std Magnitude: {analysis['std_magnitude']:.6f}")
-        logger.info(f"  Seasonality Strength: {analysis['strength']}")
+        self.logger.info(f"  Period: {analysis['period']} days")
+        self.logger.info(f"  Fourier Order: {analysis['fourier_order']}")
+        self.logger.info(f"  Number of Fourier Terms: {analysis['num_terms']}")
+        self.logger.info(f"  Max Magnitude: {analysis['max_magnitude']:.6f}")
+        self.logger.info(f"  Mean Magnitude: {analysis['mean_magnitude']:.6f}")
+        self.logger.info(f"  Std Magnitude: {analysis['std_magnitude']:.6f}")
+        self.logger.info(f"  Seasonality Strength: {analysis['strength']}")
 
         # Log significant terms
-        logger.info(f"  Significant Fourier Terms (magnitude > 0.01):")
+        self.logger.info(f"  Significant Fourier Terms (magnitude > 0.01):")
         for term in analysis["significant_terms"]:
-            logger.info(
+            self.logger.info(
                 f"    Term {term['term']}: {term['value']:.6f} (magnitude: {term['magnitude']:.6f})"
             )
 
@@ -347,19 +346,18 @@ class SeasonalityAnalyzer:
             seasonality_name: Name of the seasonality
             analysis: Analysis results
         """
-        logger = get_logger(__name__, level=self.log_level)
         if seasonality_name == "quarterly":
-            logger.info(f"  Quarterly Seasonality Analysis:")
-            logger.info(f"    Expected business cycle patterns every ~3 months")
+            self.logger.info(f"  Quarterly Seasonality Analysis:")
+            self.logger.info(f"    Expected business cycle patterns every ~3 months")
         elif seasonality_name == "monthly":
-            logger.info(f"  Monthly Seasonality Analysis:")
-            logger.info(f"    Expected monthly patterns")
+            self.logger.info(f"  Monthly Seasonality Analysis:")
+            self.logger.info(f"    Expected monthly patterns")
         elif seasonality_name == "yearly":
-            logger.info(f"  Yearly Seasonality Analysis:")
-            logger.info(f"    Expected annual patterns")
+            self.logger.info(f"  Yearly Seasonality Analysis:")
+            self.logger.info(f"    Expected annual patterns")
         elif seasonality_name == "weekly":
-            logger.info(f"  Weekly Seasonality Analysis:")
-            logger.info(f"    Expected weekly patterns")
+            self.logger.info(f"  Weekly Seasonality Analysis:")
+            self.logger.info(f"    Expected weekly patterns")
 
     def _generate_seasonality_summary(self, seasonalities: Dict) -> Dict[str, Any]:
         """
@@ -564,75 +562,74 @@ class SeasonalityAnalyzer:
             summary: Seasonality summary
             recommendations: Recommendations
         """
-        logger = get_logger(__name__, level=self.log_level)
-        logger.info("=" * 80)
-        logger.info("SEASONALITY STRENGTH SUMMARY")
-        logger.info("=" * 80)
+        self.logger.info("=" * 80)
+        self.logger.info("SEASONALITY STRENGTH SUMMARY")
+        self.logger.info("=" * 80)
 
-        logger.info("Seasonalities ranked by strength (max magnitude):")
+        self.logger.info("Seasonalities ranked by strength (max magnitude):")
         for i, seasonality in enumerate(summary["ranked_seasonalities"], 1):
-            logger.info(
+            self.logger.info(
                 f"   {i}. {seasonality['name']}: {seasonality['max_magnitude']:.6f} ({seasonality['strength']})"
             )
 
-        logger.info(f"\nOverall Statistics:")
-        logger.info(
+        self.logger.info(f"\nOverall Statistics:")
+        self.logger.info(
             f"  Strongest Seasonality: {summary['strongest']['name']} ({summary['strongest']['max_magnitude']:.6f})"
         )
-        logger.info(
+        self.logger.info(
             f"  Weakest Seasonality: {summary['weakest']['name']} ({summary['weakest']['max_magnitude']:.6f})"
         )
-        logger.info(f"  Mean Max Magnitude: {summary['mean_max_magnitude']:.6f}")
-        logger.info(f"  Std Max Magnitude: {summary['std_max_magnitude']:.6f}")
+        self.logger.info(f"  Mean Max Magnitude: {summary['mean_max_magnitude']:.6f}")
+        self.logger.info(f"  Std Max Magnitude: {summary['std_max_magnitude']:.6f}")
 
-        logger.info(f"\nRecommendations:")
+        self.logger.info(f"\nRecommendations:")
         if recommendations["very_strong_seasonalities"]:
-            logger.info(
+            self.logger.info(
                 f"  Very strong seasonalities (may need regularization): {recommendations['very_strong_seasonalities']}"
             )
         else:
-            logger.info(f"  No very strong seasonalities detected")
+            self.logger.info(f"  No very strong seasonalities detected")
 
         if recommendations["weak_seasonalities"]:
-            logger.info(
+            self.logger.info(
                 f"  Weak seasonalities (consider disabling): {recommendations['weak_seasonalities']}"
             )
 
         if recommendations["unused_seasonalities"]:
-            logger.info(
+            self.logger.info(
                 f"  Unused seasonalities (potential components): {recommendations['unused_seasonalities']}"
             )
 
         # Log best model parameters
         if recommendations.get("best_model_parameters"):
-            logger.info(f"\nBest Model Parameters:")
+            self.logger.info(f"\nBest Model Parameters:")
             best_params = recommendations["best_model_parameters"]
-            logger.info(
+            self.logger.info(
                 f"  Changepoint Prior Scale: {best_params.get('changepoint_prior_scale', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Seasonality Prior Scale: {best_params.get('seasonality_prior_scale', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Holidays Prior Scale: {best_params.get('holidays_prior_scale', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Seasonality Mode: {best_params.get('seasonality_mode', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Weekly Seasonality: {best_params.get('weekly_seasonality', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Daily Seasonality: {best_params.get('daily_seasonality', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Include Quarterly Effects: {best_params.get('include_quarterly_effects', 'N/A')}"
             )
-            logger.info(
+            self.logger.info(
                 f"  Include Monthly Effects: {best_params.get('include_monthly_effects', 'N/A')}"
             )
 
-        logger.info("=" * 80)
+        self.logger.info("=" * 80)
 
     def get_optimal_components(self, analysis_results: Dict) -> Dict[str, Any]:
         """

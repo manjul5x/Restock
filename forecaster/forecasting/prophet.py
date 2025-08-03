@@ -61,6 +61,7 @@ class ProphetForecaster(BaseForecaster):
         min_data_points: int = 10,
         window_length: Optional[int] = None,
         log_level: str = "INFO",
+        run_seasonality_analysis: bool = True,
     ):
         """
         Initialize Prophet forecaster
@@ -81,6 +82,9 @@ class ProphetForecaster(BaseForecaster):
             include_festival_seasons: Whether to include festival season effects
             include_monsoon_effect: Whether to include monsoon season effects
             min_data_points: Minimum data points required
+            window_length: Optional rolling window length for data
+            log_level: Logging level for the forecaster
+            run_seasonality_analysis: Whether to run seasonality analysis during fitting (default: True)
         """
         super().__init__(name="prophet")
 
@@ -105,7 +109,8 @@ class ProphetForecaster(BaseForecaster):
         self.include_monsoon_effect = include_monsoon_effect
         self.min_data_points = min_data_points
         self.window_length = window_length
-        self.log_level = log_level.upper()
+        self.log_level = log_level
+        self.run_seasonality_analysis = run_seasonality_analysis
 
         self.data = None
         self.model = None
@@ -446,8 +451,8 @@ class ProphetForecaster(BaseForecaster):
 
         self.is_fitted = True
 
-        # Perform seasonality analysis if model is fitted successfully
-        if self.is_fitted and self.model is not None:
+        # Perform seasonality analysis if model is fitted successfully and analysis is enabled
+        if self.is_fitted and self.model is not None and self.run_seasonality_analysis:
             self._perform_seasonality_analysis(data, prophet_data, self.log_level)
 
         return self
@@ -669,6 +674,8 @@ class ProphetForecaster(BaseForecaster):
             "include_monsoon_effect": self.include_monsoon_effect,
             "min_data_points": self.min_data_points,
             "window_length": self.window_length,
+            "log_level": self.log_level,
+            "run_seasonality_analysis": self.run_seasonality_analysis,
             "risk_period_days": self.risk_period_days,
             "method_name": self.name,
         }
@@ -725,6 +732,10 @@ class ProphetForecaster(BaseForecaster):
             self.min_data_points = parameters["min_data_points"]
         if "window_length" in parameters:
             self.window_length = parameters["window_length"]
+        if "log_level" in parameters:
+            self.log_level = parameters["log_level"]
+        if "run_seasonality_analysis" in parameters:
+            self.run_seasonality_analysis = parameters["run_seasonality_analysis"]
         if "risk_period_days" in parameters:
             self.risk_period_days = parameters["risk_period_days"]
 
@@ -761,6 +772,7 @@ def create_prophet_forecaster(parameters: Dict) -> ProphetForecaster:
         min_data_points=parameters.get("min_data_points", 10),
         window_length=parameters.get("window_length"),
         log_level=parameters.get("log_level", "INFO"),
+        run_seasonality_analysis=parameters.get("run_seasonality_analysis", True),
     )
 
     # Set risk period if provided

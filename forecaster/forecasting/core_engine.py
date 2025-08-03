@@ -12,6 +12,9 @@ from datetime import date
 
 from .parameter_optimizer import ParameterOptimizerFactory
 from .base import calculate_forecast_metrics
+from .prophet import create_prophet_forecaster
+from .arima import ARIMAForecaster
+from .moving_average import MovingAverageForecaster
 from ..utils.logger import get_logger
 
 
@@ -50,11 +53,8 @@ class CoreForecastingEngine:
             # Get forecasting method
             forecast_method = product_record.get('forecast_method', 'moving_average')
             
-            # Get parameter optimizer for creating forecaster
-            optimizer = self.parameter_optimizer_factory.get_optimizer(forecast_method)
-            
-            # Create forecaster with the provided optimized parameters
-            forecaster = optimizer.create_forecaster(optimized_parameters)
+            # Create forecaster directly from optimized parameters (no parameter optimization)
+            forecaster = self._create_forecaster_directly(forecast_method, optimized_parameters)
             
             # Fit the model to the provided data
             forecaster.fit(product_data)
@@ -125,4 +125,53 @@ class CoreForecastingEngine:
             
         except Exception as e:
             logger.error(f"Error aggregating forecast to risk period: {e}")
-            return daily_forecast 
+            return daily_forecast
+    
+    def _create_forecaster_directly(self, forecast_method: str, parameters: Dict[str, Any]):
+        """
+        Create forecaster directly from parameters without using parameter optimizer.
+        
+        Args:
+            forecast_method: The forecasting method to use
+            parameters: Optimized parameters for the forecaster
+            
+        Returns:
+            Forecaster instance
+        """
+        logger = get_logger(__name__)
+        
+        try:
+            if forecast_method == "prophet":
+                # Ensure seasonality analysis is disabled for regular forecasting
+                forecasting_parameters = parameters.copy()
+                forecasting_parameters["run_seasonality_analysis"] = False
+                return create_prophet_forecaster(forecasting_parameters)
+                
+            elif forecast_method == "arima":
+                return ARIMAForecaster(
+                    window_length=parameters.get('window_length'),
+                    horizon=parameters.get('horizon'),
+                    auto_arima=parameters.get('auto_arima', True),
+                    max_p=parameters.get('max_p', 3),
+                    max_d=parameters.get('max_d', 2),
+                    max_q=parameters.get('max_q', 3),
+                    seasonal=parameters.get('seasonal', False),
+                    m=parameters.get('m', 1),
+                    min_data_points=parameters.get('min_data_points', 5),
+                    order=parameters.get('order', (1, 1, 1)),
+                    seasonal_order=parameters.get('seasonal_order')
+                )
+                
+            elif forecast_method == "moving_average":
+                return MovingAverageForecaster(
+                    window_length=parameters.get('window_length'),
+                    horizon=parameters.get('horizon'),
+                    risk_period_days=parameters.get('risk_period_days')
+                )
+                
+            else:
+                raise ValueError(f"Unsupported forecasting method: {forecast_method}")
+                
+        except Exception as e:
+            logger.error(f"Error creating forecaster for method {forecast_method}: {e}")
+            raise 

@@ -28,17 +28,20 @@ class SimulationDataLoader:
 
     def __init__(self,
                  safety_stock_file: Optional[str] = None,
-                 forecast_comparison_file: Optional[str] = None):
+                 forecast_comparison_file: Optional[str] = None,
+                 log_level: str = "INFO"):
         """
         Initialize the data loader.
 
         Args:
             safety_stock_file: Path to safety stock results file.
             forecast_comparison_file: Path to forecast comparison file.
+            log_level: Logging level for the data loader.
         """
         self.loader = DataLoader()
         self.safety_stock_file = safety_stock_file
         self.forecast_comparison_file = forecast_comparison_file
+        self.log_level = log_level
 
         # Data attributes to be loaded
         self.product_master: Optional[pd.DataFrame] = None
@@ -63,13 +66,13 @@ class SimulationDataLoader:
         expanded_df = ProductMasterSchema.expand_product_master_for_methods(
             self.product_master
         )
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         logger.info(f"Expanded product master from {len(self.product_master)} to {len(expanded_df)} entries")
         return expanded_df
 
     def _load_required_data(self):
         """Load all required data files using the DataLoader and direct reads for output files."""
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         try:
             logger.info("Loading core data using DataLoader...")
             # Load product master and filtered outflow (demand) data
@@ -127,7 +130,7 @@ class SimulationDataLoader:
             ]
             
             if len(product_safety_stocks) == 0:
-                logger = get_logger(__name__)
+                logger = get_logger(__name__, level=self.log_level)
                 logger.warning(f"No safety stock data found for {key}")
                 continue
             
@@ -142,7 +145,7 @@ class SimulationDataLoader:
             ]
             
             if len(product_demand) == 0:
-                logger = get_logger(__name__)
+                logger = get_logger(__name__, level=self.log_level)
                 logger.warning(f"No demand data found for {key}")
                 continue
             
@@ -177,10 +180,10 @@ class SimulationDataLoader:
                 'date_range': date_range,
                 'num_steps': len(date_range),
                 'leadtime': product_record['leadtime'],
-                'moq': product_record.get('moq', 1.0)  # Get MOQ from product master, default to 1.0
+                'moq': product_record['moq'] 
             }
         
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         logger.info(f"Created simulation periods for {len(periods)} product-location-method combinations")
         return periods
     
@@ -345,7 +348,7 @@ class SimulationDataLoader:
         # Calculate initial net_stock
         arrays['net_stock'][0] = arrays['inventory_on_hand'][0] + arrays['inventory_on_order'][0]
         
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         logger.debug(f"Created simulation arrays for {product_location_key} with {num_steps} steps")
         return arrays
     
@@ -367,10 +370,10 @@ class SimulationDataLoader:
                     'arrays': arrays
                 }
             except Exception as e:
-                logger = get_logger(__name__)
+                logger = get_logger(__name__, level=self.log_level)
                 logger.error(f"Error creating simulation arrays for {key}: {e}")
                 continue
         
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         logger.info(f"Created simulation data for {len(simulation_data)} product-location-method combinations")
         return simulation_data 

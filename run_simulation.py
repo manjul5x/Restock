@@ -64,7 +64,8 @@ def run_simulation(order_policy: str = "review_ordering",
         simulator = InventorySimulator(
             default_policy=order_policy,
             safety_stock_file=safety_stock_file,
-            forecast_comparison_file=forecast_comparison_file
+            forecast_comparison_file=forecast_comparison_file,
+            log_level=log_level
         )
         
         # Run simulation

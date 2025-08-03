@@ -31,7 +31,8 @@ class InventorySimulator:
     
     def __init__(self, default_policy: str = "review_ordering",
                  safety_stock_file: str = None,
-                 forecast_comparison_file: str = None):
+                 forecast_comparison_file: str = None,
+                 log_level: str = "INFO"):
         """
         Initialize the inventory simulator.
         
@@ -39,18 +40,22 @@ class InventorySimulator:
             default_policy: Default order policy to use
             safety_stock_file: Path to safety stock results file (optional)
             forecast_comparison_file: Path to forecast comparison file (optional)
+            log_level: Logging level for the simulator
         """
+        
+        self.default_policy = default_policy
+        self.log_level = log_level
         self.data_loader = SimulationDataLoader(
             safety_stock_file=safety_stock_file,
-            forecast_comparison_file=forecast_comparison_file
+            forecast_comparison_file=forecast_comparison_file,
+            log_level=log_level
         )
-        self.default_policy = default_policy
         
         # Get MOQ configuration from data loader config
         self.enable_moq = self.data_loader.loader.config.get('simulation', {}).get('enable_moq', False)
         
         # Log MOQ status
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         if self.enable_moq:
             logger.info("🔒 MOQ Constraints: Enabled")
         else:
@@ -70,7 +75,7 @@ class InventorySimulator:
         Returns:
             Dictionary containing simulation results
         """
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         try:
             # Get simulation data
             simulation_data = self.data_loader.get_all_simulation_data()
@@ -126,7 +131,7 @@ class InventorySimulator:
         Returns:
             Dictionary mapping product-location-method keys to simulation results
         """
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         
         # Get all simulation data first
         simulation_data = self.data_loader.get_all_simulation_data()
@@ -303,7 +308,7 @@ class InventorySimulator:
         """
         Save simulation results to files using DataLoader.
         """
-        logger = get_logger(__name__)
+        logger = get_logger(__name__, level=self.log_level)
         if not self.results:
             logger.warning("No results to save")
             return

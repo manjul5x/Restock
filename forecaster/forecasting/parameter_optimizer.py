@@ -123,7 +123,7 @@ class ProphetParameterOptimizer(ParameterOptimizer):
     
     def __init__(self):
         super().__init__("prophet")
-        self.seasonality_analyzer = SeasonalityAnalyzer()
+        # self.seasonality_analyzer = SeasonalityAnalyzer()
     
     def optimize_parameters(
         self, 
@@ -140,7 +140,9 @@ class ProphetParameterOptimizer(ParameterOptimizer):
         try:
             # Create a temporary Prophet forecaster for seasonality analysis
             temp_forecaster = ProphetForecaster(
-                window_length=None  # Use entire available data for analysis
+                window_length=None,  # Use entire available data for analysis
+                run_seasonality_analysis=True,  # Enable seasonality analysis for optimization
+                log_level=base_parameters.get("log_level", "INFO")
             )
             
             # Fit the model for analysis
@@ -239,7 +241,10 @@ class ProphetParameterOptimizer(ParameterOptimizer):
     
     def create_forecaster(self, parameters: Dict[str, Any]) -> ProphetForecaster:
         """Create Prophet forecaster with optimized parameters."""
-        return create_prophet_forecaster(parameters)
+        # Disable seasonality analysis for regular forecasting (not optimization)
+        forecasting_parameters = parameters.copy()
+        forecasting_parameters["run_seasonality_analysis"] = False
+        return create_prophet_forecaster(forecasting_parameters)
 
 
 class ARIMAParameterOptimizer(ParameterOptimizer):
