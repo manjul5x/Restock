@@ -102,7 +102,11 @@ Required columns:
 - `forecast_window_length` - Forecasting window length in risk periods
 - `forecast_horizon` - Forecast horizon in risk periods
 - `forecast_methods` - Comma-separated forecasting methods: 'prophet,moving_average'
+- `outlier_method` - Outlier detection method: 'iqr', 'zscore', 'mad', 'rolling', or 'no' (default: 'iqr')
+- `outlier_threshold` - Outlier detection threshold (default: 1.5)
+- `distribution` - Safety stock distribution: 'kde' or 'normal' (default: 'kde')
 - `service_level` - Service level percentage 0.0 to 1.0 (default: 0.95)
+- `ss_window_length` - Rolling window length for safety stock calculation in demand frequency units (default: 180)
 - `leadtime` - Lead time in demand frequency units
 - `inventory_cost` - Unit cost of inventory (default: 0.0)
 - `moq` - Minimum order quantity (default: 0)
@@ -428,6 +432,7 @@ The system calculates safety stocks for each product-location-method combination
 ## Standardization
 
 ### How Logging Works
+This is actually still a bit of a mess and needs to be standardised properly
 
 #### Logger Architecture
 - **Unified Logger**: `ForecasterLogger` class provides consistent logging across all modules

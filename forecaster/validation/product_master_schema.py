@@ -53,7 +53,7 @@ class ProductMasterRecord(BaseModel):
         0.0, ge=0.0, description="Unit cost of inventory"
     )
     moq: Optional[float] = Field(
-        1.0, ge=0.0, description="Minimum order quantity"
+        0.0, ge=0.0, description="Minimum order quantity"
     )
 
     @validator("risk_period")
