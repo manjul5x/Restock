@@ -27,50 +27,7 @@ from datetime import date, timedelta
 import pandas as pd
 
 
-def calculate_analysis_dates(loader, demand_frequency: str = "d") -> tuple[str, str]:
-    """
-    Calculate the analysis start and end dates based on the max ss_window_length and review dates.
-    
-    Args:
-        loader: DataLoader instance
-        demand_frequency: Demand frequency ('d', 'w', 'm')
-    
-    Returns:
-        Tuple of (analysis_start_date, analysis_end_date) in YYYY-MM-DD format
-        
-    Raises:
-        ValueError: If unable to calculate the dates (e.g., missing review dates or product master data)
-    """
-    try:
-        # Load product master to get max ss_window_length
-        product_master = loader.load_product_master()
-        max_ss_window_length = product_master['ss_window_length'].max()
-        
-        # Get review dates from config
-        review_dates = loader.config.get('safety_stock', {}).get('review_dates', [])
-        if not review_dates:
-            raise ValueError("No review dates found in config")
-        
-        first_review_date = date.fromisoformat(review_dates[0])
-        last_review_date = date.fromisoformat(review_dates[-1])
-        
-        # Calculate days to subtract based on demand frequency and ss_window_length
-        if demand_frequency == "d":
-            days_to_subtract = int(max_ss_window_length)
-        elif demand_frequency == "w":
-            days_to_subtract = int(max_ss_window_length * 7)
-        elif demand_frequency == "m":
-            days_to_subtract = int(max_ss_window_length * 30)  # Approximate
-        else:
-            raise ValueError(f"Unsupported demand frequency: {demand_frequency}")
-        
-        # Calculate analysis start date
-        analysis_start_date = first_review_date - timedelta(days=days_to_subtract)
-        
-        return analysis_start_date.isoformat(), last_review_date.isoformat()
-        
-    except Exception as e:
-        raise ValueError(f"Failed to calculate analysis dates: {e}")
+
 
 
 def run_command(command, description, logger, check=True, real_time_output=False):
@@ -166,22 +123,13 @@ def run_complete_workflow(
         print("Please check your data/config/data_config.yaml configuration")
         sys.exit(1)
 
-    # Calculate analysis dates if not provided
-    if analysis_start_date is None or analysis_end_date is None:
-        print("📊 Calculating analysis dates based on max ss_window_length and review dates...")
-        try:
-            calculated_start, calculated_end = calculate_analysis_dates(loader, demand_frequency)
-            if analysis_start_date is None:
-                analysis_start_date = calculated_start
-            if analysis_end_date is None:
-                analysis_end_date = calculated_end
-        except Exception as e:
-            print(f"❌ Failed to calculate analysis dates: {e}")
-            print("   Please provide analysis dates using --analysis-start-date and --analysis-end-date parameters")
-            sys.exit(1)
-    else:
+    # Pass analysis dates to backtesting (None triggers auto-calculation in backtester)
+    if analysis_start_date is not None:
         print(f"📅 Using provided analysis start date: {analysis_start_date}")
+    if analysis_end_date is not None:
         print(f"📅 Using provided analysis end date: {analysis_end_date}")
+    if analysis_start_date is None and analysis_end_date is None:
+        print("📅 Analysis dates not provided - will be auto-calculated in backtester")
 
     print(f"📅 Analysis Period: {analysis_start_date} to {analysis_end_date}")
     print(f"🔄 Demand Frequency: {demand_frequency}")
@@ -229,7 +177,13 @@ def run_complete_workflow(
                 "⏱️  This step may take significant time depending on data size and workers"
             )
 
-            backtest_cmd = f"python run_unified_backtest.py --analysis-start-date {analysis_start_date} --analysis-end-date {analysis_end_date}"
+            backtest_cmd = f"python run_unified_backtest.py"
+            
+            # Add analysis dates if provided, otherwise let backtester auto-calculate
+            if analysis_start_date is not None:
+                backtest_cmd += f" --analysis-start-date {analysis_start_date}"
+            if analysis_end_date is not None:
+                backtest_cmd += f" --analysis-end-date {analysis_end_date}"
 
             backtest_cmd += f" --demand-frequency {demand_frequency} --batch-size {batch_size} --max-workers {max_workers}"
 

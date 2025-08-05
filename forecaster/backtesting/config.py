@@ -16,8 +16,8 @@ class BacktestConfig:
     # Output directory (will be set by DataLoader)
 
     # Backtesting parameters
-    analysis_start_date: date = field(default_factory=lambda: date(2024, 4, 1))
-    analysis_end_date: date = field(default_factory=lambda: date(2025, 4, 1))
+    analysis_start_date: date
+    analysis_end_date: date
 
     # Forecasting parameters
     demand_frequency: str = "d"  # 'd' for daily, 'w' for weekly, 'm' for monthly

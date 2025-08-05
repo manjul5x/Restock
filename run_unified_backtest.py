@@ -15,6 +15,53 @@ from data.loader import DataLoader
 from datetime import date
 import sys
 import os
+from datetime import date, timedelta
+
+
+def calculate_analysis_dates(loader, demand_frequency: str = "d") -> tuple[str, str]:
+    """
+    Calculate the analysis start and end dates based on the max ss_window_length and review dates.
+    
+    Args:
+        loader: DataLoader instance
+        demand_frequency: Demand frequency ('d', 'w', 'm')
+    
+    Returns:
+        Tuple of (analysis_start_date, analysis_end_date) in YYYY-MM-DD format
+        
+    Raises:
+        ValueError: If unable to calculate the dates (e.g., missing review dates or product master data)
+    """
+    try:
+        # Load product master to get max ss_window_length
+        product_master = loader.load_product_master()
+        max_ss_window_length = product_master['ss_window_length'].max()
+        
+        # Get review dates from config
+        review_dates = loader.config.get('safety_stock', {}).get('review_dates', [])
+        if not review_dates:
+            raise ValueError("No review dates found in config")
+        
+        first_review_date = date.fromisoformat(review_dates[0])
+        last_review_date = date.fromisoformat(review_dates[-1])
+        
+        # Calculate days to subtract based on demand frequency and ss_window_length
+        if demand_frequency == "d":
+            days_to_subtract = int(max_ss_window_length)
+        elif demand_frequency == "w":
+            days_to_subtract = int(max_ss_window_length * 7)
+        elif demand_frequency == "m":
+            days_to_subtract = int(max_ss_window_length * 30)  # Approximate
+        else:
+            raise ValueError(f"Unsupported demand frequency: {demand_frequency}")
+        
+        # Calculate analysis start date
+        analysis_start_date = first_review_date - timedelta(days=days_to_subtract)
+        
+        return analysis_start_date.isoformat(), last_review_date.isoformat()
+        
+    except Exception as e:
+        raise ValueError(f"Failed to calculate analysis dates: {e}")
 
 
 def run_unified_backtest_script(
@@ -26,6 +73,31 @@ def run_unified_backtest_script(
     log_level: str = "INFO",
 ):
     """Run unified backtesting on customer data with method-specific parameter optimization."""
+
+    # Initialize DataLoader to validate configuration
+    try:
+        loader = DataLoader()
+        print("✅ DataLoader initialized successfully")
+    except Exception as e:
+        print(f"❌ DataLoader initialization failed: {e}")
+        return False
+
+    # Calculate analysis dates if not provided
+    if analysis_start_date is None or analysis_end_date is None:
+        print("📊 Calculating analysis dates based on max ss_window_length and review dates...")
+        try:
+            calculated_start, calculated_end = calculate_analysis_dates(loader, demand_frequency)
+            if analysis_start_date is None:
+                analysis_start_date = calculated_start
+            if analysis_end_date is None:
+                analysis_end_date = calculated_end
+        except Exception as e:
+            print(f"❌ Failed to calculate analysis dates: {e}")
+            print("   Please provide analysis dates using --analysis-start-date and --analysis-end-date parameters")
+            return False
+    else:
+        print(f"📅 Using provided analysis start date: {analysis_start_date}")
+        print(f"📅 Using provided analysis end date: {analysis_end_date}")
 
     # Validate required parameters
     if not analysis_start_date:
@@ -115,16 +187,16 @@ def main():
         description="Run unified backtesting with method-specific parameter optimization"
     )
 
-    # Required arguments
+    # Analysis period arguments (optional - will auto-calculate if not provided)
     parser.add_argument(
         "--analysis-start-date",
-        required=True,
-        help="Analysis start date (YYYY-MM-DD format)",
+        default=None,
+        help="Analysis start date (YYYY-MM-DD format). If not provided, will be calculated based on max ss_window_length and first review date.",
     )
     parser.add_argument(
         "--analysis-end-date",
-        required=True,
-        help="Analysis end date (YYYY-MM-DD format)",
+        default=None,
+        help="Analysis end date (YYYY-MM-DD format). If not provided, will be set to the last review date.",
     )
 
     # Optional arguments
