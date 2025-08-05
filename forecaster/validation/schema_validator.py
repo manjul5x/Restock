@@ -100,6 +100,27 @@ class SchemaValidator:
                                 details={"empty_string_count": int(empty_string_count)},
                                 affected_records=int(empty_string_count)
                             ))
+                
+                # Check for duplicate product-location-date combinations
+                if all(col in demand_data.columns for col in ['product_id', 'location_id', 'date']):
+                    duplicates = demand_data.duplicated(subset=['product_id', 'location_id', 'date']).sum()
+                    if duplicates > 0:
+                        # Get details about the duplicates
+                        duplicate_records = demand_data[demand_data.duplicated(subset=['product_id', 'location_id', 'date'], keep=False)]
+                        duplicate_groups = duplicate_records.groupby(['product_id', 'location_id', 'date']).size()
+                        
+                        issues.append(ValidationIssue(
+                            severity=ValidationSeverity.ERROR,
+                            category="schema",
+                            message=f"Found {duplicates} duplicate product-location-date combinations",
+                            details={
+                                "duplicate_count": int(duplicates),
+                                "duplicate_combinations": len(duplicate_groups),
+                                "max_duplicates_per_combination": int(duplicate_groups.max()),
+                                "sample_duplicates": duplicate_groups.head(5).to_dict()
+                            },
+                            affected_records=int(duplicates)
+                        ))
             
             # Create summary
             summary = {

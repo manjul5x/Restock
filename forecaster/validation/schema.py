@@ -72,6 +72,25 @@ class DemandSchema:
         if (df["stock_level"] < 0).any():
             raise ValueError("Stock level values cannot be negative")
 
+        # Check for duplicate product-location-date combinations
+        if all(col in df.columns for col in ['product_id', 'location_id', 'date']):
+            duplicates = df.duplicated(subset=['product_id', 'location_id', 'date']).sum()
+            if duplicates > 0:
+                # Get details about the duplicates for better error reporting
+                duplicate_records = df[df.duplicated(subset=['product_id', 'location_id', 'date'], keep=False)]
+                duplicate_groups = duplicate_records.groupby(['product_id', 'location_id', 'date']).size()
+                
+                # Log the error with details
+                from forecaster.utils.logger import get_logger
+                logger = get_logger(__name__)
+                logger.error(f"Data validation failed: Found {duplicates} duplicate product-location-date combinations")
+                logger.error(f"Duplicate combinations: {len(duplicate_groups)}")
+                logger.error(f"Sample duplicates: {dict(duplicate_groups.head(5))}")
+                
+                # Raise the validation error
+                from data.exceptions import DataValidationError
+                raise DataValidationError(f"Found {duplicates} duplicate product-location-date combinations. Each product-location-date combination must have exactly one entry.")
+
         return True
 
     @staticmethod

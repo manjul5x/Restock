@@ -56,6 +56,16 @@ def run_command(command, description, logger, check=True, real_time_output=False
     except subprocess.CalledProcessError as e:
         execution_time = time.time() - start_time
         logger.log_error_with_context(e, f"Command failed: {command}")
+        
+        # Display the full output for validation errors
+        if e.stdout:
+            print(f"\n📋 Command Output:")
+            print(e.stdout)
+        if e.stderr:
+            print(f"\n❌ Command Error:")
+            print(e.stderr)
+        
+        # Also log for debugging
         if e.stdout:
             logger.info(f"stdout: {e.stdout}")
         if e.stderr:
