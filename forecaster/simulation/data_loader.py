@@ -267,29 +267,49 @@ class SimulationDataLoader:
             (self.forecast_comparison['step'] == 1)
         ]
         
-        # Convert analysis_date to date if it's datetime
-        if pd.api.types.is_datetime64_any_dtype(product_forecasts['analysis_date']):
-            forecast_dict = dict(zip(
-                product_forecasts['analysis_date'].dt.date,
-                product_forecasts['forecast_demand']
-            ))
+        # Ensure consistent date types - convert analysis_date to datetime64[ns] to match date_range
+        if not product_forecasts.empty:
+            if pd.api.types.is_datetime64_any_dtype(product_forecasts['analysis_date']):
+                # Already datetime, use as is
+                forecast_dict = dict(zip(
+                    product_forecasts['analysis_date'],
+                    product_forecasts['forecast_demand']
+                ))
+            else:
+                # Convert to datetime64[ns] to match date_range type
+                forecast_dict = dict(zip(
+                    pd.to_datetime(product_forecasts['analysis_date']),
+                    product_forecasts['forecast_demand']
+                ))
+            
+            # Populate FRSP array with matching dates
+            for i, sim_date in enumerate(date_range):
+                if sim_date in forecast_dict:
+                    arrays['FRSP'][i] = forecast_dict[sim_date]
+                else:
+                    # If no exact match, find the closest date within a reasonable range
+                    closest_date = None
+                    min_diff = pd.Timedelta(days=30)  # Allow up to 30 days difference
+                    
+                    for forecast_date in forecast_dict.keys():
+                        diff = abs(sim_date - forecast_date)
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_date = forecast_date
+                    
+                    if closest_date is not None:
+                        arrays['FRSP'][i] = forecast_dict[closest_date]
         else:
-            forecast_dict = dict(zip(
-                product_forecasts['analysis_date'],
-                product_forecasts['forecast_demand']
-            ))
-        
-        for i, sim_date in enumerate(date_range):
-            if sim_date.date() in forecast_dict:
-                arrays['FRSP'][i] = forecast_dict[sim_date.date()]
+            logger = get_logger(__name__, level=self.log_level)
+            logger.warning(f"No forecast data found for {product_id} at {location_id} with method {forecast_method}")
         
         # Populate actual_demand array
         product_demand = self.customer_demand[
             (self.customer_demand['product_id'] == product_id) &
             (self.customer_demand['location_id'] == location_id)
         ]
-        # Convert date to datetime for processing, then back to date
-        product_demand.loc[:, 'date'] = pd.to_datetime(product_demand['date']).dt.date
+        # Keep date as datetime64[ns] for consistent type handling
+        product_demand.loc[:, 'date'] = pd.to_datetime(product_demand['date'])
         
         demand_dict = dict(zip(
             product_demand['date'],
@@ -297,12 +317,12 @@ class SimulationDataLoader:
         ))
         
         for i, sim_date in enumerate(date_range):
-            if sim_date.date() in demand_dict:
-                arrays['actual_demand'][i] = demand_dict[sim_date.date()]
+            if sim_date in demand_dict:
+                arrays['actual_demand'][i] = demand_dict[sim_date]
         
         # Initialize inventory_on_hand (first entry from stock_level)
         product_demand_sorted = product_demand.sort_values('date')
-        starting_date = date_range[0].date()
+        starting_date = date_range[0]
         
         # Find the closest stock level to starting date
         starting_stock_data = product_demand_sorted[
@@ -326,14 +346,14 @@ class SimulationDataLoader:
                 total_incoming = 0
                 for j in range(leadtime):
                     if i + j < len(date_range):
-                        check_date = date_range[i + j].date()
+                        check_date = date_range[i + j]
                         total_incoming += incoming_dict.get(check_date, 0)
                 arrays['inventory_on_order'][i] = total_incoming
         
         # Initialize incoming_inventory array
         for i, sim_date in enumerate(date_range):
             if i < leadtime:
-                arrays['incoming_inventory'][i] = incoming_dict.get(sim_date.date(), 0)
+                arrays['incoming_inventory'][i] = incoming_dict.get(sim_date, 0)
         
         # Populate actual_inventory array
         stock_level_dict = dict(zip(
@@ -342,8 +362,8 @@ class SimulationDataLoader:
         ))
         
         for i, sim_date in enumerate(date_range):
-            if sim_date.date() in stock_level_dict:
-                arrays['actual_inventory'][i] = stock_level_dict[sim_date.date()]
+            if sim_date in stock_level_dict:
+                arrays['actual_inventory'][i] = stock_level_dict[sim_date]
         
         # Calculate initial net_stock
         arrays['net_stock'][0] = arrays['inventory_on_hand'][0] + arrays['inventory_on_order'][0]

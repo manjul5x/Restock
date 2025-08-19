@@ -28,10 +28,10 @@ class ProductMasterRecord(BaseModel):
         1.5, description="Outlier detection threshold"
     )
     forecast_window_length: int = Field(
-        ..., description="Forecasting window length in risk periods"
+        ..., description="Forecasting window length in days"
     )
     forecast_horizon: int = Field(
-        ..., description="Forecasting horizon in risk periods"
+        ..., description="Forecasting horizon in days"
     )
     forecast_methods: Optional[str] = Field(
         "moving_average",

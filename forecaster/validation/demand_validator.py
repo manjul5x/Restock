@@ -89,8 +89,8 @@ class DemandValidator:
         # Generate expected date range
         expected_dates = self._generate_date_range(start_date, end_date, frequency)
         
-        # Find missing dates
-        actual_dates_set = set(sorted_dates)
+        # Find missing dates - convert actual dates to date objects for comparison
+        actual_dates_set = set(pd.to_datetime(sorted_dates).dt.date)
         missing_dates = [date for date in expected_dates if date not in actual_dates_set]
         
         return missing_dates

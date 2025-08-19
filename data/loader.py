@@ -193,6 +193,10 @@ class DataLoader:
             if columns:
                 df = df[columns]
             
+            # Convert date column to datetime type if it exists (needed for regressor operations)
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'])
+            
             # Apply filtering if needed
             if product_master is not None:
                 logger.debug("Filtering preloaded outflow by product master")
@@ -220,6 +224,10 @@ class DataLoader:
         # Load data
         logger.info(f"Loading outflow data from {path}")
         df = self.accessor.read_data(path, columns=columns)
+        
+        # Convert date column to datetime type if it exists (needed for regressor operations)
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
         
         # Filter by product master
         if product_master is not None:
@@ -269,6 +277,11 @@ class DataLoader:
         """Save simulation results"""
         filename = self.config['paths']['output_files']['simulation_results']
         self.save_results(df, "simulation", filename)
+    
+    def save_input_data_with_regressors(self, df: pd.DataFrame) -> None:
+        """Save input data with regressors"""
+        filename = self.config['paths']['output_files']['input_data_with_regressors']
+        self.save_results(df, "backtesting", filename)
     
     def clear_cache(self):
         """Clear all cached data"""
@@ -370,4 +383,313 @@ class DataLoader:
     def get_preloaded_datasets(self) -> List[str]:
         """Get list of preloaded dataset names"""
         return list(self._preloaded_data.keys()) if self._preloaded_data else []
+    
+    # ============================================================================
+    # CHUNKED PERSISTENCE FOR BACKTESTING
+    # ============================================================================
+    
+    def save_results_chunk(self, 
+                          df: pd.DataFrame, 
+                          category: str, 
+                          base_filename: str, 
+                          run_id: str, 
+                          chunk_idx: int,
+                          file_format: str = "parquet") -> str:
+        """
+        Save a chunk of results to intermediate storage.
+        
+        Args:
+            df: DataFrame to save
+            category: Category directory (e.g., 'backtesting')
+            base_filename: Base filename without extension
+            run_id: Unique run identifier
+            chunk_idx: Sequential chunk index
+            file_format: File format ('parquet' or 'csv')
+            
+        Returns:
+            Path to saved chunk file
+        """
+        # Create chunk directory structure
+        chunk_dir = Path(self.config['paths']['output_dir']) / category / 'chunks' / base_filename / run_id
+        chunk_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate chunk filename
+        chunk_filename = f"chunk_{chunk_idx:06d}.{file_format}"
+        chunk_path = chunk_dir / chunk_filename
+        
+        # Save chunk
+        try:
+            if file_format == "parquet":
+                df.to_parquet(chunk_path, index=False)
+            else:  # csv
+                df.to_csv(chunk_path, index=False)
+            
+            logger.debug(f"Saved chunk {chunk_idx} to {chunk_path} ({len(df)} rows)")
+            return str(chunk_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to save chunk {chunk_idx}: {e}")
+            raise
+    
+    def finalize_results_from_chunks(self, 
+                                   category: str, 
+                                   base_filename: str, 
+                                   run_id: str,
+                                   file_format: str = "parquet") -> str:
+        """
+        Concatenate all chunks and create final consolidated output file.
+        
+        Args:
+            category: Category directory (e.g., 'backtesting')
+            base_filename: Base filename without extension
+            run_id: Unique run identifier
+            file_format: File format of chunks ('parquet' or 'csv')
+            
+        Returns:
+            Path to final consolidated file
+        """
+        # Find chunk directory
+        chunk_dir = Path(self.config['paths']['output_dir']) / category / 'chunks' / base_filename / run_id
+        
+        if not chunk_dir.exists():
+            raise FileNotFoundError(f"Chunk directory not found: {chunk_dir}")
+        
+        # Find all chunk files
+        chunk_pattern = f"chunk_*.{file_format}"
+        chunk_files = sorted(chunk_dir.glob(chunk_pattern))
+        
+        if not chunk_files:
+            raise FileNotFoundError(f"No chunk files found in {chunk_dir}")
+        
+        logger.info(f"Found {len(chunk_files)} chunk files to consolidate")
+        
+        # Read and concatenate chunks
+        chunks = []
+        total_rows = 0
+        
+        for chunk_file in chunk_files:
+            try:
+                if file_format == "parquet":
+                    chunk_df = pd.read_parquet(chunk_file)
+                else:  # csv
+                    chunk_df = pd.read_csv(chunk_file)
+                
+                chunks.append(chunk_df)
+                total_rows += len(chunk_df)
+                logger.debug(f"Loaded chunk {chunk_file.name}: {len(chunk_df)} rows")
+                
+            except Exception as e:
+                logger.error(f"Failed to load chunk {chunk_file.name}: {e}")
+                raise
+        
+        # Concatenate all chunks
+        if chunks:
+            consolidated_df = pd.concat(chunks, ignore_index=True)
+            logger.info(f"Consolidated {len(chunks)} chunks into {len(consolidated_df)} total rows")
+        else:
+            consolidated_df = pd.DataFrame()
+            logger.warning("No chunks to consolidate")
+        
+        # Save final consolidated file
+        final_filename = f"{base_filename}.csv"  # Always output as CSV for downstream compatibility
+        final_path = Path(self.config['paths']['output_dir']) / category / final_filename
+        
+        try:
+            consolidated_df.to_csv(final_path, index=False)
+            logger.info(f"Saved consolidated results to {final_path}")
+            
+            # Optionally clean up chunk files
+            if self.config.get('cleanup_chunks', False):
+                for chunk_file in chunk_files:
+                    chunk_file.unlink()
+                chunk_dir.rmdir()  # Remove empty chunk directory
+                logger.info("Cleaned up chunk files")
+            
+            return str(final_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to save consolidated results: {e}")
+            raise
+    
+    def list_available_runs(self, category: str, base_filename: str) -> List[str]:
+        """
+        List available run IDs for a given category and base filename.
+        
+        Args:
+            category: Category directory (e.g., 'backtesting')
+            base_filename: Base filename without extension
+            
+        Returns:
+            List of available run IDs
+        """
+        chunk_base_dir = Path(self.config['paths']['output_dir']) / category / 'chunks' / base_filename
+        
+        if not chunk_base_dir.exists():
+            return []
+        
+        run_ids = [d.name for d in chunk_base_dir.iterdir() if d.is_dir()]
+        return sorted(run_ids)
+    
+    def get_chunk_info(self, category: str, base_filename: str, run_id: str) -> Dict[str, Any]:
+        """
+        Get information about chunks for a specific run.
+        
+        Args:
+            category: Category directory (e.g., 'backtesting')
+            base_filename: Base filename without extension
+            run_id: Unique run identifier
+            
+        Returns:
+            Dictionary with chunk information
+        """
+        chunk_dir = Path(self.config['paths']['output_dir']) / category / 'chunks' / base_filename / run_id
+        
+        if not chunk_dir.exists():
+            return {'run_id': run_id, 'chunks': [], 'total_rows': 0, 'status': 'not_found'}
+        
+        chunk_files = sorted(chunk_dir.glob("chunk_*.parquet"))
+        chunk_info = []
+        total_rows = 0
+        
+        for chunk_file in chunk_files:
+            try:
+                chunk_df = pd.read_parquet(chunk_file)
+                chunk_info.append({
+                    'filename': chunk_file.name,
+                    'rows': len(chunk_df),
+                    'size_mb': chunk_file.stat().st_size / (1024 * 1024)
+                })
+                total_rows += len(chunk_df)
+            except Exception as e:
+                logger.warning(f"Could not read chunk {chunk_file.name}: {e}")
+        
+        return {
+            'run_id': run_id,
+            'chunks': chunk_info,
+            'total_rows': total_rows,
+            'status': 'available' if chunk_info else 'empty'
+        }
+    
+    def load_holiday_data(self, location: Optional[str] = None) -> pd.DataFrame:
+        """
+        Load holiday data from the configured holiday CSV file.
+        Alias for load_holidays for consistency with parameter optimization.
+        
+        Args:
+            location: Optional location filter (e.g., 'all', 'WB', etc.)
+                    If None, returns all holidays
+            
+        Returns:
+            DataFrame with holiday information
+        """
+        return self.load_holidays(location)
+    
+    def load_regressor_config(self) -> Dict[str, Any]:
+        """
+        Load regressor configuration from YAML file.
+        
+        Returns:
+            Dictionary with regressor configuration
+        """
+        try:
+            regressor_config_path = Path(self.config['paths']['input_files']['regressor_config'])
+            
+            if not regressor_config_path.exists():
+                logger.warning(f"Regressor config file not found: {regressor_config_path}")
+                return {}
+            
+            with open(regressor_config_path, 'r') as f:
+                regressor_config = yaml.safe_load(f)
+            
+            logger.info(f"Loaded regressor configuration from {regressor_config_path}")
+            return regressor_config
+            
+        except Exception as e:
+            logger.error(f"Failed to load regressor config: {e}")
+            return {}
+    
+    def load_input_data_with_regressors(self) -> pd.DataFrame:
+        """
+        Load input data with regressors from CSV file.
+        
+        Returns:
+            DataFrame with input data including regressors
+        """
+        try:
+            # Get path from config - this should point to the input_data_with_regressors.csv
+            input_data_path = Path(self.config['paths']['input_files']['input_data_with_regressors'])
+            
+            if not input_data_path.exists():
+                raise FileNotFoundError(f"Input data file not found: {input_data_path}")
+            
+            # Load data
+            input_data = pd.read_csv(input_data_path)
+            
+            # Convert date column to datetime
+            if 'date' in input_data.columns:
+                input_data['date'] = pd.to_datetime(input_data['date'])
+            
+            logger.info(f"Loaded input data with regressors from {input_data_path}")
+            return input_data
+            
+        except Exception as e:
+            logger.error(f"Failed to load input data with regressors: {e}")
+            raise
+
+    def load_holidays(self, location: Optional[str] = None) -> pd.DataFrame:
+        """
+        Load holiday data from the configured holiday CSV file.
+        
+        Args:
+            location: Optional location filter (e.g., 'all', 'WB', etc.)
+                    If None, returns all holidays
+            
+        Returns:
+            DataFrame with holiday information including:
+            - holiday: Holiday name
+            - ds: Date (datetime)
+            - lower_window: Lower window for holiday effect
+            - upper_window: Upper window for holiday effect
+            - location: Location identifier
+            - source: Source of holiday data
+            
+        Raises:
+            FileNotFoundError: If holiday file doesn't exist
+            Exception: If file cannot be read or parsed
+        """
+        try:
+            # Get holiday file path from config
+            holiday_file = Path(self.config['paths']['input_files']['india_holidays'])
+            
+            if not holiday_file.exists():
+                raise FileNotFoundError(f"Holiday file not found: {holiday_file}")
+            
+            # Load holiday data
+            holidays_df = pd.read_csv(holiday_file)
+            
+            # Convert ds column to datetime
+            holidays_df['ds'] = pd.to_datetime(holidays_df['ds'])
+            
+            # Filter by location if specified
+            if location is not None:
+                # Handle 'all' location specially
+                if location == 'all':
+                    holidays_df = holidays_df[holidays_df['location'] == 'all']
+                else:
+                    # Include both 'all' and specific location
+                    holidays_df = holidays_df[
+                        (holidays_df['location'] == 'all') | 
+                        (holidays_df['location'] == location)
+                    ]
+            
+            # Sort by date
+            holidays_df = holidays_df.sort_values('ds').reset_index(drop=True)
+            
+            logger.info(f"Loaded {len(holidays_df)} holidays from {holiday_file}")
+            
+            return holidays_df
+            
+        except Exception as e:
+            logger.error(f"Failed to load holidays: {e}")
+            raise
     

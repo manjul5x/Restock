@@ -39,6 +39,9 @@ class OutlierHandler:
         Returns:
             Dictionary with 'cleaned_data' and 'summary'
         """
+
+        # TODO: Should handle 'no' early
+
         # Initialize output dataframes
         cleaned_demand = []
         outlier_records = []
