@@ -33,6 +33,10 @@
                     <i class="fas fa-chart-line me-1"></i>
                     Forecast Visualization
                 </a>
+                <a class="nav-link {% if request.endpoint == 'parameter_optimization' %}active{% endif %}" href="{{ url_for('parameter_optimization') }}">
+                    <i class="fas fa-sliders-h me-1"></i>
+                    Parameter Optimization
+                </a>
                 <a class="nav-link {% if request.endpoint == 'safety_stocks' %}active{% endif %}" href="{{ url_for('safety_stocks') }}">
                     <i class="fas fa-shield-alt me-1"></i>
                     Safety Stocks

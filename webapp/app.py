@@ -17,6 +17,7 @@ import base64
 from datetime import date, timedelta
 import sys
 import math
+import json
 from pathlib import Path
 from scipy.stats import gaussian_kde
 
@@ -1344,6 +1345,400 @@ def get_forecast_visualization_plot():
 
     except Exception as e:
         return jsonify({"error": str(e)})
+
+
+# ============================================================================
+# PARAMETER OPTIMIZATION ROUTES
+# ============================================================================
+
+@app.route("/parameter_optimization")
+def parameter_optimization():
+    """Parameter optimization page for Prophet forecasting"""
+    try:
+        # Load available products and locations from product master
+        product_master = loader.load_product_master()
+        
+        # Get unique product-location combinations
+        product_locations = product_master[['product_id', 'location_id']].drop_duplicates()
+        
+        # Load regressor configuration
+        regressor_config = loader.load_regressor_config()
+        
+        # Load holiday data
+        holiday_data = loader.load_holiday_data()
+        
+        # Get unique holidays for display
+        unique_holidays = holiday_data['holiday'].unique().tolist() if not holiday_data.empty else []
+        
+        return render_template(
+            "parameter_optimization.html",
+            product_locations=product_locations.to_dict('records'),
+            regressor_config=regressor_config,
+            unique_holidays=unique_holidays
+        )
+        
+    except Exception as e:
+        return render_template(
+            "parameter_optimization.html",
+            product_locations=[],
+            regressor_config={},
+            unique_holidays=[],
+            error=str(e)
+        )
+
+
+@app.route("/api/run_forecast", methods=["POST"])
+def run_forecast():
+    """API endpoint to run forecast with custom parameters"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"})
+        
+        # Extract parameters
+        product_id = data.get('product_id')
+        location_id = data.get('location_id')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        configuration = data.get('configuration', {})
+        
+        if not all([product_id, location_id, start_date, end_date]):
+            return jsonify({"success": False, "error": "Missing required parameters"})
+        
+        # Create optimization task and execute forecast
+        result = execute_optimization_forecast(
+            product_id, location_id, start_date, end_date, configuration
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({"success": False, "error": result['error']})
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/get_optimization_date_range", methods=["POST"])
+def get_optimization_date_range():
+    """API endpoint to get available date range for a product-location optimization"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"})
+        
+        # Extract parameters
+        product_id = data.get('product_id')
+        location_id = data.get('location_id')
+        
+        if not all([product_id, location_id]):
+            return jsonify({"success": False, "error": "Missing required parameters"})
+        
+        # Get available date range
+        result = get_available_date_range(product_id, location_id)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({"success": False, "error": result['error']})
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/save_configuration", methods=["POST"])
+def save_configuration():
+    """API endpoint to save configuration to main JSON file"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"})
+        
+        # Extract parameters
+        product_id = data.get('product_id')
+        location_id = data.get('location_id')
+        configuration = data.get('configuration', {})
+        
+        if not all([product_id, location_id]):
+            return jsonify({"success": False, "error": "Missing required parameters"})
+        
+        # Update main configuration file
+        result = update_main_configuration(product_id, location_id, configuration)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({"success": False, "error": result['error']})
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ============================================================================
+# PARAMETER OPTIMIZATION HELPER FUNCTIONS
+# ============================================================================
+
+def create_optimization_task(product_id: str, location_id: str, start_date: str, end_date: str) -> dict:
+    """
+    Create an optimization task structure matching the existing pipeline.
+    
+    Args:
+        product_id: Product identifier
+        location_id: Location identifier
+        start_date: Start date for forecast (YYYY-MM-DD)
+        end_date: End date for forecast (YYYY-MM-DD)
+        
+    Returns:
+        Task dictionary with required structure
+    """
+    try:
+        # Load input data with regressors
+        input_data = loader.load_input_data_with_regressors()
+        
+        # Filter data for the specific product-location
+        product_data = input_data[
+            (input_data['product_id'] == product_id) & 
+            (input_data['location_id'] == location_id)
+        ].copy()
+        
+        if product_data.empty:
+            raise ValueError(f"No data found for {product_id} at {location_id}")
+        
+        # Convert date column to datetime
+        product_data['date'] = pd.to_datetime(product_data['date'])
+        
+        # Sort by date and get the second-to-last analysis date
+        product_data = product_data.sort_values('date')
+        if len(product_data) < 25:
+            raise ValueError(f"Insufficient data for {product_id} at {location_id}")
+        
+        # Load product master to get product configuration
+        product_master = loader.load_product_master()
+        product_record = product_master[
+            (product_master['product_id'] == product_id) & 
+            (product_master['location_id'] == location_id)
+        ].iloc[0].to_dict()
+        
+        # Create task structure matching existing pipeline
+        task = {
+            'product_record': product_record,
+            'product_data': product_data,
+            'analysis_dates': [end_date],  # Use end_date as analysis date for optimization
+            'forecast_method': 'prophet',
+            'optimising_parameters': True,
+            'start_date': start_date,      # Store start_date for reference
+            'end_date': end_date           # Store end_date for reference
+        }
+        
+        return task
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to create optimization task: {e}")
+
+
+def execute_optimization_forecast(product_id: str, location_id: str, start_date: str, end_date: str, configuration: dict) -> dict:
+    """
+    Execute forecast with custom parameters using the existing pipeline.
+    
+    Args:
+        product_id: Product identifier
+        location_id: Location identifier
+        start_date: Start date for forecast (YYYY-MM-DD)
+        end_date: End date for forecast (YYYY-MM-DD)
+        configuration: Custom Prophet configuration
+        
+    Returns:
+        Dictionary with forecast results and components
+    """
+    try:
+        # Create optimization task
+        task = create_optimization_task(product_id, location_id, start_date, end_date)
+        
+        # Create extended futures table covering the full date range
+        start_dt = pd.to_datetime(start_date)
+        end_dt = pd.to_datetime(end_date)
+        
+        # Get the base futures data from the task
+        base_futures = task['product_data'].copy()
+        
+        # Create extended futures table
+        extended_futures = create_extended_futures_table(
+            base_futures, start_dt, end_dt
+        )
+        
+        # Update task with extended futures
+        task['future_data'] = extended_futures
+        
+        from forecaster.backtesting.full_backtesting_pipeline import FullBacktestingPipeline
+
+        # Call the static method directly
+        result = FullBacktestingPipeline.process_product_task(task, configuration=configuration)
+        if result is None:
+            raise RuntimeError("Forecasting failed in process_product_task")
+        _, plotting_data = result  # We only need the plotting data (components_df)
+        
+        # Prepare results for JSON response
+        # plotting_data contains all the data we need for visualization
+        # Replace NaN values with None (null in JSON) before conversion
+        plotting_data_clean = plotting_data.replace({np.nan: None})
+        
+        results = {
+            'success': True,
+            'plotting_data': plotting_data_clean.to_dict('records'),  # DataFrame needs conversion
+            'analysis_date': task['analysis_dates'][0],  # Already a string, no need for isoformat()
+            'date_range': {
+                'start': start_date,
+                'end': end_date
+            }
+        }
+        
+        return results
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def create_extended_futures_table(base_futures: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame:
+    """
+    Create extended futures table covering the full user-specified date range.
+    
+    Args:
+        base_futures: Base futures data from the task
+        start_date: Start date for extended forecast
+        end_date: End date for extended forecast
+        
+    Returns:
+        Extended futures DataFrame
+    """
+    try:
+        # Create date range
+        # Filter base_futures (product_data) for dates between start_date and end_date inclusive
+        mask = (base_futures['date'] >= pd.to_datetime(start_date)) & (base_futures['date'] <= pd.to_datetime(end_date))
+        extended_futures = base_futures.loc[mask].copy().reset_index(drop=True)
+        
+        return extended_futures
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to create extended futures table: {e}")
+
+
+def get_available_date_range(product_id: str, location_id: str) -> dict:
+    """
+    Get the available date range for a specific product-location.
+    
+    Args:
+        product_id: Product identifier
+        location_id: Location identifier
+        
+    Returns:
+        Dictionary with start_date and end_date (25th date to second-to-last date)
+    """
+    try:
+        # Load input data with regressors
+        input_data = loader.load_input_data_with_regressors()
+        
+        # Filter data for the specific product-location
+        product_data = input_data[
+            (input_data['product_id'] == product_id) & 
+            (input_data['location_id'] == location_id)
+        ].copy()
+        
+        if product_data.empty:
+            raise ValueError(f"No data found for {product_id} at {location_id}")
+        
+        # Convert date column to datetime
+        product_data['date'] = pd.to_datetime(product_data['date'])
+        
+        # Sort by date
+        product_data = product_data.sort_values('date')
+        
+        if len(product_data) < 25:
+            raise ValueError(f"Insufficient data for {product_id} at {location_id}. Need at least 25 data points.")
+        
+        # Get 25th date (index 24) and second-to-last date
+        start_date = product_data.iloc[24]['date']  # 25th date (0-indexed)
+        end_date = product_data.iloc[-2]['date']    # Second-to-last date
+        
+        return {
+            'success': True,
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'total_data_points': len(product_data)
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def update_main_configuration(product_id: str, location_id: str, configuration: dict) -> dict:
+    """
+    Update the main JSON configuration file for a specific product-location.
+    
+    Args:
+        product_id: Product identifier
+        location_id: Location identifier
+        configuration: Configuration to save
+        
+    Returns:
+        Dictionary with success status
+    """
+    try:
+        # Load current configuration
+        from data.config.paths import get_input_file_path
+        config_path = get_input_file_path('prophet_parameters')
+        
+        print(f"Config path: {config_path}")
+        print(f"Config path exists: {Path(config_path).exists()}")
+        
+        if not Path(config_path).exists():
+            # Create empty configuration if file doesn't exist
+            print("Creating new configuration file")
+            all_configs = {}
+        else:
+            print("Loading existing configuration file")
+            with open(config_path, 'r') as f:
+                all_configs = json.load(f)
+            print(f"Loaded config keys: {list(all_configs.keys())}")
+        
+        # Create key for product-location
+        key = str((product_id, location_id))
+        print(f"Updating configuration for key: {key}")
+        print(f"Configuration to save: {configuration}")
+        
+        # Update configuration for this product-location
+        all_configs[key] = configuration
+        
+        # Save updated configuration
+        print(f"Saving configuration to: {config_path}")
+        with open(config_path, 'w') as f:
+            json.dump(all_configs, f, indent=2)
+        
+        print("Configuration saved successfully")
+        return {
+            'success': True,
+            'message': f'Configuration saved for {product_id} at {location_id}'
+        }
+        
+    except Exception as e:
+        print(f"Error saving configuration: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 
 @app.route("/seasonality_analysis")
