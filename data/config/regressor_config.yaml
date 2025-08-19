@@ -1,0 +1,87 @@
+# Regressor Configuration for New Backtesting Pipeline
+# 
+# This file controls which regressors are enabled and their parameters.
+# Users can modify this file to customize which features are computed
+# without modifying the core pipeline code.
+
+# There must always be an outflow regressor
+
+# Outflow regressor (forward-looking aggregated demand)
+outflow:
+  column_name: "outflow"
+  description: "Forward-looking sum of raw demand over risk period window"
+  enabled: true
+  function_name: "compute_lead_lag_aggregation"
+  parameters:
+    value_col: "demand"
+    date_col: "date"
+    group_cols: ["product_id", "location_id"]
+    window_days: "rp"
+    lead_or_lag: "lead"
+    incomplete: "nan"
+
+# Risk period lag regressor (backward-looking aggregated demand)
+rp_lag:
+  column_name: "rp_lag"
+  description: "Sum of demand in previous risk period window"
+  enabled: true
+  function_name: "compute_lead_lag_aggregation"
+  parameters:
+    value_col: "demand"
+    date_col: "date"
+    group_cols: ["product_id", "location_id"]
+    window_days: "rp"
+    lead_or_lag: "lag"
+    incomplete: "scale"
+
+# Half risk period lag regressor
+half_rp_lag:
+  column_name: "half_rp_lag"
+  description: "Sum of demand in previous half risk period window"
+  enabled: true
+  function_name: "compute_lead_lag_aggregation"
+  parameters:
+    value_col: "demand"
+    date_col: "date"
+    group_cols: ["product_id", "location_id"]
+    window_days: "rp"
+    rp_scaler: 0.5
+    lead_or_lag: "lag"
+    incomplete: "scale"
+
+# Season regressor (binary flag for season window)
+season:
+  column_name: "season"
+  description: "Binary flag indicating if risk period midpoint falls within season window"
+  enabled: true
+  function_name: "compute_in_season"
+  parameters:
+    season_start: "09-01"      # MM-DD
+    season_end: "12-31"        # MM-DD
+
+# Week of month regressor (one-hot encoding)
+week_of_month:
+  column_name: ["week_1", "week_2", "week_3", "week_4"]
+  description: "One-hot encoding for week of month (4 weeks)"
+  enabled: true
+  function_name: "compute_week_of_month"
+  parameters: {}  # No parameters needed
+
+# Recency weight regressor
+recency:
+  column_name: "recency"
+  description: "Weight based on distance from last review date"
+  enabled: true
+  function_name: "compute_recency_weight"
+  parameters: {} # No parameters needed
+
+
+# Example of how to add custom regressor with specific parameters:
+# custom_lag:
+#   column_name: "custom_lag_7d"
+#   description: "Custom 7-day lag feature"
+#   enabled: true
+#   function_name: "compute_custom_lag"
+#   parameters:
+#     window_days: 7
+#     custom_param: "value"
