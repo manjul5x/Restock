@@ -1,861 +1,447 @@
 """
-Prophet forecasting implementation.
+Prophet Forecasting Model
 
-This module provides Prophet-based forecasting with comprehensive Indian market
-seasonality, holiday effects, and integration with the existing forecasting framework.
+A configuration-driven Prophet forecasting model that inherits from BaseForecastingModel.
+This model reads product-specific Prophet parameters from a JSON configuration file and
+automatically sets up the model with the exact parameters needed for that product-location
+combination.
+
+Features:
+- Configuration-driven initialization from JSON
+- Dynamic regressor management
+- Comprehensive seasonality handling (built-in + custom)
+- Full Prophet component decomposition output
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Union, Tuple
-from datetime import date, timedelta
+from typing import Dict, List, Any, Optional, Union
+import json
 import warnings
 import logging
-from .base import BaseForecaster, ForecastingError, validate_forecast_parameters
-from ..utils.logger import get_logger
+from pathlib import Path
+from data.config.paths import get_input_file_path
+from data.loader import DataLoader
 
-# Try to import Prophet, handle gracefully if not available
+logger = logging.getLogger(__name__)
 try:
     from prophet import Prophet
-    from prophet.diagnostics import cross_validation, performance_metrics
-
-    PROPHET_AVAILABLE = True
 except ImportError:
-    PROPHET_AVAILABLE = False
-    warnings.warn("Prophet not available. Install with: pip install prophet")
+    Prophet = None
+    warnings.warn("Prophet library not available. Please install prophet package.")
 
-# Try to import holidays for Indian holidays
-try:
-    import holidays
-
-    HOLIDAYS_AVAILABLE = True
-except ImportError:
-    HOLIDAYS_AVAILABLE = False
-    warnings.warn("Holidays package not available. Install with: pip install holidays")
-
-# Import seasonality analyzer
-from .seasonality_analyzer import SeasonalityAnalyzer
+from .base import BaseForecastingModel
 
 
-class ProphetForecaster(BaseForecaster):
+
+class ProphetModel(BaseForecastingModel):
     """
-    Prophet forecaster with comprehensive Indian market seasonality and holiday effects.
+    Configuration-driven Prophet forecasting model.
+    
+    This model reads Prophet parameters from a JSON configuration file and automatically
+    sets up the model with the exact parameters needed for that product-location
+    combination. It handles dynamic regressors, seasonalities, and holidays based
+    on the configuration.
+    
+    Attributes:
+        config: Product-specific Prophet configuration
+        model: Prophet model instance
+        required_regressors: List of regressor column names required by this model
     """
-
-    def __init__(
-        self,
-        changepoint_range: float = 0.8,
-        n_changepoints: int = 25,
-        changepoint_prior_scale: float = 0.05,
-        seasonality_prior_scale: float = 10.0,
-        holidays_prior_scale: float = 10.0,
-        seasonality_mode: str = "multiplicative",
-        weekly_seasonality: bool = True,
-        daily_seasonality: bool = False,
-        include_indian_holidays: bool = True,
-        include_regional_holidays: bool = False,
-        include_quarterly_effects: bool = True,
-        include_monthly_effects: bool = True,
-        include_festival_seasons: bool = True,
-        include_monsoon_effect: bool = True,
-        min_data_points: int = 10,
-        window_length: Optional[int] = None,
-        log_level: str = "INFO",
-        run_seasonality_analysis: bool = True,
-    ):
+    
+    def __init__(self, product_id: str, location_id: str, override_config: Optional[Dict[str, Any]] = None):
         """
-        Initialize Prophet forecaster
-
+        Initialize the Prophet model with product-specific configuration.
+        
         Args:
-            changepoint_range: Proportion of history in which trend changepoints will be estimated
-            n_changepoints: Number of changepoints to be estimated
-            changepoint_prior_scale: Flexibility of the changepoint
-            seasonality_prior_scale: Flexibility of the seasonality
-            holidays_prior_scale: Flexibility of the holiday effects
-            seasonality_mode: 'additive' or 'multiplicative'
-            weekly_seasonality: Whether to include weekly seasonality
-            daily_seasonality: Whether to include daily seasonality
-            include_indian_holidays: Whether to include Indian national holidays
-            include_regional_holidays: Whether to include regional holidays
-            include_quarterly_effects: Whether to include quarterly seasonality
-            include_monthly_effects: Whether to include monthly seasonality
-            include_festival_seasons: Whether to include festival season effects
-            include_monsoon_effect: Whether to include monsoon season effects
-            min_data_points: Minimum data points required
-            window_length: Optional rolling window length for data
-            log_level: Logging level for the forecaster
-            run_seasonality_analysis: Whether to run seasonality analysis during fitting (default: True)
+            product_id: Product identifier
+            location_id: Location identifier
+            override_config: Optional configuration override (takes precedence over JSON config)
         """
-        super().__init__(name="prophet")
-
-        if not PROPHET_AVAILABLE:
-            raise ImportError(
-                "Prophet is not available. Install with: pip install prophet"
-            )
-
-        self.changepoint_range = changepoint_range
-        self.n_changepoints = n_changepoints
-        self.changepoint_prior_scale = changepoint_prior_scale
-        self.seasonality_prior_scale = seasonality_prior_scale
-        self.holidays_prior_scale = holidays_prior_scale
-        self.seasonality_mode = seasonality_mode
-        self.weekly_seasonality = weekly_seasonality
-        self.daily_seasonality = daily_seasonality
-        self.include_indian_holidays = include_indian_holidays
-        self.include_regional_holidays = include_regional_holidays
-        self.include_quarterly_effects = include_quarterly_effects
-        self.include_monthly_effects = include_monthly_effects
-        self.include_festival_seasons = include_festival_seasons
-        self.include_monsoon_effect = include_monsoon_effect
-        self.min_data_points = min_data_points
-        self.window_length = window_length
-        self.log_level = log_level
-        self.run_seasonality_analysis = run_seasonality_analysis
-
-        self.data = None
+        # Initialize required_regressors before calling parent
+        self.required_regressors = []
+        self.config = None
         self.model = None
-        self.is_fitted = False
-        self.holidays_df = None
-        self.risk_period_days = None  # Will be set during fit
-        self.fallback_forecaster = None  # Moving Average fallback
-
-        level = getattr(logging, self.log_level, logging.WARNING)
-        logging.getLogger("cmdstanpy").setLevel(level)
-        logging.getLogger("prophet").setLevel(level)
-        logging.getLogger("prophet.forecaster").setLevel(level)
-
-    def _determine_risk_period(self, data: pd.DataFrame, **kwargs) -> int:
+        self.override_config = override_config
+        
+        # Call parent constructor
+        super().__init__(product_id, location_id)
+    
+    def _initialize_model(self) -> None:
         """
-        Determine the risk period in days from data or parameters.
+        Initialize the Prophet model from configuration.
+        
+        This method:
+        1. Reads configuration from JSON for the specific product-location
+        2. Creates Prophet model with configured parameters
+        3. Sets up seasonalities, regressors, and holidays
+        4. Sets self.required_regressors for data subsetting
+        """
+        # Load configuration
+        self.config = self._load_product_config()
 
+        # Create Prophet model
+        self.model = self._create_prophet_model()
+        
+        # Add seasonalities
+        self._add_seasonalities()
+        
+        # Add regressors
+        self._add_regressors()
+        
+    
+    def _load_product_config(self) -> Dict[str, Any]:
+        """
+        Load product-specific configuration from JSON or override.
+        
+        Returns:
+            Dictionary containing Prophet configuration parameters
+            
+        Raises:
+            FileNotFoundError: If configuration file doesn't exist
+            KeyError: If product-location combination not found
+        """
+        # Check for override configuration first (takes precedence)
+        if self.override_config is not None:
+            logger.debug(f"Using override configuration for {self.product_id} at {self.location_id}")
+            
+            # Validate override configuration structure
+            if self.override_config:
+                self._validate_config_structure(self.override_config)
+            
+            return self.override_config
+        
+        # Fall back to JSON configuration
+        try:
+            # Load data config and get path to prophet parameters
+            config_path = get_input_file_path('prophet_parameters')
+            
+            # Check if file exists
+            if not Path(config_path).exists():
+                raise FileNotFoundError(f"Prophet parameters file not found: {config_path}")
+            
+            # Read configuration JSON
+            try:
+                with open(config_path, 'r') as f:
+                    all_configs = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in prophet parameters file: {e}")
+            except Exception as e:
+                raise RuntimeError(f"Failed to read prophet parameters file: {e}")
+            
+            # Validate JSON structure
+            if not isinstance(all_configs, dict):
+                raise ValueError("Prophet parameters file must contain a JSON object")
+            
+            # Look up by product_id and location_id tuple
+            key = str((self.product_id, self.location_id))
+            if key not in all_configs:
+                raise KeyError(f"Prophet configuration not found for {self.product_id} at {self.location_id}")
+            
+            # Get configuration for this product-location
+            config = all_configs[key]
+            
+            # Validate configuration structure
+            if config is not None:
+                self._validate_config_structure(config)
+            
+            # If config is empty ({}), return empty dict - Prophet will use defaults
+            if not config:
+                logger.debug(f"Using default Prophet parameters for {self.product_id} at {self.location_id}")
+                return {}
+            
+            return config
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to load configuration for {self.product_id} at {self.location_id}: {e}")
+    
+    def _validate_config_structure(self, config: Dict[str, Any]) -> None:
+        """
+        Validate the structure of a configuration dictionary.
+        
         Args:
-            data: Input data
-            **kwargs: Additional arguments that may contain risk_period
-
-        Returns:
-            Risk period in days
+            config: Configuration dictionary to validate
+            
+        Raises:
+            ValueError: If configuration structure is invalid
         """
-        # First check if risk_period is provided in kwargs
-        if "risk_period" in kwargs:
-            risk_period = kwargs["risk_period"]
-            if isinstance(risk_period, int):
-                return risk_period
-            elif isinstance(risk_period, str):
-                # Try to parse as days
-                try:
-                    return int(risk_period)
-                except ValueError:
-                    pass
-
-        # Check if risk_period_days is provided in kwargs
-        if "risk_period_days" in kwargs:
-            return int(kwargs["risk_period_days"])
-
-        # Try to determine from data frequency
-        if len(data) >= 2:
-            dates = pd.to_datetime(data["date"])
-            date_diffs = dates.diff().dropna()
-            if len(date_diffs) > 0:
-                # Get the most common interval
-                most_common_interval = date_diffs.mode().iloc[0]
-                if pd.notna(most_common_interval):
-                    days = most_common_interval.days
-                    if days > 0:
-                        return days
-
-        # Default to 14 days if we can't determine
-        return 14
-
-    def _create_indian_holidays(self) -> pd.DataFrame:
-        """
-        Create Indian holidays dataframe for Prophet
-
-        Returns:
-            DataFrame with holiday information
-        """
-        if not HOLIDAYS_AVAILABLE:
-            return pd.DataFrame()
-
-        holidays_list = []
-
-        # National holidays
-        if self.include_indian_holidays:
-            indian_holidays = {
-                "Republic Day": "2025-01-26",
-                "Independence Day": "2025-08-15",
-                "Gandhi Jayanti": "2025-10-02",
-                "Republic Day": "2024-01-26",
-                "Independence Day": "2024-08-15",
-                "Gandhi Jayanti": "2024-10-02",
-                "Republic Day": "2023-01-26",
-                "Independence Day": "2023-08-15",
-                "Gandhi Jayanti": "2023-10-02",
-                "Republic Day": "2022-01-26",
-                "Independence Day": "2022-08-15",
-                "Gandhi Jayanti": "2022-10-02",
-                "Republic Day": "2021-01-26",
-                "Independence Day": "2021-08-15",
-                "Gandhi Jayanti": "2021-10-02",
-                "Republic Day": "2020-01-26",
-                "Independence Day": "2020-08-15",
-                "Gandhi Jayanti": "2020-10-02",
-            }
-
-            for holiday_name, holiday_date in indian_holidays.items():
-                holidays_list.append(
-                    {
-                        "holiday": holiday_name,
-                        "ds": pd.to_datetime(holiday_date),
-                        "lower_window": -1,
-                        "upper_window": 1,
-                    }
-                )
-
-        # Festival seasons (extended periods)
-        if self.include_festival_seasons:
-            festival_periods = [
-                # Diwali period (typically October-November)
-                {"name": "Diwali", "start": "2025-10-20", "end": "2025-11-15"},
-                {"name": "Diwali", "start": "2024-10-20", "end": "2024-11-15"},
-                {"name": "Diwali", "start": "2023-10-20", "end": "2023-11-15"},
-                {"name": "Diwali", "start": "2022-10-20", "end": "2022-11-15"},
-                {"name": "Diwali", "start": "2021-10-20", "end": "2021-11-15"},
-                {"name": "Diwali", "start": "2020-10-20", "end": "2020-11-15"},
-                # Holi period (typically March)
-                {"name": "Holi", "start": "2025-03-20", "end": "2025-03-30"},
-                {"name": "Holi", "start": "2024-03-20", "end": "2024-03-30"},
-                {"name": "Holi", "start": "2023-03-20", "end": "2023-03-30"},
-                {"name": "Holi", "start": "2022-03-20", "end": "2022-03-30"},
-                {"name": "Holi", "start": "2021-03-20", "end": "2021-03-30"},
-                {"name": "Holi", "start": "2020-03-20", "end": "2020-03-30"},
-                # Eid periods
-                {"name": "Eid_al_Fitr", "start": "2025-04-10", "end": "2025-04-12"},
-                {"name": "Eid_al_Fitr", "start": "2024-04-10", "end": "2024-04-12"},
-                {"name": "Eid_al_Fitr", "start": "2023-04-21", "end": "2023-04-23"},
-                {"name": "Eid_al_Fitr", "start": "2022-05-02", "end": "2022-05-04"},
-                {"name": "Eid_al_Fitr", "start": "2021-05-13", "end": "2021-05-15"},
-                {"name": "Eid_al_Fitr", "start": "2020-05-24", "end": "2020-05-26"},
-                # Christmas and New Year
-                {
-                    "name": "Christmas_NewYear",
-                    "start": "2025-12-20",
-                    "end": "2026-01-05",
-                },
-                {
-                    "name": "Christmas_NewYear",
-                    "start": "2024-12-20",
-                    "end": "2025-01-05",
-                },
-                {
-                    "name": "Christmas_NewYear",
-                    "start": "2023-12-20",
-                    "end": "2024-01-05",
-                },
-                {
-                    "name": "Christmas_NewYear",
-                    "start": "2022-12-20",
-                    "end": "2023-01-05",
-                },
-                {
-                    "name": "Christmas_NewYear",
-                    "start": "2021-12-20",
-                    "end": "2022-01-05",
-                },
-                {
-                    "name": "Christmas_NewYear",
-                    "start": "2020-12-20",
-                    "end": "2021-01-05",
-                },
-            ]
-
-            for festival in festival_periods:
-                start_date = pd.to_datetime(festival["start"])
-                end_date = pd.to_datetime(festival["end"])
-                current_date = start_date
-
-                while current_date <= end_date:
-                    holidays_list.append(
-                        {
-                            "holiday": festival["name"],
-                            "ds": current_date,
-                            "lower_window": 0,
-                            "upper_window": 0,
-                        }
-                    )
-                    current_date += timedelta(days=1)
-
-        # Monsoon season effects
-        if self.include_monsoon_effect:
-            monsoon_periods = [
-                # Monsoon season (June to September)
-                {"name": "Monsoon", "start": "2025-06-01", "end": "2025-09-30"},
-                {"name": "Monsoon", "start": "2024-06-01", "end": "2024-09-30"},
-                {"name": "Monsoon", "start": "2023-06-01", "end": "2023-09-30"},
-                {"name": "Monsoon", "start": "2022-06-01", "end": "2022-09-30"},
-                {"name": "Monsoon", "start": "2021-06-01", "end": "2021-09-30"},
-                {"name": "Monsoon", "start": "2020-06-01", "end": "2020-09-30"},
-            ]
-
-            for monsoon in monsoon_periods:
-                start_date = pd.to_datetime(monsoon["start"])
-                end_date = pd.to_datetime(monsoon["end"])
-                current_date = start_date
-
-                while current_date <= end_date:
-                    holidays_list.append(
-                        {
-                            "holiday": monsoon["name"],
-                            "ds": current_date,
-                            "lower_window": 0,
-                            "upper_window": 0,
-                        }
-                    )
-                    current_date += timedelta(days=1)
-
-        if holidays_list:
-            return pd.DataFrame(holidays_list)
-        else:
-            return pd.DataFrame()
-
-    def _prepare_data_for_prophet(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Prepare data in Prophet format (ds for dates, y for values)
-
-        Args:
-            data: Input data with 'date' and 'demand' columns
-
-        Returns:
-            DataFrame in Prophet format
-        """
-        prophet_data = data.copy()
-
-        # Ensure date column is datetime
-        prophet_data["ds"] = pd.to_datetime(prophet_data["date"])
-
-        # Ensure demand column is numeric and handle any missing values
-        prophet_data["y"] = pd.to_numeric(prophet_data["demand"], errors="coerce")
-
-        # Remove rows with missing values
-        prophet_data = prophet_data.dropna(subset=["y"])
-
-        # Sort by date
-        prophet_data = prophet_data.sort_values("ds").reset_index(drop=True)
-
-        return prophet_data[["ds", "y"]]
-
+        if not isinstance(config, dict):
+            raise ValueError(f"Configuration must be a dictionary, got {type(config)}")
+        
+        # Check for required fields if config is not empty
+        if config:
+            # Validate regressors if present
+            if 'regressors' in config:
+                if not isinstance(config['regressors'], dict):
+                    raise ValueError("Regressors must be a dictionary")
+                
+                for regressor_name, regressor_config in config['regressors'].items():
+                    if not isinstance(regressor_config, dict):
+                        raise ValueError(f"Regressor {regressor_name} configuration must be a dictionary")
+                    
+                    # Validate prior_scale range
+                    if 'prior_scale' in regressor_config:
+                        prior_scale = regressor_config['prior_scale']
+                        if not isinstance(prior_scale, (int, float)) or prior_scale < 0.01 or prior_scale > 20.0:
+                            raise ValueError(f"Regressor {regressor_name} prior_scale must be between 0.01 and 20.0")
+                    
+                    # Validate mode
+                    if 'mode' in regressor_config:
+                        mode = regressor_config['mode']
+                        if mode not in ['additive', 'multiplicative']:
+                            raise ValueError(f"Regressor {regressor_name} mode must be 'additive' or 'multiplicative'")
+            
+            # Validate seasonality settings
+            if 'yearly_seasonality' in config and not isinstance(config['yearly_seasonality'], bool):
+                raise ValueError("yearly_seasonality must be a boolean")
+            
+            if 'weekly_seasonality' in config and not isinstance(config['weekly_seasonality'], bool):
+                raise ValueError("weekly_seasonality must be a boolean")
+            
+            if 'daily_seasonality' in config and not isinstance(config['daily_seasonality'], bool):
+                raise ValueError("daily_seasonality must be a boolean")
+            
+            if 'seasonality_mode' in config and config['seasonality_mode'] not in ['additive', 'multiplicative']:
+                raise ValueError("seasonality_mode must be 'additive' or 'multiplicative'")
+            
+            # Validate custom seasonalities
+            if config.get('add_custom') and 'custom_seasonalities' in config:
+                custom_seasonalities = config['custom_seasonalities']
+                if not isinstance(custom_seasonalities, dict):
+                    raise ValueError("custom_seasonalities must be a dictionary")
+                
+                for name, seasonality_config in custom_seasonalities.items():
+                    if not isinstance(seasonality_config, dict):
+                        raise ValueError(f"Custom seasonality {name} must be a dictionary")
+                    
+                    # Validate period range
+                    if 'period' in seasonality_config:
+                        period = seasonality_config['period']
+                        if not isinstance(period, (int, float)) or period < 2 or period > 365:
+                            raise ValueError(f"Custom seasonality {name} period must be between 2 and 365 days")
+                    
+                    # Validate fourier order
+                    if 'fourier' in seasonality_config:
+                        fourier = seasonality_config['fourier']
+                        if not isinstance(fourier, int) or fourier < 1 or fourier > 15:
+                            raise ValueError(f"Custom seasonality {name} fourier order must be between 1 and 15")
+                    
+                    # Validate prior scale
+                    if 'prior' in seasonality_config:
+                        prior = seasonality_config['prior']
+                        if not isinstance(prior, (int, float)) or prior < 0.01 or prior > 20.0:
+                            raise ValueError(f"Custom seasonality {name} prior must be between 0.01 and 20.0")
+            
+            # Validate growth settings
+            if 'growth' in config and config['growth'] not in ['linear', 'logistic', 'flat']:
+                raise ValueError("growth must be 'linear', 'logistic', or 'flat'")
+            
+            # Validate changepoint settings
+            if 'n_changepoints' in config:
+                n_changepoints = config['n_changepoints']
+                if not isinstance(n_changepoints, int) or n_changepoints < 5 or n_changepoints > 50:
+                    raise ValueError("n_changepoints must be between 5 and 50")
+            
+            if 'changepoint_range' in config:
+                changepoint_range = config['changepoint_range']
+                if not isinstance(changepoint_range, (int, float)) or changepoint_range < 0.1 or changepoint_range > 1.0:
+                    raise ValueError("changepoint_range must be between 0.1 and 1.0")
+            
+            if 'changepoint_prior_scale' in config:
+                changepoint_prior_scale = config['changepoint_prior_scale']
+                if not isinstance(changepoint_prior_scale, (int, float)) or changepoint_prior_scale < 0.001 or changepoint_prior_scale > 0.5:
+                    raise ValueError("changepoint_prior_scale must be between 0.001 and 0.5")
+    
     def _create_prophet_model(self) -> Prophet:
         """
-        Create Prophet model with configured parameters
-
-        Returns:
-            Configured Prophet model
-        """
+        Create Prophet model with basic configuration parameters.
         
+        Returns:
+            Configured Prophet model instance
+        """
+        if Prophet is None:
+            raise RuntimeError("Prophet library not available")
+
+        holidays = self._determine_holidays()
+        
+        # Extract basic Prophet parameters
+        growth = self.config.get('growth', 'linear')
+        growth_floor = self.config.get('growth_floor', 0)
+        growth_ceiling = self.config.get('growth_ceiling')
+        
+        # Create Prophet model
         model = Prophet(
-            changepoint_range=self.changepoint_range,
-            n_changepoints=self.n_changepoints,
-            changepoint_prior_scale=self.changepoint_prior_scale,
-            seasonality_prior_scale=self.seasonality_prior_scale,
-            holidays_prior_scale=self.holidays_prior_scale,
-            seasonality_mode=self.seasonality_mode,
-            weekly_seasonality=self.weekly_seasonality,
-            daily_seasonality=self.daily_seasonality,
+            growth=growth,
+            changepoint_prior_scale=self.config.get('changepoint_prior_scale', 0.05),
+            n_changepoints=self.config.get('n_changepoints', 5),
+            changepoint_range=self.config.get('changepoint_range', 0.8),
+            holidays=holidays,
+            holidays_prior_scale=self.config.get('holidays_prior_scale', 5.0),
+            yearly_seasonality=self.config.get('yearly_seasonality', True),
+            weekly_seasonality=self.config.get('weekly_seasonality', True),
+            daily_seasonality=self.config.get('daily_seasonality', False),
+            seasonality_mode=self.config.get('seasonality_mode', 'additive'),
+            seasonality_prior_scale=self.config.get('seasonality_prior_scale', 10.0)
         )
-
-        # Add holidays if available
-        if (
-            self.include_indian_holidays
-            or self.include_festival_seasons
-            or self.include_monsoon_effect
-        ):
-            holidays_df = self._create_indian_holidays()
-            if not holidays_df.empty:
-                # Use only custom holidays, not built-in country holidays to avoid warnings
-                model.holidays = holidays_df
-
-        # Add custom seasonalities
-        if self.include_monthly_effects:
-            model.add_seasonality(name="monthly", period=30.5, fourier_order=5)
-
-        if self.include_quarterly_effects:
-            model.add_seasonality(name="quarterly", period=91.25, fourier_order=8)
-
-        return model
-
-    def fit(self, data: pd.DataFrame, **kwargs) -> "ProphetForecaster":
-        """
-        Fit the Prophet model to the data
-
-        Args:
-            data: DataFrame with 'date' and 'demand' columns
-            **kwargs: Additional arguments
-
-        Returns:
-            Self for chaining
-        """
-        # Validate data
-        self.validate_data(data)
-        logger = get_logger(__name__, level=self.log_level)
-
-        # Prepare data for Prophet (this data is already aggregated into buckets)
-        prophet_data = self._prepare_data_for_prophet(data)
-
-        # Store the first date before applying window (for tracking purposes)
-        self.original_first_date = prophet_data['ds'].min().date() if len(prophet_data) > 0 else None
-
-        # Apply rolling window if specified (after bucketing)
-        if self.window_length is not None and len(prophet_data) > self.window_length:
-            # Sort by date and take the most recent window_length data points
-            prophet_data = (
-                prophet_data.sort_values("ds")
-                .tail(self.window_length)
-                .reset_index(drop=True)
-            )
-        # If window_length is None, use all available data (no windowing applied)
-
-        # Store the first date of data actually used for forecasting
-        self.first_date_used = prophet_data['ds'].min().date() if len(prophet_data) > 0 else None
-
-        # Check if we have enough data for Prophet
-        if len(prophet_data) < self.min_data_points:
-            logger.info(
-                f"⚠️  Insufficient data points for Prophet ({len(prophet_data)} < {self.min_data_points}). Falling back to Moving Average."
-            )
-            return self._fallback_to_moving_average(data, **kwargs)
-
-        # Determine risk period
-        self.risk_period_days = self._determine_risk_period(data, **kwargs)
-
-        # Create and fit model
-        self.model = self._create_prophet_model()
-
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self.model.fit(prophet_data)
-        except Exception as e:
-            logger.warning(
-                f"⚠️  Failed to fit Prophet model: {str(e)}. Falling back to Moving Average."
-            )
-            return self._fallback_to_moving_average(data, **kwargs)
-
-        self.data = data.copy()
-        if self.window_length is not None and len(data) > self.window_length:
-            # Update self.data to reflect the rolling window
-            self.data = (
-                self.data.sort_values("date")
-                .tail(self.window_length)
-                .reset_index(drop=True)
-            )
-        # If window_length is None, keep all data (no windowing applied)
-
-        self.is_fitted = True
-
-        # Perform seasonality analysis if model is fitted successfully and analysis is enabled
-        if self.is_fitted and self.model is not None and self.run_seasonality_analysis:
-            self._perform_seasonality_analysis(data, prophet_data, self.log_level)
-
-        return self
-
-    def _perform_seasonality_analysis(
-        self, original_data: pd.DataFrame, fitted_data: pd.DataFrame, log_level: str = "INFO"
-    ):
-        """
-        Perform seasonality analysis on the fitted model.
-
-        Args:
-            original_data: Original input data
-            fitted_data: Data used for fitting (after preprocessing)
-            log_level: Logging level to use for seasonality analysis
-        """
-        logger = get_logger(__name__, level=self.log_level)
-        try:
-            # Initialize seasonality analyzer with specific log level
-            analyzer = SeasonalityAnalyzer(log_level=log_level)
-
-            # Perform analysis
-            analysis_results = analyzer.analyze_seasonality_components(
-                original_data, self.model, fitted_data
-            )
-
-            # Store analysis results for later use
-            self.seasonality_analysis = analysis_results
-
-            # Get optimal components and apply regularization if needed
-            optimal_components = analyzer.get_optimal_components(analysis_results)
-
-            # Apply regularization settings if recommended
-            if optimal_components["regularization_settings"]:
-                self._apply_regularization_settings(
-                    optimal_components["regularization_settings"]
-                )
-
-        except Exception as e:
-            logger.warning(f"Seasonality analysis failed: {str(e)}")
-            self.seasonality_analysis = None
-
-    def _apply_regularization_settings(self, regularization_settings: Dict):
-        """
-        Apply regularization settings to the model if needed.
-
-        Args:
-            regularization_settings: Dictionary of regularization parameters
-        """
-        logger = get_logger(__name__, level=self.log_level)
-        try:
-            # Update model parameters for regularization
-            if "seasonality_prior_scale" in regularization_settings:
-                self.seasonality_prior_scale = regularization_settings[
-                    "seasonality_prior_scale"
-                ]
-                logger.info(
-                    f"Applied regularization: seasonality_prior_scale = {self.seasonality_prior_scale}"
-                )
-
-            if "holidays_prior_scale" in regularization_settings:
-                self.holidays_prior_scale = regularization_settings[
-                    "holidays_prior_scale"
-                ]
-                logger.info(
-                    f"Applied regularization: holidays_prior_scale = {self.holidays_prior_scale}"
-                )
-
-            if "changepoint_prior_scale" in regularization_settings:
-                self.changepoint_prior_scale = regularization_settings[
-                    "changepoint_prior_scale"
-                ]
-                logger.info(
-                    f"Applied regularization: changepoint_prior_scale = {self.changepoint_prior_scale}"
-                )
-
-        except Exception as e:
-            logger.warning(f"Failed to apply regularization settings: {str(e)}")
-
-    def get_seasonality_analysis(self) -> Optional[Dict]:
-        """
-        Get the seasonality analysis results.
-
-        Returns:
-            Seasonality analysis results or None if not available
-        """
-        return getattr(self, "seasonality_analysis", None)
-
-    def _fallback_to_moving_average(
-        self, data: pd.DataFrame, **kwargs
-    ) -> "ProphetForecaster":
-        """
-        Fallback to Moving Average when Prophet cannot be used
-
-        Args:
-            data: Input data
-            **kwargs: Additional arguments
-
-        Returns:
-            Self for chaining
-        """
-        logger = get_logger(__name__, level=self.log_level)
-        logger.info("Switching to Moving Average forecaster...")
-
-        # Import here to avoid circular imports
-        from .moving_average import MovingAverageForecaster
-
-        # Create Moving Average forecaster with same window_length
-        self.fallback_forecaster = MovingAverageForecaster(
-            window_length=self.window_length, horizon=1  # Default horizon for fallback
-        )
-
-        # Fit the fallback forecaster
-        self.fallback_forecaster.fit(data, **kwargs)
-
-        # Store the data that was actually used for fitting
-        self.data = self.fallback_forecaster.data.copy()
-        self.risk_period_days = self.fallback_forecaster.risk_period_days
-        self.is_fitted = True
-
-        logger.info("✅ Successfully switched to Moving Average forecaster")
-        return self
-
-    def forecast(self, steps: Optional[int] = None, **kwargs) -> pd.Series:
-        """
-        Generate forecast for specified number of steps
-
-        Args:
-            steps: Number of steps to forecast (if None, uses default horizon)
-            **kwargs: Additional arguments
-
-        Returns:
-            Series with forecast values
-        """
-        logger = get_logger(__name__, level=self.log_level)
-        if not self.is_fitted:
-            raise ForecastingError("Model must be fitted before forecasting")
-
-        # Check if we're using fallback forecaster
-        if self.fallback_forecaster is not None:
-            logger.info("📊 Using Moving Average fallback for forecasting")
-            return self.fallback_forecaster.forecast(steps, **kwargs)
-
-        if steps is None:
-            # Use the risk period determined during fit, or default to 14 days
-            steps = self.risk_period_days if self.risk_period_days is not None else 14
-
-        # Create future dataframe
-        last_date = self.data["date"].max()
-        if isinstance(last_date, pd.Timestamp):
-            future_dates = pd.date_range(
-                start=last_date + pd.Timedelta(days=1), periods=steps, freq="D"
-            )
-        else:
-            future_dates = pd.date_range(
-                start=last_date + timedelta(days=1), periods=steps, freq="D"
-            )
-
-        future_df = pd.DataFrame({"ds": future_dates})
-
-        # Generate forecast
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                forecast = self.model.predict(future_df)
-        except Exception as e:
-            logger.info(
-                f"⚠️  Failed to generate Prophet forecast: {str(e)}. Using Moving Average fallback."
-            )
-            # Create fallback forecaster on the fly if not already created
-            if self.fallback_forecaster is None:
-                self._fallback_to_moving_average(self.data, **kwargs)
-            return self.fallback_forecaster.forecast(steps, **kwargs)
-
-        # Extract forecast values
-        forecast_values = forecast["yhat"].values
-
-        # Handle negative values (demand can't be negative)
-        forecast_values = np.maximum(forecast_values, 0)
-
-        return pd.Series(forecast_values, index=future_dates)
-
-    def update(self, new_data: pd.DataFrame) -> "ProphetForecaster":
-        """
-        Update the model with new data
-
-        Args:
-            new_data: New data to add
-
-        Returns:
-            Self for chaining
-        """
-        if self.data is None:
-            return self.fit(new_data)
-
-        # Combine existing and new data
-        combined_data = pd.concat([self.data, new_data], ignore_index=True)
-        combined_data = combined_data.drop_duplicates(subset=["date"]).sort_values(
-            "date"
-        )
-
-        return self.fit(combined_data)
-
-    def get_parameters(self) -> Dict:
-        """Get current parameters."""
-        return {
-            "changepoint_range": self.changepoint_range,
-            "n_changepoints": self.n_changepoints,
-            "changepoint_prior_scale": self.changepoint_prior_scale,
-            "seasonality_prior_scale": self.seasonality_prior_scale,
-            "holidays_prior_scale": self.holidays_prior_scale,
-            "seasonality_mode": self.seasonality_mode,
-            "weekly_seasonality": self.weekly_seasonality,
-            "daily_seasonality": self.daily_seasonality,
-            "include_indian_holidays": self.include_indian_holidays,
-            "include_regional_holidays": self.include_regional_holidays,
-            "include_quarterly_effects": self.include_quarterly_effects,
-            "include_monthly_effects": self.include_monthly_effects,
-            "include_festival_seasons": self.include_festival_seasons,
-            "include_monsoon_effect": self.include_monsoon_effect,
-            "min_data_points": self.min_data_points,
-            "window_length": self.window_length,
-            "log_level": self.log_level,
-            "run_seasonality_analysis": self.run_seasonality_analysis,
-            "risk_period_days": self.risk_period_days,
-            "method_name": self.name,
-        }
-    
-    def get_first_date_used(self) -> Optional[date]:
-        """
-        Get the first date of data that was actually used for forecasting
-        (after applying the window).
         
-        Returns:
-            First date used, or None if no data was used
-        """
-        return self.first_date_used
-
-    def set_parameters(self, parameters: Dict) -> "ProphetForecaster":
-        """
-        Set model parameters
-
-        Args:
-            parameters: Dictionary of parameters
-
-        Returns:
-            Self for chaining
-        """
-        if "changepoint_range" in parameters:
-            self.changepoint_range = parameters["changepoint_range"]
-        if "n_changepoints" in parameters:
-            self.n_changepoints = parameters["n_changepoints"]
-        if "changepoint_prior_scale" in parameters:
-            self.changepoint_prior_scale = parameters["changepoint_prior_scale"]
-        if "seasonality_prior_scale" in parameters:
-            self.seasonality_prior_scale = parameters["seasonality_prior_scale"]
-        if "holidays_prior_scale" in parameters:
-            self.holidays_prior_scale = parameters["holidays_prior_scale"]
-        if "seasonality_mode" in parameters:
-            self.seasonality_mode = parameters["seasonality_mode"]
-        if "weekly_seasonality" in parameters:
-            self.weekly_seasonality = parameters["weekly_seasonality"]
-        if "daily_seasonality" in parameters:
-            self.daily_seasonality = parameters["daily_seasonality"]
-        if "include_indian_holidays" in parameters:
-            self.include_indian_holidays = parameters["include_indian_holidays"]
-        if "include_regional_holidays" in parameters:
-            self.include_regional_holidays = parameters["include_regional_holidays"]
-        if "include_quarterly_effects" in parameters:
-            self.include_quarterly_effects = parameters["include_quarterly_effects"]
-        if "include_monthly_effects" in parameters:
-            self.include_monthly_effects = parameters["include_monthly_effects"]
-        if "include_festival_seasons" in parameters:
-            self.include_festival_seasons = parameters["include_festival_seasons"]
-        if "include_monsoon_effect" in parameters:
-            self.include_monsoon_effect = parameters["include_monsoon_effect"]
-        if "min_data_points" in parameters:
-            self.min_data_points = parameters["min_data_points"]
-        if "window_length" in parameters:
-            self.window_length = parameters["window_length"]
-        if "log_level" in parameters:
-            self.log_level = parameters["log_level"]
-        if "run_seasonality_analysis" in parameters:
-            self.run_seasonality_analysis = parameters["run_seasonality_analysis"]
-        if "risk_period_days" in parameters:
-            self.risk_period_days = parameters["risk_period_days"]
-
-        return self
-
-
-def create_prophet_forecaster(parameters: Dict) -> ProphetForecaster:
-    """
-    Create a Prophet forecaster with given parameters
-
-    Args:
-        parameters: Dictionary of parameters
-
-    Returns:
-        ProphetForecaster instance
-    """
-    validate_forecast_parameters(parameters)
-
-    forecaster = ProphetForecaster(
-        changepoint_range=parameters.get("changepoint_range", 0.8),
-        n_changepoints=parameters.get("n_changepoints", 25),
-        changepoint_prior_scale=parameters.get("changepoint_prior_scale", 0.05),
-        seasonality_prior_scale=parameters.get("seasonality_prior_scale", 10.0),
-        holidays_prior_scale=parameters.get("holidays_prior_scale", 10.0),
-        seasonality_mode=parameters.get("seasonality_mode", "multiplicative"),
-        weekly_seasonality=parameters.get("weekly_seasonality", True),
-        daily_seasonality=parameters.get("daily_seasonality", False),
-        include_indian_holidays=parameters.get("include_indian_holidays", True),
-        include_regional_holidays=parameters.get("include_regional_holidays", False),
-        include_quarterly_effects=parameters.get("include_quarterly_effects", True),
-        include_monthly_effects=parameters.get("include_monthly_effects", True),
-        include_festival_seasons=parameters.get("include_festival_seasons", True),
-        include_monsoon_effect=parameters.get("include_monsoon_effect", True),
-        min_data_points=parameters.get("min_data_points", 10),
-        window_length=parameters.get("window_length"),
-        log_level=parameters.get("log_level", "INFO"),
-        run_seasonality_analysis=parameters.get("run_seasonality_analysis", True),
-    )
-
-    # Set risk period if provided
-    if "risk_period_days" in parameters:
-        forecaster.risk_period_days = parameters["risk_period_days"]
-
-    return forecaster
-
-
-def forecast_product_location(
-    data: pd.DataFrame,
-    product_id: str,
-    location_id: str,
-    parameters: Dict,
-    forecast_date: Optional[date] = None,
-) -> Dict:
-    """
-    Forecast demand for a specific product-location combination using Prophet
-
-    Args:
-        data: Full demand dataset
-        product_id: Product ID to forecast
-        location_id: Location ID to forecast
-        parameters: Forecasting parameters
-        forecast_date: Date to forecast from (defaults to latest date in data)
-
-    Returns:
-        Dictionary with forecast results
-    """
-    # Filter data for specific product-location
-    product_data = data[
-        (data["product_id"] == product_id) & (data["location_id"] == location_id)
-    ].copy()
-
-    if len(product_data) == 0:
-        raise ForecastingError(
-            f"No data found for product {product_id} at location {location_id}"
-        )
-
-    # Determine forecast date
-    if forecast_date is None:
-        forecast_date = product_data["date"].max()
-
-    # Filter data up to forecast date
-    historical_data = product_data[product_data["date"] <= forecast_date].copy()
-
-    if len(historical_data) < parameters.get("min_data_points", 10):
-        raise ForecastingError(f"Insufficient historical data for forecasting")
-
-    # Create and fit forecaster
-    forecaster = create_prophet_forecaster(parameters)
-
-    # Pass risk period information if available
-    fit_kwargs = {}
-    if "risk_period" in parameters:
-        fit_kwargs["risk_period"] = parameters["risk_period"]
-    elif "risk_period_days" in parameters:
-        fit_kwargs["risk_period_days"] = parameters["risk_period_days"]
-
-    forecaster.fit(historical_data, **fit_kwargs)
-
-    # Generate forecast
-    forecast_values = forecaster.forecast()
-
-    # Create forecast dates
-    last_date = historical_data["date"].max()
-    forecast_dates = []
-    for i in range(len(forecast_values)):
-        if isinstance(last_date, pd.Timestamp):
-            forecast_date = last_date + pd.Timedelta(days=i)
+        # Set growth floor/ceiling for logistic growth
+        if growth == 'logistic':
+            if growth_floor is not None:
+                model.growth_floor = growth_floor
+            if growth_ceiling is not None:
+                model.growth_ceiling = growth_ceiling
+            else:
+                raise ValueError(f"{self.product_id} at {self.location_id} growth_ceiling must be set for logistic growth")
+        
+        return model
+    
+    def _add_seasonalities(self) -> None:
+        """Add built-in and custom seasonalities to the Prophet model."""
+        
+        # Add custom seasonalities
+        if 'custom_seasonalities' in self.config:
+            custom_seasonalities = self.config['custom_seasonalities']
+            if isinstance(custom_seasonalities, dict):
+                for seasonality_name, seasonality_config in custom_seasonalities.items():
+                    if isinstance(seasonality_config, dict):
+                        self.model.add_seasonality(
+                            name=seasonality_config.get('name', seasonality_name),
+                            period=seasonality_config.get('period'),
+                            fourier_order=seasonality_config.get('fourier', 5),
+                            mode=seasonality_config.get('mode', 'additive'),
+                            prior_scale=seasonality_config.get('prior', 1.0)
+                        )
+            else:
+                raise ValueError(f"{self.product_id} at {self.location_id} custom_seasonalities in config must be a dictionary")
+    
+    def _add_regressors(self) -> None:
+        """Add regressors to the Prophet model and set required_regressors."""
+        regressors_config = self.config.get('regressors', {})
+        
+        if isinstance(regressors_config, dict):
+            for regressor_name, regressor_config in regressors_config.items():
+                if isinstance(regressor_config, dict):
+                    # Add regressor to Prophet model
+                    self.model.add_regressor(
+                        name=regressor_name,
+                        prior_scale=regressor_config.get('prior_scale', 10.0),
+                        standardize=regressor_config.get('standardize', 'auto'),
+                        mode=regressor_config.get('mode', 'additive')
+                    )
+                    
+                    # Add to required regressors list
+                    self.required_regressors.append(regressor_name)
         else:
-            forecast_date = last_date + timedelta(days=i)
-        forecast_dates.append(forecast_date)
+            raise ValueError(f"{self.product_id} at {self.location_id} regressors in configmust be a dictionary")
 
-    return {
-        "product_id": product_id,
-        "location_id": location_id,
-        "forecast_date": forecast_date,
-        "forecast_values": forecast_values.tolist(),
-        "forecast_dates": [
-            d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
-            for d in forecast_dates
-        ],
-        "model": "prophet",
-        "parameters": forecaster.get_parameters(),
-    }
+    
+    def _determine_holidays(self) -> None:
+        """Add holiday effects to the Prophet model."""
+        try:
+            # Get holidays value from config
+            holidays_value = self.config.get('selected_holidays', None)
+
+            # Normalize holidays_value to a list or None
+            def is_empty(val):
+                # Helper to robustly check for "empty" values
+                if val is None:
+                    return True
+                if isinstance(val, float) and pd.isna(val):
+                    return True
+                if isinstance(val, str) and val.strip() == '':
+                    return True
+                if isinstance(val, (list, tuple)) and len(val) == 0:
+                    return True
+                if val is False or val == 0:
+                    return True
+                return False
+
+            if is_empty(holidays_value):
+                return None
+
+            # If we get here, holidays are enabled, so try to load them
+            try:
+                data_loader = DataLoader()
+                holidays_df = data_loader.load_holidays(location=self.location_id)
+
+                if holidays_df is not None and not holidays_df.empty:
+                    # Normalize holidays_value to a list of names if provided
+                    holiday_names = None
+                    if isinstance(holidays_value, str):
+                        holiday_names = [holidays_value]
+                    elif isinstance(holidays_value, (list, tuple, np.ndarray)):
+                        # Convert to list, flatten if necessary
+                        holiday_names = list(holidays_value)
+                        print(holiday_names)    
+                    # If holiday_names is set and not empty, filter
+                    if holiday_names is not None and len(holiday_names) > 0:
+                        selected_holidays = holidays_df[holidays_df["holiday"].isin(holiday_names)]
+                        print(selected_holidays.head(10))
+
+                    if selected_holidays.empty:
+                        logger.warning(f"No holidays found for {self.product_id} at {self.location_id}")
+                        return None
+
+                    return selected_holidays
+                else:
+                    logger.warning(f"No holiday data available for location {self.location_id}")
+                    return None
+
+            except Exception as e:
+                logger.warning(f"Failed to load holidays for {self.product_id} at {self.location_id}: {e}")
+                return None
+
+        except Exception as e:
+            logger.warning(f"Failed to add holidays for {self.product_id} at {self.location_id}: {e}")
+            return None
+    
+    def _fit_model(self, train_df: pd.DataFrame) -> None:
+        """
+        Fit the Prophet model to training data.
+        
+        Args:
+            train_df: Training DataFrame with 'ds', 'y', and regressor columns
+        """
+
+        # silence verbose cdmstan info output
+        # TODO: see if this works
+        logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+
+        # Prophet expects specific column names, so ensure we have them
+        if 'ds' not in train_df.columns or 'y' not in train_df.columns:
+            raise ValueError("Training data must contain 'ds' and 'y' columns")
+        
+        #fall back to moving average if we don't have enough data
+        self.using_fallback = False
+        if len(train_df) < 25:
+            logger.debug(f"Insufficient training data for Prophet ({len(train_df)} periods) for {self.product_id} at {self.location_id}. Falling back to Moving Average.")
+            self.fallback_average = train_df['y'].mean()
+            self.using_fallback = True
+            return
+
+        # Fit the model
+        self.model.fit(train_df)
+    
+    def _predict_model(self, future_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Generate predictions using the fitted Prophet model.
+        
+        Args:
+            future_df: Future DataFrame with 'ds' and regressor columns
+            
+        Returns:
+            DataFrame with full Prophet output including components
+        """
+        # Ensure we have the required columns
+        if 'ds' not in future_df.columns:
+            raise ValueError("Future data must contain 'ds' column")
+
+        #if we're using the fallback, return a constant forecast equal to the computed average
+        if self.using_fallback:
+            logger.debug(f"Using Moving Average fallback for {self.product_id} at {self.location_id}")
+            return pd.DataFrame({'ds': future_df['ds'], 'yhat': self.fallback_average, 'yhat_lower': self.fallback_average, 'yhat_upper': self.fallback_average})
+        
+        # Generate predictions with full components
+        predictions_df = self.model.predict(future_df)
+        
+        return predictions_df

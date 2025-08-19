@@ -57,7 +57,8 @@ class ForecastingEngine:
                          forecast_method: str,
                          training_data: pd.DataFrame,
                          product_record: Dict[str, Any],
-                         future_data_frame: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+                         future_data_frame: pd.DataFrame,
+                         override_config: Optional[Dict[str, Any]] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Generate forecast using the specified method.
         
@@ -66,6 +67,7 @@ class ForecastingEngine:
             training_data: Historical data for training (includes regressors)
             product_record: Product configuration including risk_period, demand_frequency
             future_data_frame: Future data frame for prediction (includes regressors)
+            override_config: Optional configuration override for the model
             
         Returns:
             Tuple of (forecast_comparison_df, components_df)
@@ -78,8 +80,8 @@ class ForecastingEngine:
         self.product_id = product_record['product_id']
         self.location_id = product_record['location_id']
 
-        # Select and initialize model
-        model = self._select_and_initialize_model(forecast_method, product_record)
+        # Select and initialize model with optional override configuration
+        model = self._select_and_initialize_model(forecast_method, product_record, override_config)
         
         # Prepare training data
         train_df = self._prepare_training_data(training_data, model)
@@ -96,21 +98,19 @@ class ForecastingEngine:
             train_df, future_df, predict_df, product_record, forecast_method
         )
         
-        components_df = self._compose_components(
-            future_df, predict_df, model, forecast_method
-        )
-        
-        return forecast_comparison_df, components_df
+        return forecast_comparison_df, predict_df
     
     def _select_and_initialize_model(self, 
                                    forecast_method: str,
-                                   product_record: Dict[str, Any]) -> Any:
+                                   product_record: Dict[str, Any],
+                                   override_config: Optional[Dict[str, Any]] = None) -> Any:
         """
         Select and initialize the appropriate forecasting model.
         
         Args:
             forecast_method: Name of the forecasting method
             product_record: Product configuration
+            override_config: Optional configuration override for the model
             
         Returns:
             Initialized model instance
@@ -128,11 +128,19 @@ class ForecastingEngine:
             raise ValueError(f"Model class for {forecast_method} is not available. "
                            "Please ensure the model is properly imported.")
         
-        # Initialize model with product configuration
-        model = model_class(
-            product_id=product_record['product_id'],
-            location_id=product_record['location_id']
-        )
+        # Initialize model with product configuration and optional override
+        if forecast_method == 'prophet':
+            model = model_class(
+                product_id=product_record['product_id'],
+                location_id=product_record['location_id'],
+                override_config=override_config
+            )
+        else:
+            # For other models, initialize without override (maintain backward compatibility)
+            model = model_class(
+                product_id=product_record['product_id'],
+                location_id=product_record['location_id']
+            )
         
         # Store required regressors or empty list
         self.required_regressors = getattr(model, 'required_regressors', [])
@@ -290,49 +298,6 @@ class ForecastingEngine:
         )
         
         return comparison_df
-    
-    def _compose_components(self,
-                           future_df: pd.DataFrame,
-                           predict_df: pd.DataFrame,
-                           model: Any,
-                           forecast_method: str) -> pd.DataFrame:
-        """
-        Compose the components DataFrame.
-        
-        Args:
-            future_df: Prepared future data
-            predict_df: Model predictions
-            model: Model instance
-            forecast_method: Name of the forecasting method
-            
-        Returns:
-            Components DataFrame
-        """
-        # For Prophet, return full components
-        if forecast_method == 'prophet' and hasattr(model, 'get_components'):
-            try:
-                components_df = model.get_components(future_df)
-                # Add product identifiers if available
-                if hasattr(model, 'product_id'):
-                    components_df['product_id'] = model.product_id
-                if hasattr(model, 'location_id'):
-                    components_df['location_id'] = model.location_id
-                return components_df
-            except Exception as e:
-                warnings.warn(f"Failed to get Prophet components: {e}")
-        
-        # For other models, return minimal components
-        minimal_components = future_df[['ds']].copy()
-        minimal_components['yhat'] = predict_df['yhat']
-        
-        # Add product identifiers if available in model
-        if hasattr(model, 'product_id'):
-            minimal_components['product_id'] = model.product_id
-        if hasattr(model, 'location_id'):
-            minimal_components['location_id'] = model.location_id
-        
-        return minimal_components
-    
     
     def get_available_methods(self) -> List[str]:
         """
