@@ -88,6 +88,7 @@ def run_complete_workflow(
     web_interface: bool = False,
     log_level: str = "INFO",
     review_dates: str = None,
+    skip_validation: bool = False,
     logger=None,
 ):
     """
@@ -159,29 +160,34 @@ def run_complete_workflow(
     total_steps = 0
 
     try:
-        # Step 1: Data Validation
-        total_steps += 1
-        print("🔄 Step 1/5: Running data validation...")
+        # Step 1: Data Validation (conditional)
+        if not skip_validation:
+            total_steps += 1
+            print("🔄 Step 1/5: Running data validation...")
 
-        validation_cmd = f"python run_data_validation.py"
+            validation_cmd = f"python run_data_validation.py"
 
-        if demand_frequency:
-            validation_cmd += f" --demand-frequency {demand_frequency}"
+            if demand_frequency:
+                validation_cmd += f" --demand-frequency {demand_frequency}"
 
-        if log_level:
-            validation_cmd += f" --log-level {log_level}"
+            if log_level:
+                validation_cmd += f" --log-level {log_level}"
 
-        if run_command(validation_cmd, "Data Validation", logger, check=True):
-            success_count += 1
-            print("✅ Data validation completed successfully!")
+            if run_command(validation_cmd, "Data Validation", logger, check=True):
+                success_count += 1
+                print("✅ Data validation completed successfully!")
+            else:
+                print("❌ Data validation failed. Please fix the issues before proceeding.")
+                sys.exit(1)
         else:
-            print("❌ Data validation failed. Please fix the issues before proceeding.")
-            sys.exit(1)
+            print("⏭️  Skipping data validation as requested...")
+            success_count += 1
 
         # Step 2: Backtesting
         if backtesting_enabled:
             total_steps += 1
-            print("\n🔄 Step 2/5: Running backtesting...")
+            step_number = total_steps
+            print(f"\n🔄 Step {step_number}/5: Running backtesting...")
             print("📊 Progress tracking and logging will be displayed in real-time")
             print(
                 "⏱️  This step may take significant time depending on data size and workers"
@@ -211,9 +217,10 @@ def run_complete_workflow(
                 sys.exit(1)
 
         # Step 3: Safety Stock Calculation
-        if safety_stock_enabled and backtesting_enabled:
+        if safety_stock_enabled:
             total_steps += 1
-            print("\n🔄 Step 3/5: Running safety stock calculation...")
+            step_number = total_steps
+            print(f"\n🔄 Step {step_number}/5: Running safety stock calculation...")
             print("📊 Progress tracking will be displayed in real-time")
 
             # Check if forecast comparison file exists
@@ -281,7 +288,8 @@ def run_complete_workflow(
         # Step 4: Inventory Simulation
         if simulation_enabled and safety_stock_enabled:
             total_steps += 1
-            print("\n🔄 Step 4/5: Running inventory simulation...")
+            step_number = total_steps
+            print(f"\n🔄 Step {step_number}/5: Running inventory simulation...")
             print("📊 Progress tracking will be displayed in real-time")
 
             # Check if safety stock results exist
@@ -316,7 +324,8 @@ def run_complete_workflow(
         # Step 5: Web Interface (optional)
         if web_interface:
             total_steps += 1
-            print("\n🔄 Step 5/5: Starting web interface...")
+            step_number = total_steps
+            print(f"\n🔄 Step {step_number}/5: Starting web interface...")
 
             web_cmd = f"python webapp/app.py --port 5001"
 
@@ -463,6 +472,9 @@ Examples:
 
     # Feature flags
     parser.add_argument(
+        "--skip-validation", action="store_true", help="Skip data validation step"
+    )
+    parser.add_argument(
         "--no-backtesting", action="store_true", help="Disable backtesting"
     )
     parser.add_argument(
@@ -514,6 +526,7 @@ Examples:
             web_interface=args.web_interface,
             log_level=args.log_level,
             review_dates=args.review_dates,
+            skip_validation=args.skip_validation,
             logger=logger
         )
     except Exception as e:

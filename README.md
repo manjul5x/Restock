@@ -99,8 +99,8 @@ Required columns:
 - `product_category` - Product category
 - `demand_frequency` - 'd' (daily), 'w' (weekly), or 'm' (monthly)
 - `risk_period` - Risk period as integer multiple of demand frequency
-- `forecast_window_length` - Forecasting window length in risk periods
-- `forecast_horizon` - Forecast horizon in risk periods
+- `forecast_window_length` - Forecasting window length in days
+- `forecast_horizon` - Forecast horizon in days
 - `forecast_methods` - Comma-separated forecasting methods: 'prophet,moving_average'
 - `outlier_method` - Outlier detection method: 'iqr', 'zscore', 'mad', 'rolling', or 'no' (default: 'iqr')
 - `outlier_threshold` - Outlier detection threshold (default: 1.5)
