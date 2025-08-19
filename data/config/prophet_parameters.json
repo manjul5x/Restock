@@ -1,0 +1,27 @@
+{
+  "('BPRN', 'WB')": {
+    "regressors": {
+      "season": {
+        "prior_scale": 3,
+        "standardize": "auto",
+        "mode": "additive"
+      }
+    },
+    "yearly_seasonality": true,
+    "weekly_seasonality": true,
+    "daily_seasonality": false,
+    "seasonality_mode": "additive",
+    "seasonality_prior_scale": 10,
+    "growth": "linear",
+    "growth_floor": 0,
+    "growth_ceiling": null,
+    "n_changepoints": 5,
+    "changepoint_range": 0.8,
+    "changepoint_prior_scale": 0.05
+  },
+  "('BPRP', 'WB')": {},
+  "('BPRQ', 'WB')": {},
+  "('BPWN', 'WB')": {},
+  "('BPWP', 'WB')": {},
+  "('BPWQ', 'WB')": {}
+}
