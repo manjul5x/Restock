@@ -27,6 +27,7 @@ wheels/
 # Project specific
 output/
 plots/
+data/customer_data/
 *.png
 test_*.html
 debug_*.py
