@@ -7,6 +7,23 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 
+def get_input_file_path(file_key: str) -> Path:
+    """
+    Get path to an input file by key.
+    
+    Args:
+        file_key: Key from input_files section of config
+        
+    Returns:
+        Path to the input file
+        
+    Raises:
+        KeyError: If file_key not found in config
+    """
+    config = DataConfig()
+    return config.get_input_file_path(file_key)
+
+
 class DataConfig:
     """
     Load and manage data paths from YAML configuration.
@@ -67,4 +84,29 @@ class DataConfig:
             if not file_path.exists():
                 raise FileNotFoundError(f"Required data file not found: {file_path}")
         
-        return True 
+        return True
+    
+    def get_input_file_path(self, file_key: str) -> Path:
+        """
+        Get path to an input file by key.
+        
+        Args:
+            file_key: Key from input_files section of config
+            
+        Returns:
+            Path to the input file
+            
+        Raises:
+            KeyError: If file_key not found in config
+        """
+        input_files = self.config.get('paths', {}).get('input_files', {})
+        if file_key not in input_files:
+            raise KeyError(f"Input file key '{file_key}' not found in config")
+        
+        file_path = Path(input_files[file_key])
+        
+        # If it's a relative path, make it relative to the config file location
+        if not file_path.is_absolute():
+            file_path = self.config_path.parent.parent.parent / file_path
+        
+        return file_path 

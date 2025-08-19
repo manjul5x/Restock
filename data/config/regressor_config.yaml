@@ -7,9 +7,11 @@
 # There must always be an outflow regressor
 
 # Outflow regressor (forward-looking aggregated demand)
+# NOTE: Outflow is NOT a regressor - it's the target variable for forecasting
+# This is kept for reference but should not be used in Prophet regressor configuration
 outflow:
   column_name: "outflow"
-  description: "Forward-looking sum of raw demand over risk period window"
+  description: "Forward-looking sum of raw demand over risk period window (NOT a regressor)"
   enabled: true
   function_name: "compute_lead_lag_aggregation"
   parameters:
