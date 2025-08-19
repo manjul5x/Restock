@@ -93,9 +93,7 @@ class FullBacktestingPipeline:
         # Chunked persistence state
         self.chunk_idx = 0
         self.buffer_comparisons = []
-        self.buffer_components = []
         self.buffer_comparison_rows = 0
-        self.buffer_component_rows = 0
         self.last_flush_time = time.time()
         self.buffer_flush_threshold = float('inf')  # Only flush by time, not by row count
         self.buffer_flush_interval = 300  # seconds (5 minutes)
@@ -356,7 +354,7 @@ class FullBacktestingPipeline:
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all tasks
             future_to_task = {
-                executor.submit(self._process_product_task, task): task 
+                executor.submit(self.process_product_task, task): task 
                 for task in tasks
             }
             
@@ -373,13 +371,12 @@ class FullBacktestingPipeline:
                     try:
                         result = future.result()
                         if result:
-                            forecast_comparisons, prophet_components = result
+                            # components_df is only used for plotting, which calls_process_product_task directly 
+                            forecast_comparisons, _ = result
                             
                             # Add to buffers
                             self.buffer_comparisons.extend(forecast_comparisons)
-                            self.buffer_components.extend(prophet_components)
                             self.buffer_comparison_rows += len(forecast_comparisons)
-                            self.buffer_component_rows += len(prophet_components)
                             
                             # Check if we should flush buffers
                             self._check_and_flush_buffers()
@@ -424,8 +421,15 @@ class FullBacktestingPipeline:
         self.logger.info(f"Parallel execution completed: {completed_count} tasks processed "
                         f"(Success: {successful_count}, Failed: {len(failed_tasks)})")
     
-    def _process_product_task(self, task: Dict[str, Any]) -> Optional[Tuple[List, List]]:
-        """Process a single product task (runs in worker process)."""
+    @staticmethod
+    def process_product_task(task: Dict[str, Any], configuration: Optional[Dict[str, Any]] = None) -> Optional[List]:
+        """
+        Process a single product task (runs in worker process).
+        
+        Args:
+            task: Product task dictionary containing product_record, product_data, analysis_dates, forecast_method
+            configuration: Optional configuration override for forecasting parameters
+        """
         try:
             product_record = task['product_record']
             product_data = task['product_data']
@@ -434,7 +438,6 @@ class FullBacktestingPipeline:
             
             # Initialize result containers
             forecast_comparisons = []
-            prophet_components = []
             
             # Resolve time parameters from product record
             risk_period_days = ProductMasterSchema.get_risk_period_days(
@@ -468,37 +471,46 @@ class FullBacktestingPipeline:
                 training_data = training_data.drop(['product_id', 'location_id'], axis=1, errors='ignore')
                 
                 # Create future data frame
-                future_end_date = analysis_datetime + pd.Timedelta(days=horizon_days)
-                future_data = product_data[
-                    (product_data['date'] >= analysis_datetime) & 
-                    (product_data['date'] <= future_end_date)
-                ].copy()
+                # Use future_data from task if provided, else compute as before
+                if 'future_data' in task and task['future_data'] is not None:
+                    future_data = task['future_data'].copy()
+                else:
+                    future_end_date = analysis_datetime + pd.Timedelta(days=horizon_days)
+                    future_data = product_data[
+                        (product_data['date'] >= analysis_datetime) & 
+                        (product_data['date'] <= future_end_date)
+                    ].copy()
                                 
                 # Drop identifier columns, keep outflow and regressors
                 future_data = future_data.drop(['product_id', 'location_id'], axis=1, errors='ignore')
                 
                 # Generate forecast using new engine
                 try:
-                    forecast_comparison_df, prophet_components_df = self.forecasting_engine.generate_forecast(
-                        forecast_method, training_data, product_record, future_data
+                    # Initialize forecasting engine for standalone use
+                    forecasting_engine = ForecastingEngine()
+                    
+                    forecast_comparison_df, components_df = forecasting_engine.generate_forecast(
+                        forecast_method, training_data, product_record, future_data, configuration
                     )
                     
-                    # Add back product_id and location_id to forecast_comparison_df and prophet_components_df
-                    for df in [forecast_comparison_df, prophet_components_df]:
-                        df['product_id'] = product_record.get('product_id')
-                        df['location_id'] = product_record.get('location_id')
+                    # Add back product_id and location_id to forecast_comparison_df and components_df
+                    forecast_comparison_df['product_id'] = product_record.get('product_id')
+                    forecast_comparison_df['location_id'] = product_record.get('location_id')
+                    components_df['product_id'] = product_record.get('product_id')
+                    components_df['location_id'] = product_record.get('location_id')
 
                     # Convert DataFrames to lists of dicts for serialization
                     forecast_comparisons.extend(forecast_comparison_df.to_dict('records'))
-                    prophet_components.extend(prophet_components_df.to_dict('records'))
                     
                     
                 except Exception as e:
                     # Log forecast generation error but continue with other dates
-                    self.logger.warning(f"Forecast generation failed for {product_record.get('product_id')}_{product_record.get('location_id')} on {analysis_date} with method {forecast_method}: {e}")
+                    # Note: In standalone mode, we can't use self.logger, so we'll use print or return error info
+                    print(f"Forecast generation failed for {product_record.get('product_id')}_{product_record.get('location_id')} on {analysis_date} with method {forecast_method}: {e}")
                     continue
             
-            return forecast_comparisons, prophet_components
+            print(components_df.columns)
+            return forecast_comparisons, components_df
             
         except Exception as e:
             # Log error but don't crash the worker
@@ -512,7 +524,6 @@ class FullBacktestingPipeline:
         if (now - self.last_flush_time) >= self.buffer_flush_interval:
             
             self._flush_comparison_buffer()
-            self._flush_component_buffer()
     
     def _flush_comparison_buffer(self):
         """Flush comparison buffer to chunk file."""
@@ -533,39 +544,16 @@ class FullBacktestingPipeline:
             self.buffer_comparisons.clear()
             self.buffer_comparison_rows = 0
             
-        except Exception as e:
-            self.logger.error(f"Failed to flush comparison buffer: {e}")
-    
-    def _flush_component_buffer(self):
-        """Flush component buffer to chunk file."""
-        if not self.buffer_components:
-            return
-        
-        try:
-            df = pd.DataFrame(self.buffer_components)
-            self.data_loader.save_results_chunk(
-                df=df,
-                category='backtesting',
-                base_filename='prophet_components',
-                run_id=self.run_id,
-                chunk_idx=self.chunk_idx
-            )
-            
-            self.logger.debug(f"Flushed component chunk {self.chunk_idx}: {len(df)} rows")
-            self.buffer_components.clear()
-            self.buffer_component_rows = 0
-            
             # Increment chunk index for next flush
             self.chunk_idx += 1
             self.last_flush_time = time.time()
             
         except Exception as e:
-            self.logger.error(f"Failed to flush component buffer: {e}")
+            self.logger.error(f"Failed to flush comparison buffer: {e}")
     
     def _flush_all_buffers(self):
         """Flush all remaining buffers."""
         self._flush_comparison_buffer()
-        self._flush_component_buffer()
     
     def _save_failure_log(self, failed_tasks: List[Dict[str, Any]]) -> None:
         """
@@ -642,13 +630,6 @@ class FullBacktestingPipeline:
             self.data_loader.finalize_results_from_chunks(
                 category='backtesting',
                 base_filename='forecast_comparison',
-                run_id=self.run_id
-            )
-            
-            # Finalize prophet components
-            self.data_loader.finalize_results_from_chunks(
-                category='backtesting',
-                base_filename='prophet_components',
                 run_id=self.run_id
             )
             

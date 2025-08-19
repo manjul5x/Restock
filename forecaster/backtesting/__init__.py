@@ -3,10 +3,15 @@ Backtesting module for historical forecasting simulation.
 """
 
 from .config import BacktestConfig
-from .unified_backtester import UnifiedBacktester, run_unified_backtest
+
+# Legacy imports - commented out to avoid import issues during testing
+# from .unified_backtester import UnifiedBacktester, run_unified_backtest
+
+# New pipeline
+from .full_backtesting_pipeline import FullBacktestingPipeline, full_backtesting_pipeline
 
 __all__ = [
     'BacktestConfig',
-    'UnifiedBacktester',
-    'run_unified_backtest'
+    'FullBacktestingPipeline',
+    'full_backtesting_pipeline'
 ]
