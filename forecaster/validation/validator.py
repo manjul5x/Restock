@@ -32,6 +32,63 @@ class DataValidator:
         self.quality_validator = QualityValidator()
         self.coverage_validator = CoverageValidator()
     
+    def _standardize_data_types(self, df: pd.DataFrame, data_type: str = "demand") -> pd.DataFrame:
+        """
+        Utility method to standardize data types before validation.
+        Creates a working copy and ensures consistent types.
+        
+        Args:
+            df: DataFrame to standardize
+            data_type: Type of data ('demand' or 'product_master')
+            
+        Returns:
+            Standardized DataFrame
+        """
+        if df is None or len(df) == 0:
+            return df
+        
+        working_df = df.copy()
+        
+        try:
+            if data_type == "demand":
+                # Standardize date column
+                if 'date' in working_df.columns:
+                    working_df['date'] = pd.to_datetime(working_df['date'], errors='coerce').dt.date
+                    # Remove rows where date conversion failed
+                    working_df = working_df.dropna(subset=['date'])
+                
+                # Ensure numeric columns are numeric
+                numeric_cols = ['demand', 'stock_level']
+                for col in numeric_cols:
+                    if col in working_df.columns:
+                        working_df[col] = pd.to_numeric(working_df[col], errors='coerce')
+                
+                # Ensure string columns are strings
+                string_cols = ['product_id', 'location_id', 'product_category']
+                for col in string_cols:
+                    if col in working_df.columns:
+                        working_df[col] = working_df[col].astype(str)
+            
+            elif data_type == "product_master":
+                # Ensure string columns are strings
+                string_cols = ['product_id', 'location_id', 'product_category', 'demand_frequency']
+                for col in string_cols:
+                    if col in working_df.columns:
+                        working_df[col] = working_df[col].astype(str)
+                
+                # Ensure numeric columns are numeric
+                numeric_cols = ['leadtime', 'service_level', 'moq', 'inventory_cost', 'outlier_threshold', 'ss_window_length']
+                for col in numeric_cols:
+                    if col in working_df.columns:
+                        working_df[col] = pd.to_numeric(working_df[col], errors='coerce')
+            
+            self.logger.debug(f"Standardized {data_type} data: {len(working_df)} records")
+            return working_df
+            
+        except Exception as e:
+            self.logger.error(f"Data standardization failed for {data_type}: {e}")
+            return pd.DataFrame()
+    
     def validate_data(
         self,
         demand_data: pd.DataFrame,

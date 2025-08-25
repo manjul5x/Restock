@@ -14,14 +14,58 @@ from .types import ValidationResult, ValidationIssue, ValidationSeverity
 
 
 class SchemaValidator:
-    """Validates data schemas for demand and product master data"""
+    """
+    Validates data schema and data types.
+    Ensures data meets required format and type specifications.
+    """
+    
+    def __init__(self):
+        pass
+    
+    def _standardize_data_types(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Standardize data types before validation.
+        Creates a working copy and ensures consistent types.
+        """
+        if df is None or len(df) == 0:
+            return df
+        
+        working_df = df.copy()
+        
+        # Standardize date column
+        if 'date' in working_df.columns:
+            try:
+                working_df['date'] = pd.to_datetime(working_df['date'], errors='coerce').dt.date
+                # Remove rows where date conversion failed
+                working_df = working_df.dropna(subset=['date'])
+            except Exception as e:
+                print(f"Warning: Date conversion failed: {e}")
+                return pd.DataFrame()
+        
+        # Ensure numeric columns are numeric
+        numeric_cols = ['demand', 'stock_level']
+        for col in numeric_cols:
+            if col in working_df.columns:
+                try:
+                    working_df[col] = pd.to_numeric(working_df[col], errors='coerce')
+                except Exception:
+                    # If conversion fails, keep original but will be flagged in validation
+                    pass
+        
+        # Ensure string columns are strings
+        string_cols = ['product_id', 'location_id', 'product_category']
+        for col in string_cols:
+            if col in working_df.columns:
+                working_df[col] = working_df[col].astype(str)
+        
+        return working_df
     
     def validate_demand_schema(self, demand_data: pd.DataFrame) -> ValidationResult:
         """
-        Validate demand data schema.
+        Validate demand data schema and data types.
         
         Args:
-            demand_data: Demand DataFrame
+            demand_data: Demand DataFrame to validate
             
         Returns:
             Validation result with issues and summary
@@ -31,9 +75,27 @@ class SchemaValidator:
         summary = {}
         
         try:
+            # Standardize data types BEFORE validation
+            standardized_data = self._standardize_data_types(demand_data)
+            
+            if len(standardized_data) == 0:
+                issues.append(ValidationIssue(
+                    severity=ValidationSeverity.CRITICAL,
+                    category="schema",
+                    message="Data is empty or cannot be standardized",
+                    details={"original_length": len(demand_data) if demand_data is not None else 0},
+                    affected_records=0
+                ))
+                return ValidationResult(
+                    is_valid=False,
+                    issues=issues,
+                    summary={"error": "Data standardization failed"},
+                    execution_time=time.time() - start_time
+                )
+            
             # Check required columns
             required_cols = DemandSchema.REQUIRED_COLUMNS
-            missing_cols = set(required_cols) - set(demand_data.columns)
+            missing_cols = set(required_cols) - set(standardized_data.columns)
             
             if missing_cols:
                 issues.append(ValidationIssue(
@@ -41,57 +103,45 @@ class SchemaValidator:
                     category="schema",
                     message=f"Missing required columns: {missing_cols}",
                     details={"missing_columns": list(missing_cols)},
-                    affected_records=len(demand_data)
+                    affected_records=len(standardized_data)
                 ))
             
-            # Check data types
-            if len(demand_data) > 0:
-                # Date column validation
-                if 'date' in demand_data.columns:
-                    try:
-                        pd.to_datetime(demand_data['date'])
-                    except Exception as e:
+            # Check data types using standardized data
+            if len(standardized_data) > 0:
+                # Date column validation - already standardized
+                if 'date' in standardized_data.columns:
+                    # Check if any dates are still NaT after standardization
+                    nat_count = standardized_data['date'].isna().sum()
+                    if nat_count > 0:
                         issues.append(ValidationIssue(
-                            severity=ValidationSeverity.CRITICAL,
+                            severity=ValidationSeverity.ERROR,
                             category="schema",
-                            message="Date column cannot be converted to datetime",
-                            details={"error": str(e)},
-                            affected_records=len(demand_data)
+                            message=f"Found {nat_count} invalid dates that could not be converted",
+                            details={"nat_count": int(nat_count)},
+                            affected_records=int(nat_count)
                         ))
                 
                 # Numeric columns validation
                 numeric_cols = ['demand', 'stock_level']
                 for col in numeric_cols:
-                    if col in demand_data.columns:
-                        try:
-                            pd.to_numeric(demand_data[col], errors='coerce')
-                            # Check for non-numeric values
-                            non_numeric_count = demand_data[col].apply(
-                                lambda x: not pd.isna(x) and not isinstance(x, (int, float, np.number))
-                            ).sum()
-                            if non_numeric_count > 0:
-                                issues.append(ValidationIssue(
-                                    severity=ValidationSeverity.ERROR,
-                                    category="schema",
-                                    message=f"Column '{col}' contains non-numeric values",
-                                    details={"non_numeric_count": int(non_numeric_count)},
-                                    affected_records=int(non_numeric_count)
-                                ))
-                        except Exception as e:
+                    if col in standardized_data.columns:
+                        # Check for non-numeric values (NaN from conversion)
+                        non_numeric_count = standardized_data[col].isna().sum()
+                        if non_numeric_count > 0:
                             issues.append(ValidationIssue(
-                                severity=ValidationSeverity.CRITICAL,
+                                severity=ValidationSeverity.ERROR,
                                 category="schema",
-                                message=f"Column '{col}' cannot be converted to numeric",
-                                details={"error": str(e)},
-                                affected_records=len(demand_data)
+                                message=f"Column '{col}' contains {non_numeric_count} non-numeric values",
+                                details={"non_numeric_count": int(non_numeric_count)},
+                                affected_records=int(non_numeric_count)
                             ))
                 
                 # String columns validation
                 string_cols = ['product_id', 'location_id', 'product_category']
                 for col in string_cols:
-                    if col in demand_data.columns:
+                    if col in standardized_data.columns:
                         # Check for empty strings
-                        empty_string_count = (demand_data[col] == '').sum()
+                        empty_string_count = (standardized_data[col] == '').sum()
                         if empty_string_count > 0:
                             issues.append(ValidationIssue(
                                 severity=ValidationSeverity.WARNING,
@@ -102,11 +152,11 @@ class SchemaValidator:
                             ))
                 
                 # Check for duplicate product-location-date combinations
-                if all(col in demand_data.columns for col in ['product_id', 'location_id', 'date']):
-                    duplicates = demand_data.duplicated(subset=['product_id', 'location_id', 'date']).sum()
+                if all(col in standardized_data.columns for col in ['product_id', 'location_id', 'date']):
+                    duplicates = standardized_data.duplicated(subset=['product_id', 'location_id', 'date']).sum()
                     if duplicates > 0:
                         # Get details about the duplicates
-                        duplicate_records = demand_data[demand_data.duplicated(subset=['product_id', 'location_id', 'date'], keep=False)]
+                        duplicate_records = standardized_data[standardized_data.duplicated(subset=['product_id', 'location_id', 'date'], keep=False)]
                         duplicate_groups = duplicate_records.groupby(['product_id', 'location_id', 'date']).size()
                         
                         issues.append(ValidationIssue(
@@ -124,12 +174,14 @@ class SchemaValidator:
             
             # Create summary
             summary = {
-                "total_records": len(demand_data),
-                "total_columns": len(demand_data.columns),
+                "total_records": len(standardized_data),
+                "total_columns": len(standardized_data.columns),
                 "required_columns_present": len(missing_cols) == 0,
                 "missing_columns": list(missing_cols) if missing_cols else [],
-                "has_date_column": 'date' in demand_data.columns,
-                "has_numeric_columns": all(col in demand_data.columns for col in ['demand', 'stock_level'])
+                "has_date_column": 'date' in standardized_data.columns,
+                "has_numeric_columns": all(col in standardized_data.columns for col in ['demand', 'stock_level']),
+                "standardized_records": len(standardized_data),
+                "original_records": len(demand_data) if demand_data is not None else 0
             }
             
         except Exception as e:

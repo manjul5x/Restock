@@ -63,32 +63,38 @@ class SafetyStockModels:
         
         errors_array = np.array(errors)
         
-        # Fit KDE using scipy.stats.gaussian_kde
-        kde = stats.gaussian_kde(errors_array)
-        
-        # Create a range of values to evaluate
-        min_error = min(errors)
-        max_error = max(errors)
-        
-        x_range = np.linspace(
-            min_error,
-            max_error,
-            1000
-        )
-        
-        # Calculate density
-        density = kde(x_range)
-        
-        # Calculate cumulative distribution function (CDF)
-        cdf = np.cumsum(density) * (x_range[1] - x_range[0])
-        cdf = cdf / cdf[-1]  # Normalize to 1
-        
-        # Use interpolation to find the exact value at the service level
-        safety_stock = np.interp(service_level, cdf, x_range)
-        
-        # Safety stock should be positive (to cover shortages)
-        # If the error distribution suggests negative safety stock, return 0
-        return max(0.0, safety_stock)
+        try:
+            # Fit KDE using scipy.stats.gaussian_kde
+            kde = stats.gaussian_kde(errors_array)
+            
+            # Create a range of values to evaluate
+            min_error = min(errors)
+            max_error = max(errors)
+            
+            x_range = np.linspace(
+                min_error,
+                max_error,
+                1000
+            )
+            
+            # Calculate density
+            density = kde(x_range)
+            
+            # Calculate cumulative distribution function (CDF)
+            cdf = np.cumsum(density) * (x_range[1] - x_range[0])
+            cdf = cdf / cdf[-1]  # Normalize to 1
+            
+            # Use interpolation to find the exact value at the service level
+            safety_stock = np.interp(service_level, cdf, x_range)
+            
+            # Safety stock should be positive (to cover shortages)
+            # If the error distribution suggests negative safety stock, return 0
+            return max(0.0, safety_stock)
+            
+        except np.linalg.LinAlgError:
+            # Fall back to normal distribution if KDE fails due to singular covariance matrix
+            # This happens when errors have very low variance or are nearly constant
+            return self._calculate_normal_safety_stock(errors, service_level)
     
     def _calculate_normal_safety_stock(
         self,
@@ -153,39 +159,45 @@ class SafetyStockModels:
         
         errors_array = np.array(errors)
         
-        # Fit KDE using scipy.stats.gaussian_kde
-        kde = stats.gaussian_kde(errors_array)
-        
-        # Create range for plotting
-        min_error = min(errors)
-        max_error = max(errors)
-        
-        x_range = np.linspace(
-            min_error,
-            max_error,
-            200
-        )
-        
-        # Calculate density
-        density = kde(x_range)
-        
-        # Create histogram data with actual counts (not density)
-        # Use more bins for better resolution
-        n_bins = int(np.ceil(1 + 3.322 * np.log10(len(errors))))
-        n_bins = max(10, min(30, n_bins))  # Between 10 and 30 bins for more detail
-        
-        hist, bin_edges = np.histogram(errors, bins=n_bins, density=False)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        
-        return {
-            'x': x_range.tolist(),
-            'y': density.tolist(),
-            'histogram': {
-                'x': bin_centers.tolist(),
-                'y': hist.tolist(),
-                'bin_edges': bin_edges.tolist()  # Add bin edges for gap-free plotting
+        try:
+            # Fit KDE using scipy.stats.gaussian_kde
+            kde = stats.gaussian_kde(errors_array)
+            
+            # Create range for plotting
+            min_error = min(errors)
+            max_error = max(errors)
+            
+            x_range = np.linspace(
+                min_error,
+                max_error,
+                200
+            )
+            
+            # Calculate density
+            density = kde(x_range)
+            
+            # Create histogram data with actual counts (not density)
+            # Use more bins for better resolution
+            n_bins = int(np.ceil(1 + 3.322 * np.log10(len(errors))))
+            n_bins = max(10, min(30, n_bins))  # Between 10 and 30 bins for more detail
+            
+            hist, bin_edges = np.histogram(errors, bins=n_bins, density=False)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            
+            return {
+                'x': x_range.tolist(),
+                'y': density.tolist(),
+                'histogram': {
+                    'x': bin_centers.tolist(),
+                    'y': hist.tolist(),
+                    'bin_edges': bin_edges.tolist()  # Add bin edges for gap-free plotting
+                }
             }
-        }
+            
+        except np.linalg.LinAlgError:
+            # Fall back to normal distribution if KDE fails due to singular covariance matrix
+            # This happens when errors have very low variance or are nearly constant
+            return self._get_normal_plot_data(errors)
     
     def _get_normal_plot_data(self, errors: List[float]) -> dict:
         """Get normal distribution plot data."""

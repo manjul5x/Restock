@@ -30,9 +30,15 @@ class DemandValidator:
         if len(dates) < 2:
             return 'd'  # Default to daily if insufficient data
         
-        # Ensure dates are date type (not datetime)
-        if not pd.api.types.is_object_dtype(dates) and not pd.api.types.is_datetime64_any_dtype(dates):
-            dates = pd.to_datetime(dates).dt.date
+        # Ensure dates are date type (not datetime) - dates should already be standardized
+        if pd.api.types.is_datetime64_any_dtype(dates):
+            dates = dates.dt.date
+        elif not pd.api.types.is_object_dtype(dates):
+            # Only convert if not already date objects
+            try:
+                dates = pd.to_datetime(dates).dt.date
+            except Exception:
+                return 'd'  # Default to daily if conversion fails
         
         # Sort dates
         sorted_dates = dates.sort_values().reset_index(drop=True)
@@ -89,14 +95,27 @@ class DemandValidator:
         # Generate expected date range
         expected_dates = self._generate_date_range(start_date, end_date, frequency)
         
-        # Find missing dates - convert actual dates to date objects for comparison
-        actual_dates_set = set(pd.to_datetime(sorted_dates).dt.date)
+        # Find missing dates - dates should already be date objects from standardization
+        actual_dates_set = set(sorted_dates)
         missing_dates = [date for date in expected_dates if date not in actual_dates_set]
         
         return missing_dates
     
-    def _generate_date_range(self, start_date: date, end_date: date, frequency: str) -> List[date]:
+    def _generate_date_range(self, start_date, end_date, frequency: str) -> List[date]:
         """Generate expected date range based on frequency"""
+        # Ensure both dates are date objects
+        if not isinstance(start_date, date):
+            try:
+                start_date = pd.to_datetime(start_date).date()
+            except:
+                return []
+        
+        if not isinstance(end_date, date):
+            try:
+                end_date = pd.to_datetime(end_date).date()
+            except:
+                return []
+        
         dates = []
         current_date = start_date
         

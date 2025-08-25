@@ -18,6 +18,36 @@ class CompletenessValidator:
     def __init__(self):
         self.demand_validator = DemandValidator()
     
+    def _standardize_data_types(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Standardize data types before validation.
+        Creates a working copy and ensures consistent types.
+        """
+        if df is None or len(df) == 0:
+            return df
+        
+        working_df = df.copy()
+        
+        # Standardize date column
+        if 'date' in working_df.columns:
+            try:
+                # Convert to datetime first, then to date for consistency
+                working_df['date'] = pd.to_datetime(working_df['date'], errors='coerce').dt.date
+                # Remove rows where date conversion failed
+                working_df = working_df.dropna(subset=['date'])
+            except Exception as e:
+                # If conversion fails completely, return empty DataFrame
+                print(f"Warning: Date conversion failed: {e}")
+                return pd.DataFrame()
+        
+        # Ensure string columns are strings
+        string_cols = ['product_id', 'location_id', 'product_category']
+        for col in string_cols:
+            if col in working_df.columns:
+                working_df[col] = working_df[col].astype(str)
+        
+        return working_df
+    
     def validate_completeness(
         self,
         demand_data: pd.DataFrame,
@@ -40,13 +70,32 @@ class CompletenessValidator:
         summary = {}
         
         try:
+            # Standardize data types BEFORE validation
+            standardized_demand = self._standardize_data_types(demand_data)
+            standardized_master = self._standardize_data_types(product_master_data)
+            
+            if len(standardized_demand) == 0:
+                issues.append(ValidationIssue(
+                    severity=ValidationSeverity.CRITICAL,
+                    category="completeness",
+                    message="Demand data is empty or cannot be standardized",
+                    details={"original_length": len(demand_data) if demand_data is not None else 0},
+                    affected_records=0
+                ))
+                return ValidationResult(
+                    is_valid=False,
+                    issues=issues,
+                    summary={"error": "Data standardization failed"},
+                    execution_time=time.time() - start_time
+                )
+            
             # Convert frequency format
             frequency_map = {'d': 'daily', 'w': 'weekly', 'm': 'monthly'}
             validation_frequency = frequency_map.get(demand_frequency, 'daily')
             
             # Use existing demand validator for completeness check
             completeness_result = self.demand_validator.validate_demand_completeness_with_data(
-                demand_data, product_master_data, validation_frequency
+                standardized_demand, standardized_master, validation_frequency
             )
             
             # Process completeness issues
@@ -102,9 +151,9 @@ class CompletenessValidator:
                         affected_records=freq_info['dates_count']
                     ))
             
-            # Additional completeness checks
-            self._check_data_gaps(demand_data, product_master_data, issues)
-            self._check_date_continuity(demand_data, product_master_data, issues)
+            # Additional completeness checks using standardized data
+            self._check_data_gaps(standardized_demand, standardized_master, issues)
+            self._check_date_continuity(standardized_demand, standardized_master, issues)
             
             # Create summary
             summary = {
@@ -116,7 +165,8 @@ class CompletenessValidator:
                 "valid_percentage": completeness_result.get('valid_percentage', 0),
                 "invalid_percentage": completeness_result.get('invalid_percentage', 0),
                 "expected_frequency": demand_frequency,
-                "validation_frequency": validation_frequency
+                "validation_frequency": validation_frequency,
+                "standardized_records": len(standardized_demand)
             }
             
         except Exception as e:
@@ -149,10 +199,7 @@ class CompletenessValidator:
         if len(demand_data) == 0:
             return
         
-        # Convert date column to date type
-        demand_data = demand_data.copy()
-        demand_data.loc[:, 'date'] = pd.to_datetime(demand_data['date']).dt.date
-        
+        # Data is already standardized, no need to convert again
         # Check for gaps by product-location
         for _, master_record in product_master_data.iterrows():
             product_id = master_record['product_id']
@@ -170,7 +217,7 @@ class CompletenessValidator:
             # Sort by date
             product_demand = product_demand.sort_values('date')
             
-            # Calculate gaps using date arithmetic
+            # Calculate gaps using date arithmetic (dates are already standardized)
             date_diffs = []
             for i in range(1, len(product_demand)):
                 diff = (product_demand['date'].iloc[i] - product_demand['date'].iloc[i-1]).days
@@ -212,14 +259,11 @@ class CompletenessValidator:
         if len(demand_data) == 0:
             return
         
-        # Convert date column to date type
-        demand_data = demand_data.copy()
-        demand_data.loc[:, 'date'] = pd.to_datetime(demand_data['date']).dt.date
-        
+        # Data is already standardized, no need to convert again
         # Check for future dates
         today = pd.Timestamp.now().date()
         
-        # Filter for future dates using date comparison
+        # Filter for future dates using date comparison (dates are already date objects)
         future_dates = demand_data[demand_data['date'] > today]
         
         if len(future_dates) > 0:
