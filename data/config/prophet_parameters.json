@@ -1,8 +1,85 @@
 {
-  "('BPRN', 'WB')": {
+  "('RT-1100RFS', 'Augusta')": {
     "regressors": {
+      "rp_lag": {
+        "prior_scale": 6,
+        "standardize": "auto",
+        "mode": "additive"
+      }
+    },
+    "yearly_seasonality": true,
+    "weekly_seasonality": true,
+    "daily_seasonality": false,
+    "seasonality_mode": "additive",
+    "seasonality_prior_scale": 10,
+    "custom_seasonalities": {
+      "160_day": {
+        "period": 160,
+        "fourier_order": 4,
+        "mode": "additive",
+        "prior_scale": 8
+      }
+    },
+    "growth": "linear",
+    "growth_floor": 0,
+    "growth_ceiling": null,
+    "n_changepoints": 5,
+    "changepoint_range": 0.8,
+    "changepoint_prior_scale": 0.05
+  },
+  "('RT-APPLEHWP18', 'Augusta')": {
+    "cross_validation": false,
+    "regressors": {
+      "half_rp_lag": {
+        "prior_scale": 7,
+        "standardize": "auto",
+        "mode": "additive"
+      },
       "season": {
-        "prior_scale": 3,
+        "prior_scale": 5,
+        "standardize": "auto",
+        "mode": "additive"
+      },
+      "season2": {
+        "prior_scale": 5,
+        "standardize": "auto",
+        "mode": "additive"
+      }
+    },
+    "yearly_seasonality": false,
+    "weekly_seasonality": true,
+    "daily_seasonality": false,
+    "seasonality_mode": "additive",
+    "seasonality_prior_scale": 10,
+    "custom_seasonalities": {
+      "6_month": {
+        "period": 180,
+        "fourier_order": 7,
+        "mode": "additive",
+        "prior_scale": 10
+      }
+    },
+    "growth": "linear",
+    "growth_floor": 0,
+    "growth_ceiling": null,
+    "n_changepoints": 5,
+    "changepoint_range": 0.8,
+    "changepoint_prior_scale": 0.05
+  },
+  "('AC-DF1200FS', 'Augusta')": {
+    "regressors": {
+      "half_rp_lag": {
+        "prior_scale": 10,
+        "standardize": "false",
+        "mode": "additive"
+      },
+      "season": {
+        "prior_scale": 10,
+        "standardize": "auto",
+        "mode": "additive"
+      },
+      "season2": {
+        "prior_scale": 10,
         "standardize": "auto",
         "mode": "additive"
       }
@@ -18,10 +95,5 @@
     "n_changepoints": 5,
     "changepoint_range": 0.8,
     "changepoint_prior_scale": 0.05
-  },
-  "('BPRP', 'WB')": {},
-  "('BPRQ', 'WB')": {},
-  "('BPWN', 'WB')": {},
-  "('BPWP', 'WB')": {},
-  "('BPWQ', 'WB')": {}
+  }
 }

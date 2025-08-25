@@ -58,8 +58,18 @@ season:
   enabled: true
   function_name: "compute_in_season"
   parameters:
-    season_start: "09-01"      # MM-DD
-    season_end: "12-31"        # MM-DD
+    season_start: "10-01"      # MM-DD
+    season_end: "10-31"        # MM-DD
+
+# Season regressor (binary flag for season window)
+season2:
+  column_name: "season2"
+  description: "Binary flag indicating if risk period midpoint falls within season window"
+  enabled: true
+  function_name: "compute_in_season"
+  parameters:
+    season_start: "03-01"      # MM-DD
+    season_end: "03-31"        # MM-DD
 
 # Week of month regressor (one-hot encoding)
 week_of_month:
