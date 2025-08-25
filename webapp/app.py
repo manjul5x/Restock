@@ -233,13 +233,13 @@ def safety_stocks():
             )
 
         # Get available filter options
-        products = sorted(safety_stock_data["product_id"].unique().tolist())
-        locations = sorted(safety_stock_data["location_id"].unique().tolist())
+        products = sorted(safety_stock_data["product_id"].dropna().unique().tolist())
+        locations = sorted(safety_stock_data["location_id"].dropna().unique().tolist())
         review_dates = sorted(
-            safety_stock_data["review_date"].dt.strftime("%Y-%m-%d").unique().tolist()
+            safety_stock_data["review_date"].dt.strftime("%Y-%m-%d").dropna().unique().tolist()
         )
         forecast_methods = sorted(
-            safety_stock_data["forecast_method"].unique().tolist()
+            safety_stock_data["forecast_method"].dropna().unique().tolist()
         )
 
         # Set default filter options
@@ -285,12 +285,12 @@ def forecast_visualization():
             )
 
         # Get available filter options
-        products = sorted(forecast_data["product_id"].unique().tolist())
-        locations = sorted(forecast_data["location_id"].unique().tolist())
+        products = sorted(forecast_data["product_id"].dropna().unique().tolist())
+        locations = sorted(forecast_data["location_id"].dropna().unique().tolist())
         analysis_dates = sorted(
-            forecast_data["analysis_date"].dt.strftime("%Y-%m-%d").unique().tolist()
+            forecast_data["analysis_date"].dt.strftime("%Y-%m-%d").dropna().unique().tolist()
         )
-        forecast_methods = sorted(forecast_data["forecast_method"].unique().tolist())
+        forecast_methods = sorted(forecast_data["forecast_method"].dropna().unique().tolist())
 
         # Set default filter options
         default_product = products[0] if products else ""
@@ -336,9 +336,9 @@ def simulation_visualization():
             )
 
         # Get unique products and locations for filter dropdowns
-        products = sorted(simulation_data["product_id"].unique().tolist())
-        locations = sorted(simulation_data["location_id"].unique().tolist())
-        forecast_methods = sorted(simulation_data["forecast_method"].unique().tolist())
+        products = sorted(simulation_data["product_id"].dropna().unique().tolist())
+        locations = sorted(simulation_data["location_id"].dropna().unique().tolist())
+        forecast_methods = sorted(simulation_data["forecast_method"].dropna().unique().tolist())
 
         # Set default filter options
         default_product = products[0] if products else ""
@@ -385,9 +385,9 @@ def inventory_comparison():
         summary_data = pd.read_csv(summary_path)
 
         # Get available filter options
-        products = sorted(summary_data["product_id"].unique().tolist())
-        locations = sorted(summary_data["location_id"].unique().tolist())
-        forecast_methods = sorted(summary_data["forecast_method"].unique().tolist())
+        products = sorted(summary_data["product_id"].dropna().unique().tolist())
+        locations = sorted(summary_data["location_id"].dropna().unique().tolist())
+        forecast_methods = sorted(summary_data["forecast_method"].dropna().unique().tolist())
 
         return render_template(
             "inventory_comparison.html",
@@ -1112,6 +1112,42 @@ def get_simulation_plot():
                 color="#d62728",
             )
 
+            # Plot FRSP (purple dashed line)
+            ax.plot(
+                group["date"],
+                group["FRSP"],
+                label="FRSP (Forecast over Risk Period)",
+                linewidth=2,
+                alpha=0.7,
+                linestyle="--",
+                color="#9467bd",
+            )
+
+            # Plot net stock (green line)
+            ax.plot(
+                group["date"],
+                group["net_stock"],
+                label="Net Stock Position",
+                linewidth=2,
+                alpha=0.7,
+                color="#2ca02c",
+            )
+
+            # Plot incoming inventory (gold stars)
+            incoming_dates = group[group["incoming_inventory"] > 0]["date"]
+            incoming_values = group[group["incoming_inventory"] > 0]["incoming_inventory"]
+            if not incoming_dates.empty:
+                ax.scatter(
+                    incoming_dates,
+                    incoming_values,
+                    marker="*",
+                    s=200,  # Size of the stars
+                    alpha=0.8,
+                    label="Incoming Inventory",
+                    color="#daa520",  # Golden color
+                    zorder=5  # Ensure stars are drawn on top
+                )
+
             # Plot actual inventory as shaded area (light blue)
             ax.fill_between(
                 group["date"],
@@ -1140,6 +1176,18 @@ def get_simulation_plot():
         ax.set_ylabel("Quantity", fontsize=14, fontweight="bold")
         ax.grid(True, alpha=0.4, linestyle="-", linewidth=0.5)
         ax.legend(loc="upper right", fontsize=10)
+
+        # Add vertical line for first order arrival (simulation start + lead time)
+        if len(combined_data) > 0:
+            first_date = pd.to_datetime(combined_data['date'].min())
+            # Get lead time from the first group (assuming same lead time for all)
+            first_group = list(combined_data.groupby(['product_id', 'location_id', 'forecast_method']))[0][1]
+            leadtime = first_group['leadtime'].iloc[0] if 'leadtime' in first_group.columns else 0
+            
+            if leadtime > 0:
+                arrival_date = first_date + pd.Timedelta(days=leadtime)
+                ax.axvline(x=arrival_date, color='grey', linestyle='--', alpha=0.5, linewidth=2, 
+                          label=f'First Order Arrival (Lead Time: {leadtime} days)')
 
         # Rotate x-axis labels for better readability
         plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
@@ -1368,7 +1416,7 @@ def parameter_optimization():
         holiday_data = loader.load_holiday_data()
         
         # Get unique holidays for display
-        unique_holidays = holiday_data['holiday'].unique().tolist() if not holiday_data.empty else []
+        unique_holidays = holiday_data['holiday'].dropna().unique().tolist() if not holiday_data.empty else []
         
         return render_template(
             "parameter_optimization.html",
@@ -1406,6 +1454,30 @@ def run_forecast():
         
         if not all([product_id, location_id, start_date, end_date]):
             return jsonify({"success": False, "error": "Missing required parameters"})
+        
+        # Add risk_period_days to configuration from product master
+        try:
+            from forecaster.validation.product_master_schema import ProductMasterSchema
+            
+            # Load product master to get risk_period and demand_frequency
+            product_master = loader.load_product_master()
+            product_record = product_master[
+                (product_master['product_id'] == product_id) & 
+                (product_master['location_id'] == location_id)
+            ].iloc[0].to_dict()
+            
+            # Calculate risk_period_days
+            risk_period_days = ProductMasterSchema.get_risk_period_days(
+                product_record.get('demand_frequency'),
+                product_record.get('risk_period')
+            )
+            
+            # Add to configuration
+            configuration['risk_period_days'] = risk_period_days
+            
+        except Exception as e:
+            print(f"Warning: Could not add risk_period_days to configuration: {e}")
+            # Continue without risk_period_days if there's an error
         
         # Create optimization task and execute forecast
         result = execute_optimization_forecast(
@@ -1513,7 +1585,7 @@ def create_optimization_task(product_id: str, location_id: str, start_date: str,
         # Convert date column to datetime
         product_data['date'] = pd.to_datetime(product_data['date'])
         
-        # Sort by date and get the second-to-last analysis date
+        # Sort by date
         product_data = product_data.sort_values('date')
         if len(product_data) < 25:
             raise ValueError(f"Insufficient data for {product_id} at {location_id}")
@@ -1554,7 +1626,7 @@ def execute_optimization_forecast(product_id: str, location_id: str, start_date:
         configuration: Custom Prophet configuration
         
     Returns:
-        Dictionary with forecast results and components
+        Dictionary with forecast results and components, including historical context
     """
     try:
         # Create optimization task
@@ -1583,20 +1655,72 @@ def execute_optimization_forecast(product_id: str, location_id: str, start_date:
             raise RuntimeError("Forecasting failed in process_product_task")
         _, plotting_data = result  # We only need the plotting data (components_df)
         
-        # Prepare results for JSON response
-        # plotting_data contains all the data we need for visualization
+        # Create historical data from product_data before the start date
+        historical_data = task['product_data'].copy()
+        historical_data = historical_data[historical_data['date'] < start_dt].copy()
+        
+        # Prepare historical data for plotting (similar structure to forecast data)
+        if not historical_data.empty:
+            # Sort by date to ensure chronological order
+            historical_data = historical_data.sort_values('date')
+            
+            # Create historical DataFrame with the same structure as plotting_data
+            historical_df = pd.DataFrame()
+            
+            # Add the date column (ds) and actual demand (y)
+            historical_df['ds'] = historical_data['date'].dt.strftime('%Y-%m-%d')
+            historical_df['y'] = historical_data['outflow']
+            
+            # Add all other columns from plotting_data with NaN values
+            for col in plotting_data.columns:
+                if col not in ['ds', 'y']:
+                    historical_df[col] = np.nan
+            
+            # Ensure column order matches plotting_data
+            historical_df = historical_df[plotting_data.columns]
+            
+            # Combine historical and forecast data
+            combined_data = pd.concat([historical_df, plotting_data], ignore_index=True)
+            
+            # Sort by date to ensure chronological order
+            combined_data['ds'] = pd.to_datetime(combined_data['ds'])
+            combined_data = combined_data.sort_values('ds').reset_index(drop=True)
+            
+            # Convert back to string format for JSON serialization
+            combined_data['ds'] = combined_data['ds'].dt.strftime('%Y-%m-%d')
+        else:
+            # No historical data available, just use forecast data
+            combined_data = plotting_data.copy()
+        
         # Replace NaN values with None (null in JSON) before conversion
-        plotting_data_clean = plotting_data.replace({np.nan: None})
+        combined_data_clean = combined_data.replace({np.nan: None})
         
         results = {
             'success': True,
-            'plotting_data': plotting_data_clean.to_dict('records'),  # DataFrame needs conversion
+            'plotting_data': combined_data_clean.to_dict('records'),
             'analysis_date': task['analysis_dates'][0],  # Already a string, no need for isoformat()
             'date_range': {
                 'start': start_date,
                 'end': end_date
+            },
+            'historical_context': {
+                'has_historical_data': len(historical_data) > 0,
+                'historical_data_points': len(historical_data),
+                'historical_start_date': historical_data['date'].min().strftime('%Y-%m-%d') if not historical_data.empty else None,
+                'historical_end_date': historical_data['date'].max().strftime('%Y-%m-%d') if not historical_data.empty else None
+            },
+            'risk_period_info': {
+                'risk_period_days': configuration.get('risk_period_days'),
+                'forecast_start_date': start_date,
+                'context_boundary_date': (pd.to_datetime(start_date) - pd.Timedelta(days=configuration.get('risk_period_days', 0))).strftime('%Y-%m-%d') if configuration.get('risk_period_days') else None
             }
         }
+        
+        # Debug logging
+        print(f"Risk period days: {configuration.get('risk_period_days')}")
+        print(f"Forecast start date: {start_date}")
+        print(f"Context boundary date: {(pd.to_datetime(start_date) - pd.Timedelta(days=configuration.get('risk_period_days', 0))).strftime('%Y-%m-%d') if configuration.get('risk_period_days') else None}")
+        print(f"Risk period info: {results['risk_period_info']}")
         
         return results
         
@@ -1640,7 +1764,7 @@ def get_available_date_range(product_id: str, location_id: str) -> dict:
         location_id: Location identifier
         
     Returns:
-        Dictionary with start_date and end_date (25th date to second-to-last date)
+        Dictionary with start_date and end_date (risk period after min non-NA date to last date with non-NA outflow)
     """
     try:
         # Load input data with regressors
@@ -1661,12 +1785,38 @@ def get_available_date_range(product_id: str, location_id: str) -> dict:
         # Sort by date
         product_data = product_data.sort_values('date')
         
-        if len(product_data) < 25:
-            raise ValueError(f"Insufficient data for {product_id} at {location_id}. Need at least 25 data points.")
+        # Find the first date with positive outflow
+        positive_outflow_data = product_data[product_data['outflow'] > 0]
+        if positive_outflow_data.empty:
+            raise ValueError(f"No positive outflow data found for {product_id} at {location_id}")
         
-        # Get 25th date (index 24) and second-to-last date
-        start_date = product_data.iloc[24]['date']  # 25th date (0-indexed)
-        end_date = product_data.iloc[-2]['date']    # Second-to-last date
+        # Calculate start date: first date with positive outflow
+        start_date = positive_outflow_data.iloc[0]['date']
+
+        # Calculate risk period in days
+        from forecaster.validation.product_master_schema import ProductMasterSchema
+        product_master = loader.load_product_master()
+        product_record = product_master[
+            (product_master['product_id'] == product_id) & 
+            (product_master['location_id'] == location_id)
+        ].iloc[0].to_dict()
+        
+        risk_period_days = ProductMasterSchema.get_risk_period_days(
+            product_record.get('demand_frequency'),
+            product_record.get('risk_period')
+        )
+        
+        # Find the last date with non-NA outflow
+        non_na_outflow_data = product_data[product_data['outflow'].notna()]
+        if non_na_outflow_data.empty:
+            raise ValueError(f"No non-NA outflow data found for {product_id} at {location_id}")
+        end_date = non_na_outflow_data.iloc[-1]['date']  # Last date with non-NA outflow
+        
+        start_date = start_date + pd.Timedelta(days=risk_period_days+1)
+        
+        # Ensure start date is before end date and we have enough data points
+        if start_date >= end_date:
+            raise ValueError(f"Insufficient positive outflow data for {product_id} at {location_id}. Need data points between {start_date} and {end_date}")
         
         return {
             'success': True,
@@ -1717,8 +1867,12 @@ def update_main_configuration(product_id: str, location_id: str, configuration: 
         print(f"Updating configuration for key: {key}")
         print(f"Configuration to save: {configuration}")
         
+        # Remove cross_validation parameter before saving
+        save_config = configuration.copy()
+        save_config.pop('cross_validation', None)  # Remove if exists, ignore if doesn't
+        
         # Update configuration for this product-location
-        all_configs[key] = configuration
+        all_configs[key] = save_config
         
         # Save updated configuration
         print(f"Saving configuration to: {config_path}")
@@ -2026,29 +2180,9 @@ def get_demand_analysis_plot():
             first_risk_forecasts["analysis_date"]
         )
         
-        # Determine simulation date range from the simulation data
-        simulation_start_date = None
-        simulation_end_date = None
-        
-        for file_path in detailed_dir.glob("*_simulation.csv"):
-            try:
-                data = pd.read_csv(file_path)
-                data["date"] = pd.to_datetime(data["date"])
-                if simulation_start_date is None or data["date"].min() < simulation_start_date:
-                    simulation_start_date = data["date"].min()
-                if simulation_end_date is None or data["date"].max() > simulation_end_date:
-                    simulation_end_date = data["date"].max()
-            except Exception as e:
-                print(f"Error reading {file_path}: {e}")
-                continue
-        
-        # Filter forecast data to only include data within the simulation period
-        if simulation_start_date and simulation_end_date:
-            first_risk_forecasts = first_risk_forecasts[
-                (first_risk_forecasts["analysis_date"] >= simulation_start_date) &
-                (first_risk_forecasts["analysis_date"] <= simulation_end_date)
-            ]
-            print(f"Filtered forecast data to simulation period: {simulation_start_date} to {simulation_end_date}")
+        # Note: We no longer filter forecast data to simulation period
+        # This allows the demand analysis plot to show all available data
+        print("Demand analysis plot will show all available forecast data")
 
         # Find matching simulation files
         all_simulation_data = []
@@ -2167,9 +2301,7 @@ def get_demand_analysis_plot():
                 )
 
         # Customize the plot
-        title = "Demand Analysis: Actual vs Forecasted vs Orders"
-        if simulation_start_date and simulation_end_date:
-            title += f"\nSimulation Period: {simulation_start_date.strftime('%Y-%m-%d')} to {simulation_end_date.strftime('%Y-%m-%d')}"
+        title = "Demand Analysis: Actual vs Forecasted vs Orders (All Available Data)"
         
         ax.set_title(
             title,

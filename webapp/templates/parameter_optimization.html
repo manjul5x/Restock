@@ -96,6 +96,67 @@
         padding: 0.75rem;
         margin-bottom: 1rem;
     }
+    
+    /* Searchable dropdown styling */
+    .searchable-input {
+        position: relative;
+    }
+    
+    .searchable-input input[list] {
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .searchable-input input[list]:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        transform: translateY(-1px);
+    }
+    
+    .searchable-input input[list]:disabled {
+        background-color: #e9ecef;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    .searchable-input input[list]:disabled::placeholder {
+        color: #6c757d;
+    }
+    
+    .searchable-input input[list]:hover:not(:disabled) {
+        border-color: #86b7fe;
+    }
+    
+    /* Add a subtle arrow indicator for the datalist */
+    .searchable-input::after {
+        content: '▼';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        pointer-events: none;
+        font-size: 12px;
+        transition: color 0.2s ease-in-out;
+    }
+    
+    .searchable-input input[list]:focus + ::after {
+        color: #0d6efd;
+    }
+    
+    .searchable-input input[list]:disabled + ::after {
+        color: #adb5bd;
+    }
+    
+    .form-check-input {
+        margin-right: 0.5rem;
+    }
+    
+    .form-check-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0;
+    }
 </style>
 {% endblock %}
 
@@ -133,21 +194,24 @@
                 <div class="row">
                     <div class="col-md-6">
                         <label for="productSelect" class="form-label">Product</label>
-                        <select class="form-select" id="productSelect" required>
-                            <option value="">Select a product...</option>
-                            {% for product in product_locations %}
-                            <option value="{{ product.product_id }}">{{ product.product_id }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="searchable-input">
+                            <input class="form-control" list="productList" id="productSelect" placeholder="Type to search or select a product..." required>
+                            <datalist id="productList">
+                                <option value="">Select a product...</option>
+                                {% for product in product_locations | sort(attribute='product_id') %}
+                                <option value="{{ product.product_id }}">{{ product.product_id }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label for="locationSelect" class="form-label">Location</label>
-                        <select class="form-select" id="locationSelect" required>
-                            <option value="">Select a location...</option>
-                            {% for product in product_locations %}
-                            <option value="{{ product.location_id }}">{{ product.location_id }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="searchable-input">
+                            <input class="form-control" list="locationList" id="locationSelect" placeholder="Type to search or select a location..." required disabled>
+                            <datalist id="locationList">
+                                <option value="">Select a location...</option>
+                            </datalist>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -388,6 +452,14 @@
 <!-- Action Buttons -->
 <div class="row mt-4">
     <div class="col-12 text-center">
+        <!-- Cross Validation Checkbox -->
+        <div class="form-check d-inline-block me-3">
+            <input class="form-check-input" type="checkbox" id="crossValidationCheckbox">
+            <label class="form-check-label" for="crossValidationCheckbox">
+                Cross Validation
+            </label>
+        </div>
+        
         <button type="button" class="btn btn-primary btn-lg me-3" id="runForecast">
             <i class="fas fa-play me-2"></i>
             Run Forecast
@@ -574,11 +646,17 @@
     
     function setupEventListeners() {
         // Product/Location selection
-        document.getElementById('productSelect').addEventListener('change', updateLocationOptions);
-        document.getElementById('locationSelect').addEventListener('change', function() {
+        document.getElementById('productSelect').addEventListener('input', function(e) {
+            updateLocationOptions();
+            filterProductOptions(e.target.value);
+        });
+        document.getElementById('productSelect').addEventListener('blur', validateProductInput);
+        document.getElementById('locationSelect').addEventListener('input', function(e) {
             updateDateRange();
             validateForm();
+            filterLocationOptions(e.target.value);
         });
+        document.getElementById('locationSelect').addEventListener('blur', validateLocationInput);
         
         // Date validation
         document.getElementById('startDate').addEventListener('change', validateDates);
@@ -599,27 +677,148 @@
     function updateLocationOptions() {
         const productSelect = document.getElementById('productSelect');
         const locationSelect = document.getElementById('locationSelect');
+        const locationList = document.getElementById('locationList');
         const selectedProduct = productSelect.value;
         
-        // Clear location options
-        locationSelect.innerHTML = '<option value="">Select a location...</option>';
+        // Clear location options and disable location select
+        locationList.innerHTML = '<option value="">Select a location...</option>';
+        locationSelect.value = '';
+        locationSelect.disabled = true;
         
         if (selectedProduct) {
-            // Filter locations for selected product
+            // Filter locations for selected product and sort alphabetically
             const productLocations = {{ product_locations | tojson }};
             const locations = productLocations
                 .filter(item => item.product_id === selectedProduct)
-                .map(item => item.location_id);
+                .map(item => item.location_id)
+                .sort();
             
+            // Populate location datalist
             locations.forEach(location => {
                 const option = document.createElement('option');
                 option.value = location;
                 option.textContent = location;
-                locationSelect.appendChild(option);
+                locationList.appendChild(option);
             });
+            
+            // Enable location select
+            locationSelect.disabled = false;
         }
         
         validateForm();
+    }
+    
+    function validateProductInput() {
+        const productSelect = document.getElementById('productSelect');
+        const productList = document.getElementById('productList');
+        const selectedProduct = productSelect.value;
+        
+        // Get all valid product options
+        const validProducts = Array.from(productList.options).map(option => option.value);
+        
+        if (selectedProduct && !validProducts.includes(selectedProduct)) {
+            // Invalid product entered
+            productSelect.classList.add('is-invalid');
+            showFieldError(productSelect, 'Please select a valid product from the list');
+            return false;
+        } else {
+            productSelect.classList.remove('is-invalid');
+            clearFieldError(productSelect);
+            return true;
+        }
+    }
+    
+    function validateLocationInput() {
+        const locationSelect = document.getElementById('locationSelect');
+        const locationList = document.getElementById('locationList');
+        const selectedLocation = locationSelect.value;
+        
+        // Get all valid location options
+        const validLocations = Array.from(locationList.options).map(option => option.value);
+        
+        if (selectedLocation && !validLocations.includes(selectedLocation)) {
+            // Invalid location entered
+            locationSelect.classList.add('is-invalid');
+            showFieldError(locationSelect, 'Please select a valid location from the list');
+            return false;
+        } else {
+            locationSelect.classList.remove('is-invalid');
+            clearFieldError(locationSelect);
+            return true;
+        }
+    }
+    
+    function filterProductOptions(searchTerm) {
+        const productList = document.getElementById('productList');
+        const productSelect = document.getElementById('productSelect');
+        
+        // Get all product options
+        const allProducts = {{ product_locations | tojson }};
+        const uniqueProducts = [...new Set(allProducts.map(item => item.product_id))].sort();
+        
+        // Clear current options
+        productList.innerHTML = '<option value="">Select a product...</option>';
+        
+        // If search term is empty, show all products
+        if (!searchTerm || searchTerm.trim() === '') {
+            uniqueProducts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product;
+                option.textContent = product;
+                productList.appendChild(option);
+            });
+            return;
+        }
+        
+        // Filter and add matching products
+        uniqueProducts.forEach(product => {
+            if (product.toLowerCase().includes(searchTerm.toLowerCase())) {
+                const option = document.createElement('option');
+                option.value = product;
+                option.textContent = product;
+                productList.appendChild(option);
+            }
+        });
+    }
+    
+    function filterLocationOptions(searchTerm) {
+        const locationList = document.getElementById('locationList');
+        const locationSelect = document.getElementById('locationSelect');
+        const productSelect = document.getElementById('productSelect');
+        const selectedProduct = productSelect.value;
+        
+        if (!selectedProduct) return;
+        
+        // Get locations for selected product
+        const productLocations = {{ product_locations | tojson }};
+        const locations = productLocations
+            .filter(item => item.product_id === selectedProduct)
+            .map(item => item.location_id)
+            .sort();
+        
+        // Clear current options
+        locationList.innerHTML = '<option value="">Select a location...</option>';
+        
+        // If search term is empty, show all locations for the selected product
+        if (!searchTerm || searchTerm.trim() === '') {
+            locations.forEach(location => {
+                const option = document.createElement('option');
+                option.value = location;
+                option.textContent = location;
+                locationList.appendChild(option);
+            });
+            return;
+        }
+        
+        // Filter and add matching locations
+        locations.forEach(location => {
+            if (location.toLowerCase().includes(searchTerm.toLowerCase())) {
+                const option = document.createElement('option');
+                option.value = location;
+                option.textContent = location;
+                locationList.appendChild(option);
+            }
+        });
     }
     
     function loadRegressors() {
@@ -648,7 +847,7 @@
                                 <div class="col-md-3">
                                     <div class="form-check">
                                         <input class="form-check-input regressor-checkbox" type="checkbox" 
-                                               id="regressor_${uniqueId}" value="${columnName}" checked>
+                                               id="regressor_${uniqueId}" value="${columnName}">
                                         <label class="form-check-label" for="regressor_${uniqueId}">
                                             <strong>${columnName}</strong>
                                             ${isFirstColumn ? `<br><small class="text-muted">${config.description || ''}</small>` : ''}
@@ -744,7 +943,7 @@
     
     function setDefaultDates() {
         // This will be set dynamically when product-location is selected
-        // based on the available data range (25th date to second-to-last date)
+        // based on the available data range (risk period after first outflow data to last date with outflow data)
         document.getElementById('startDate').value = '';
         document.getElementById('endDate').value = '';
     }
@@ -805,7 +1004,7 @@
             infoContainer.innerHTML = `
                 <small class="text-muted">
                     <i class="fas fa-info-circle me-1"></i>
-                    Available range: ${startDate} to ${endDate} (25th data point to second-to-last data point)
+                    Available range: ${startDate} to ${endDate} (risk period after first outflow data to last date with outflow data)
                 </small>
             `;
         }
@@ -823,11 +1022,21 @@
         if (!product) {
             showFieldError(document.getElementById('productSelect'), 'Please select a product');
             isValid = false;
+        } else {
+            // Validate product input
+            if (!validateProductInput()) {
+                isValid = false;
+            }
         }
         
         if (!location) {
             showFieldError(document.getElementById('locationSelect'), 'Please select a location');
             isValid = false;
+        } else {
+            // Validate location input
+            if (!validateLocationInput()) {
+                isValid = false;
+            }
         }
         
         if (!startDate) {
@@ -1002,6 +1211,9 @@
     function collectConfiguration() {
         const config = {};
         
+        // Cross Validation is included for running but will be removed before saving
+        config.cross_validation = document.getElementById('crossValidationCheckbox').checked;
+        
         // Regressors
         const enabledRegressors = {};
         document.querySelectorAll('.regressor-checkbox:checked').forEach(checkbox => {
@@ -1133,8 +1345,12 @@
             return;
         }
         
+        // Get configuration for running (includes cross validation)
         const configuration = collectConfiguration();
-        currentConfiguration = configuration;
+        // Get configuration for saving (excludes cross validation)
+        const saveConfiguration = {...configuration};
+        delete saveConfiguration.cross_validation;
+        currentConfiguration = saveConfiguration;
         
         const productId = document.getElementById('productSelect').value;
         const locationId = document.getElementById('locationSelect').value;
@@ -1201,11 +1417,13 @@
         const container = document.getElementById('resultsContainer');
         container.style.display = 'block';
         
+
+        
         // Display results summary
         displayResultsSummary(results);
         
         // Create forecast chart
-        createForecastChart(results.plotting_data);
+        createForecastChart(results.plotting_data, results);
         
 
         
@@ -1222,28 +1440,33 @@
         
         // Calculate summary statistics
         const totalPoints = plottingData.length;
+        const historicalData = plottingData.filter(d => d.y !== null && d.y !== undefined && (d.yhat === null || d.yhat === undefined));
+        const forecastData = plottingData.filter(d => d.yhat !== null && d.yhat !== undefined);
         const actualValues = plottingData.filter(d => d.y !== null && d.y !== undefined);
         const forecastValues = plottingData.filter(d => d.yhat !== null && d.yhat !== undefined);
         
         let avgError = 0;
         let avgAbsError = 0;
-        if (actualValues.length > 0) {
+        if (actualValues.length > 0 && forecastValues.length > 0) {
             const errors = plottingData
-                .filter(d => d.y !== null && d.yhat !== null)
+                .filter(d => d.y !== null && d.yhat !== null && d.yhat !== undefined)
                 .map(d => (d.y - d.yhat));
             
-            avgError = errors.reduce((sum, err) => sum + err, 0) / errors.length;
-            avgAbsError = errors.reduce((sum, err) => sum + Math.abs(err), 0) / errors.length;
+            if (errors.length > 0) {
+                avgError = errors.reduce((sum, err) => sum + err, 0) / errors.length;
+                avgAbsError = errors.reduce((sum, err) => sum + Math.abs(err), 0) / errors.length;
+            }
         }
         
         const dateRange = results.date_range || {};
+        const historicalContext = results.historical_context || {};
         
         summaryContainer.innerHTML = `
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="card bg-light">
                         <div class="card-body text-center">
-                            <h6 class="card-title">Date Range</h6>
+                            <h6 class="card-title">Forecast Range</h6>
                             <p class="card-text">
                                 <small class="text-muted">
                                     ${dateRange.start || 'N/A'} to ${dateRange.end || 'N/A'}
@@ -1252,18 +1475,29 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="card bg-light">
                         <div class="card-body text-center">
-                            <h6 class="card-title">Data Points</h6>
+                            <h6 class="card-title">Historical Data</h6>
                             <p class="card-text">
-                                <strong>${totalPoints}</strong>
-                                <small class="text-muted">forecast periods</small>
+                                <strong>${historicalData.length}</strong>
+                                <small class="text-muted">data points</small>
                             </p>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Forecast Data</h6>
+                            <p class="card-text">
+                                <strong>${forecastData.length}</strong>
+                                <small class="text-muted">data points</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <div class="card bg-light">
                         <div class="card-body text-center">
                             <h6 class="card-title">Avg Error</h6>
@@ -1274,7 +1508,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="card bg-light">
                         <div class="card-body text-center">
                             <h6 class="card-title">Avg Abs Error</h6>
@@ -1285,11 +1519,22 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Total Points</h6>
+                            <p class="card-text">
+                                <strong>${totalPoints}</strong>
+                                <small class="text-muted">total periods</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
     
-    function createForecastChart(forecastData) {
+    function createForecastChart(forecastData, results) {
         try {
             if (!forecastData || forecastData.length === 0) {
                 document.getElementById('forecastChart').innerHTML = '<p class="text-muted text-center">No forecast data available</p>';
@@ -1300,22 +1545,40 @@
             const dates = forecastData.map(d => new Date(d.ds).toISOString().split('T')[0]);
             
             // Filter out null/undefined values for cleaner visualization
-            const actualData = forecastData.filter(d => d.y !== null && d.y !== undefined);
+            const historicalData = forecastData.filter(d => d.y !== null && d.y !== undefined && (d.yhat === null || d.yhat === undefined));
+            const actualData = forecastData.filter(d => d.y !== null && d.y !== undefined && d.yhat !== null && d.yhat !== undefined);
             const forecastDataFiltered = forecastData.filter(d => d.yhat !== null && d.yhat !== undefined);
             
             const traces = [];
             
-            // Actual demand trace (only if we have actual data)
+            // Historical actual demand trace (if we have historical data)
+            if (historicalData.length > 0) {
+                traces.push({
+                    x: historicalData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: historicalData.map(d => d.y),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Historical Actual Demand',
+                    line: { color: '#2ca02c', width: 2 },
+                    marker: { size: 4, symbol: 'circle' },
+                    hovertemplate: '<b>Historical Actual Demand</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Value: %{y:.2f}<br>' +
+                                 '<extra></extra>'
+                });
+            }
+            
+            // Actual demand trace for forecast period (only if we have actual data)
             if (actualData.length > 0) {
                 traces.push({
                     x: actualData.map(d => new Date(d.ds).toISOString().split('T')[0]),
                     y: actualData.map(d => d.y),
                     type: 'scatter',
                     mode: 'lines+markers',
-                    name: 'Actual Demand',
+                    name: 'Actual Demand (Forecast Period)',
                     line: { color: '#1f77b4', width: 3 },
                     marker: { size: 6, symbol: 'circle' },
-                    hovertemplate: '<b>Actual Demand</b><br>' +
+                    hovertemplate: '<b>Actual Demand (Forecast Period)</b><br>' +
                                  'Date: %{x}<br>' +
                                  'Value: %{y:.2f}<br>' +
                                  '<extra></extra>'
@@ -1339,7 +1602,7 @@
                 });
             }
             
-            // Add error bars if we have both actual and forecast data
+            // Add error bars if we have both actual and forecast data (only for forecast period)
             const errorData = forecastData.filter(d => 
                 d.y !== null && d.y !== undefined &&
                 d.yhat !== null && d.yhat !== undefined
@@ -1362,12 +1625,70 @@
             }
             
             // Calculate optimal Y-axis ranges for better chart fitting
-            const allYValues = [...actualData.map(d => d.y), ...forecastDataFiltered.map(d => d.yhat)].filter(v => v !== null && v !== undefined);
+            const allYValues = [
+                ...historicalData.map(d => d.y), 
+                ...actualData.map(d => d.y), 
+                ...forecastDataFiltered.map(d => d.yhat)
+            ].filter(v => v !== null && v !== undefined);
             const allErrorValues = errorData.map(d => (d.y - d.yhat)).filter(v => v !== null && v !== undefined);
             
             const yMin = Math.min(...allYValues);
             const yMax = Math.max(...allYValues);
             const yPadding = (yMax - yMin) * 0.1; // 10% padding
+            
+            // Ensure we have a valid Y range for the vertical line
+            const finalYMin = yMin - yPadding;
+            const finalYMax = yMax + yPadding;
+            
+            // Add vertical line at context boundary (start_date - risk_period)
+            // Get the risk period info from the results
+            const riskPeriodInfo = results?.risk_period_info;
+            console.log('Risk period info:', riskPeriodInfo);
+            console.log('Results object:', results);
+            
+            if (riskPeriodInfo && riskPeriodInfo.context_boundary_date) {
+                console.log('Adding vertical line at:', riskPeriodInfo.context_boundary_date);
+                traces.push({
+                    x: [riskPeriodInfo.context_boundary_date, riskPeriodInfo.context_boundary_date],
+                    y: [finalYMin, finalYMax], // Use the calculated Y-axis range
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Context Boundary',
+                    line: { 
+                        color: '#2ca02c', 
+                        width: 2, 
+                        dash: 'dot'
+                    },
+                    showlegend: true,
+                    hovertemplate: '<b>Context Boundary</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Historical data ends here<br>' +
+                                 '<extra></extra>'
+                });
+                console.log('Vertical line trace added:', traces[traces.length - 1]);
+            } else if (riskPeriodInfo && riskPeriodInfo.forecast_start_date) {
+                // Fallback: if no context boundary, show line at forecast start date
+                console.log('Adding fallback vertical line at forecast start date:', riskPeriodInfo.forecast_start_date);
+                traces.push({
+                    x: [riskPeriodInfo.forecast_start_date, riskPeriodInfo.forecast_start_date],
+                    y: [finalYMin, finalYMax],
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Forecast Start',
+                    line: { 
+                        color: '#2ca02c', 
+                        width: 2, 
+                        dash: 'dot'
+                    },
+                    showlegend: true,
+                    hovertemplate: '<b>Forecast Start</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Forecast period begins here<br>' +
+                                 '<extra></extra>'
+                });
+            } else {
+                console.log('No risk period info or context boundary date available');
+            }
             
             const errorMin = Math.min(...allErrorValues);
             const errorMax = Math.max(...allErrorValues);
@@ -1379,10 +1700,21 @@
             
             const layout = {
                 title: {
-                    text: 'Actual vs Forecasted Demand',
+                    text: 'Historical Context & Forecast Results',
                     font: { size: 18, color: '#2c3e50' },
                     x: 0.5
                 },
+                annotations: [
+                    {
+                        text: `Historical: ${historicalData.length > 0 ? historicalData.length + ' data points' : 'None'} | Forecast: ${forecastDataFiltered.length} periods`,
+                        showarrow: false,
+                        xref: 'paper',
+                        yref: 'paper',
+                        x: 0.5,
+                        y: -0.15,
+                        font: { size: 12, color: '#666' }
+                    }
+                ],
                 xaxis: { 
                     title: { text: 'Date', font: { size: 14 } },
                     showgrid: true,
@@ -1399,7 +1731,7 @@
                     showgrid: true,
                     gridcolor: '#ecf0f1',
                     gridwidth: 1,
-                    range: [yMin - yPadding, yMax + yPadding],
+                    range: [finalYMin, finalYMax],
                     rangemode: 'tozero'
                 },
                 yaxis2: {
