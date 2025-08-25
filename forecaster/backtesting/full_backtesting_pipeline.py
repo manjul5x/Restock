@@ -444,10 +444,35 @@ class FullBacktestingPipeline:
                 product_record.get('demand_frequency'),
                 product_record.get('risk_period')
             )
-            forecast_window_days = product_record.get('forecast_window_length')
-            horizon_days = product_record.get('forecast_horizon')
-            
 
+            # Handle forecast window length - support both dictionary and single value
+            forecast_window_length_value = product_record.get('forecast_window_length')
+
+            if isinstance(forecast_window_length_value, dict):
+                # Dictionary format: {'moving_average': 150, 'prophet': 300}
+                forecast_window_days = forecast_window_length_value.get(forecast_method)
+                # print(forecast_window_days)
+                if forecast_window_days is None:
+                    # Fallback to first available value if method not found
+                    raise ValueError(f"No forecast window length found for method '{forecast_method}'" \
+                        f"{product_record.get('product_id')} " \
+                        f"{product_record.get('location_id')}")
+            elif forecast_window_length_value is not None:
+                # Single value format (backward compatibility)
+                forecast_window_days = forecast_window_length_value
+            
+            horizon_days = product_record.get('forecast_horizon')
+
+            # Find the first date in the training data where outflow > 0
+            first_positive_date = product_data[product_data['outflow'] > 0]['date'].min()
+            window_start = first_positive_date
+            window_end = first_positive_date + pd.Timedelta(days=risk_period_days)
+            mask_window = (product_data['date'] >= window_start) & (product_data['date'] <= window_end)
+            masking_outflow = product_data.loc[mask_window, 'outflow'].mean()
+
+            # Assign all outflow before that date to that outflow value
+            mask = product_data['date'] < first_positive_date
+            product_data.loc[mask, 'outflow'] = masking_outflow
             
             # Process each analysis date
             for analysis_date in analysis_dates:
@@ -455,17 +480,29 @@ class FullBacktestingPipeline:
                 analysis_datetime = pd.Timestamp(analysis_date)
                 
                 # Compute cutoff dates
+                # Important: dropping the initial data until the first demand point. 
                 cutoff_date = analysis_datetime - pd.Timedelta(days=risk_period_days)
                 window_cutoff = max(
-                    product_data['date'].min(),
-                    analysis_datetime - pd.Timedelta(days=forecast_window_days)
+                        product_data['date'].min(),
+                        analysis_datetime - pd.Timedelta(days=forecast_window_days)
                 )
                 
+                if pd.to_datetime(window_cutoff) >= pd.to_datetime(analysis_datetime):
+                    continue
+
                 # Filter training data
-                training_data = product_data[
-                    (product_data['date'] <= cutoff_date) & 
-                    (product_data['date'] >= window_cutoff)
-                ].copy()
+
+                if configuration is not None and configuration.get('cross_validation'):
+                    # the cross validation handles the cutiff dates, needs all the data  in train
+                    # training_data = product_data[
+                    #     (product_data['date'] >= window_cutoff)
+                    # ].copy()
+                    training_data = product_data.copy()
+                else:
+                    training_data = product_data[
+                        (product_data['date'] <= cutoff_date) & 
+                        (product_data['date'] >= window_cutoff)
+                    ].copy()
                 
                 # Drop identifier columns, keep outflow and regressors
                 training_data = training_data.drop(['product_id', 'location_id'], axis=1, errors='ignore')
@@ -509,11 +546,11 @@ class FullBacktestingPipeline:
                     print(f"Forecast generation failed for {product_record.get('product_id')}_{product_record.get('location_id')} on {analysis_date} with method {forecast_method}: {e}")
                     continue
             
-            print(components_df.columns)
             return forecast_comparisons, components_df
             
         except Exception as e:
             # Log error but don't crash the worker
+            print(e)
             return None
     
     def _check_and_flush_buffers(self):
