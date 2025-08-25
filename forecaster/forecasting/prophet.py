@@ -26,6 +26,7 @@ from data.loader import DataLoader
 logger = logging.getLogger(__name__)
 try:
     from prophet import Prophet
+    from prophet.diagnostics import cross_validation
 except ImportError:
     Prophet = None
     warnings.warn("Prophet library not available. Please install prophet package.")
@@ -283,6 +284,8 @@ class ProphetModel(BaseForecastingModel):
             seasonality_mode=self.config.get('seasonality_mode', 'additive'),
             seasonality_prior_scale=self.config.get('seasonality_prior_scale', 10.0)
         )
+
+        model.interval_width = 0.2
         
         # Set growth floor/ceiling for logistic growth
         if growth == 'logistic':
@@ -414,12 +417,16 @@ class ProphetModel(BaseForecastingModel):
         #fall back to moving average if we don't have enough data
         self.using_fallback = False
         if len(train_df) < 25:
+            print('falling_back')
             logger.debug(f"Insufficient training data for Prophet ({len(train_df)} periods) for {self.product_id} at {self.location_id}. Falling back to Moving Average.")
             self.fallback_average = train_df['y'].mean()
             self.using_fallback = True
             return
 
         # Fit the model
+        # save the train data to a csv
+        train_df.to_csv(f'{self.product_id}_{self.location_id}_train_data.csv', index=False)
+
         self.model.fit(train_df)
     
     def _predict_model(self, future_df: pd.DataFrame) -> pd.DataFrame:
@@ -432,6 +439,7 @@ class ProphetModel(BaseForecastingModel):
         Returns:
             DataFrame with full Prophet output including components
         """
+
         # Ensure we have the required columns
         if 'ds' not in future_df.columns:
             raise ValueError("Future data must contain 'ds' column")
@@ -443,5 +451,31 @@ class ProphetModel(BaseForecastingModel):
         
         # Generate predictions with full components
         predictions_df = self.model.predict(future_df)
+
+        if self.config.get('cross_validation'):
+        
+            cutoffs = future_df['ds'].values - pd.Timedelta(days=self.config.get('risk_period_days'))
+            print(self.model.history['ds'].min(), self.model.history['ds'].max())
+            print(cutoffs.min(), cutoffs.max())
+            horizon = f"{self.config.get('risk_period_days')} days"
+
+            try:
+                df_cv = cross_validation(
+                    model=self.model,
+                    cutoffs=cutoffs,
+                    period='1 days',
+                    horizon=horizon,
+                    parallel='processes'
+                    )
+                print('cross-validated')
+            except Exception as e:
+                raise ValueError(f"Failed to cross validate for {self.product_id} at {self.location_id}: {e}")
+
+            df_cv = df_cv[(pd.to_datetime(df_cv['ds']) - pd.to_datetime(df_cv['cutoff'])).dt.days == self.config.get('risk_period_days')]
+            predictions_df.drop(columns=['yhat_lower', 'yhat_upper', 'yhat'], inplace=True)
+
+            predictions_df = predictions_df.merge(df_cv, on='ds', how='left')
+            predictions_df.to_csv(f'{self.product_id}_{self.location_id}_predictions.csv', index=False)
+            predictions_df.drop(columns=['y'], inplace=True)
         
         return predictions_df

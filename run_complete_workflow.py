@@ -187,13 +187,13 @@ def run_complete_workflow(
         if backtesting_enabled:
             total_steps += 1
             step_number = total_steps
-            print(f"\n🔄 Step {step_number}/5: Running backtesting...")
+            print(f"\n🔄 Step {step_number}/5: Running new backtesting pipeline...")
             print("📊 Progress tracking and logging will be displayed in real-time")
             print(
                 "⏱️  This step may take significant time depending on data size and workers"
             )
 
-            backtest_cmd = f"python run_unified_backtest.py"
+            backtest_cmd = f"uv run python run_backtesting.py"
             
             # Add analysis dates if provided, otherwise let backtester auto-calculate
             if analysis_start_date is not None:
@@ -201,7 +201,8 @@ def run_complete_workflow(
             if analysis_end_date is not None:
                 backtest_cmd += f" --analysis-end-date {analysis_end_date}"
 
-            backtest_cmd += f" --demand-frequency {demand_frequency} --batch-size {batch_size} --max-workers {max_workers}"
+            # Add demand frequency and max workers (batch-size is not used in new pipeline)
+            backtest_cmd += f" --demand-frequency {demand_frequency} --max-workers {max_workers}"
 
             # Ensure log level is passed for progress tracking
             if log_level:

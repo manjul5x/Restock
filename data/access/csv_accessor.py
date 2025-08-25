@@ -75,7 +75,8 @@ class CSVAccessor(DataAccessor):
         try:
             read_kwargs = {
                 'memory_map': True,  # Memory mapping for large files
-                'low_memory': False  # Avoid mixed type inference warnings
+                'low_memory': False,  # Avoid mixed type inference warnings
+                'index_col': False  # Don't use first column as index
             }
             if columns:
                 read_kwargs['usecols'] = columns
