@@ -345,6 +345,7 @@ class InventorySimulator:
             arrays_df['location_id'] = result['period_info']['location_id']
             arrays_df['forecast_method'] = result.get('forecast_method', 'unknown')
             arrays_df['order_policy'] = result['order_policy']
+            arrays_df['leadtime'] = result['period_info']['leadtime']
             
             # Save to file
             safe_key = key.replace('/', '_').replace('\\', '_')

@@ -44,9 +44,9 @@ class DemandVisualizer:
             Dictionary with available locations, categories, and products
         """
         return {
-            "locations": sorted(self.data["location_id"].unique().tolist()),
-            "categories": sorted(self.data["product_category"].unique().tolist()),
-            "products": sorted(self.data["product_id"].unique().tolist()),
+            "locations": sorted(self.data["location_id"].dropna().unique().tolist()),
+            "categories": sorted(self.data["product_category"].dropna().unique().tolist()),
+            "products": sorted(self.data["product_id"].dropna().unique().tolist()),
         }
 
     def get_filtered_data(

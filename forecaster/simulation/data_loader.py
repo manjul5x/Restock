@@ -335,25 +335,30 @@ class SimulationDataLoader:
             # Fallback: use the last available stock level
             arrays['inventory_on_hand'][0] = product_demand_sorted.iloc[-1]['stock_level'] if len(product_demand_sorted) > 0 else 0
         
-        # Initialize inventory_on_order (sum of incoming inventory from start to start + leadtime)
+        # Initialize incoming_inventory array
         incoming_dict = dict(zip(
             product_demand['date'],
             product_demand['incoming_inventory']
         ))
         
-        for i, sim_date in enumerate(date_range):
-            if i == 0:  # Only for first step
-                total_incoming = 0
-                for j in range(leadtime):
-                    if i + j < len(date_range):
-                        check_date = date_range[i + j]
-                        total_incoming += incoming_dict.get(check_date, 0)
-                arrays['inventory_on_order'][i] = total_incoming
-        
-        # Initialize incoming_inventory array
+
         for i, sim_date in enumerate(date_range):
             if i < leadtime:
                 arrays['incoming_inventory'][i] = incoming_dict.get(sim_date, 0)
+
+        # Initialise inventory on order to be sum of upcoming incoming inventory within lead time
+        for step in range(num_steps):
+            # Sum all incoming inventory from step+1 up to step+leadtime
+            # This represents all orders that have been placed but not yet received
+            future_range = range(step + 1, min(step + leadtime, num_steps))
+            arrays['inventory_on_order'][step] = sum(arrays['incoming_inventory'][j] for j in future_range)
+        
+
+
+        # Initialise net stock to be sum of inventory on hand and inventory on order
+        for i, sim_date in enumerate(date_range):
+            arrays['net_stock'][i] = arrays['inventory_on_hand'][i] + arrays['inventory_on_order'][i]
+
         
         # Populate actual_inventory array
         stock_level_dict = dict(zip(
