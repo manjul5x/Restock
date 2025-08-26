@@ -45,7 +45,7 @@ class SimulationDataLoader:
 
         # Data attributes to be loaded
         self.product_master: Optional[pd.DataFrame] = None
-        self.customer_demand: Optional[pd.DataFrame] = None
+        self.customer_demand: Optional[pd.DataFrame] = None  # Now contains input data with regressors
         self.safety_stocks: Optional[pd.DataFrame] = None
         self.forecast_comparison: Optional[pd.DataFrame] = None
 
@@ -75,9 +75,9 @@ class SimulationDataLoader:
         logger = get_logger(__name__, level=self.log_level)
         try:
             logger.info("Loading core data using DataLoader...")
-            # Load product master and filtered outflow (demand) data
+            # Load product master and input data with regressors (demand data)
             self.product_master = self.loader.load_product_master()
-            self.customer_demand = self.loader.load_outflow(product_master=self.product_master)
+            self.customer_demand = self.loader.load_input_data_with_regressors()
 
             logger.info("Loading simulation-specific output files...")
             # Load safety stock results
@@ -138,7 +138,7 @@ class SimulationDataLoader:
             first_review_date = product_safety_stocks['review_date'].min()
             last_review_date = product_safety_stocks['review_date'].max()
             
-            # Determine frequency from customer demand data
+            # Determine frequency from input data with regressors (demand data)
             product_demand = self.customer_demand[
                 (self.customer_demand['product_id'] == product_id) &
                 (self.customer_demand['location_id'] == location_id)
@@ -303,7 +303,7 @@ class SimulationDataLoader:
             logger = get_logger(__name__, level=self.log_level)
             logger.warning(f"No forecast data found for {product_id} at {location_id} with method {forecast_method}")
         
-        # Populate actual_demand array
+        # Populate actual_demand array from input data with regressors. NB! This has had outliers capped!
         product_demand = self.customer_demand[
             (self.customer_demand['product_id'] == product_id) &
             (self.customer_demand['location_id'] == location_id)
