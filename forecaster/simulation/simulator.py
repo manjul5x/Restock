@@ -87,6 +87,16 @@ class InventorySimulator:
             arrays = data['arrays'].copy()  # Make a copy to avoid modifying original
             period_info = data['period_info']
             
+            # Log sunset date and stop ordering date information if present
+            sunset_date = period_info.get('sunset_date')
+            stop_ordering_date = period_info.get('stop_ordering_date')
+            
+            if sunset_date is not None:
+                logger.info(f"Simulating {product_location_key} with sunset date {sunset_date}, stop ordering date {stop_ordering_date} - simulation will run for {period_info['num_steps']} steps")
+                logger.info(f"  Orders will be stopped when date >= {stop_ordering_date}")
+            else:
+                logger.debug(f"Simulating {product_location_key} with no sunset date - running full simulation")
+            
             # Create order policy if not provided
             if order_policy is None:
                 order_policy = OrderPolicyFactory.create_policy_with_moq(
@@ -202,10 +212,27 @@ class InventorySimulator:
         num_steps = period_info['num_steps']
         leadtime = period_info['leadtime']
         
+        # Get stop ordering date information
+        stop_ordering_date = period_info.get('stop_ordering_date')
+        sunset_date = period_info.get('sunset_date')
+        
         # Step through simulation
         for step in range(num_steps):
             # Step 1: Calculate order placed
-            order_quantity = order_policy.calculate_order(step, arrays, period_info)
+            # Check if we should stop ordering due to sunset date
+            current_date = arrays['date'][step]
+            should_stop_ordering = False
+            
+            if stop_ordering_date is not None and current_date >= stop_ordering_date:
+                should_stop_ordering = True
+                logger = get_logger(__name__, level=self.log_level)
+                logger.debug(f"Step {step}: Stop ordering enforced - current date {current_date} >= stop ordering date {stop_ordering_date}")
+            
+            if should_stop_ordering:
+                order_quantity = 0  # No orders after stop ordering date
+            else:
+                order_quantity = order_policy.calculate_order(step, arrays, period_info)
+            
             arrays['order_placed'][step] = order_quantity
             
             # Update on-order and incoming inventory arrays

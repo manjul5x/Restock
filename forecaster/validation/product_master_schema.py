@@ -55,6 +55,12 @@ class ProductMasterRecord(BaseModel):
     moq: Optional[float] = Field(
         0.0, ge=0.0, description="Minimum order quantity"
     )
+    min_safety_stock: Optional[float] = Field(
+        0.0, ge=0.0, description="Minimum safety stock level (cannot be negative)"
+    )
+    sunset_date: Optional[date] = Field(
+        None, description="Date when product is sunset (empty string = None = not sunset)"
+    )
 
     @validator("risk_period")
     def validate_risk_period(cls, v, values):
@@ -88,6 +94,38 @@ class ProductMasterRecord(BaseModel):
         if not self.forecast_methods:
             return ["moving_average"]
         return [method.strip() for method in self.forecast_methods.split(",")]
+
+    @validator("min_safety_stock", pre=True)
+    def validate_min_safety_stock(cls, v):
+        """Handle empty strings and convert to float"""
+        if v == "" or v is None:
+            return 0.0
+        if isinstance(v, str):
+            # Handle whitespace-only strings
+            if v.strip() == "":
+                return 0.0
+            try:
+                return float(v)
+            except ValueError:
+                raise ValueError(f"Invalid min_safety_stock value: {v}")
+        return v
+
+    @validator("sunset_date", pre=True)
+    def validate_sunset_date(cls, v):
+        """Handle empty strings and convert to date or None"""
+        if v == "" or v is None:
+            return None
+        if isinstance(v, str):
+            # Handle whitespace-only strings
+            if v.strip() == "":
+                return None
+            try:
+                # Try to parse the date string
+                from datetime import datetime
+                return datetime.strptime(v.strip(), "%Y-%m-%d").date()
+            except ValueError:
+                raise ValueError(f"Invalid sunset_date format: {v}. Expected YYYY-MM-DD or empty string.")
+        return v
 
 
 class ProductMasterSchema:
@@ -156,6 +194,10 @@ class ProductMasterSchema:
         if "moq" in df.columns and (df["moq"] < 0).any():
             raise ValueError("MOQ values must be non-negative")
 
+        # Check for non-negative min_safety_stock values
+        if "min_safety_stock" in df.columns and (df["min_safety_stock"] < 0).any():
+            raise ValueError("Minimum safety stock values must be non-negative")
+
         # Check for reasonable risk period limits
         daily_risk = df[df["demand_frequency"] == "d"]["risk_period"]
         if (daily_risk > 365).any():
@@ -176,6 +218,16 @@ class ProductMasterSchema:
                 invalid_methods = set(methods) - ProductMasterSchema.VALID_FORECAST_METHODS
                 if invalid_methods:
                     raise ValueError(f"Invalid forecast methods: {invalid_methods}")
+
+        # Validate sunset_date if present
+        if "sunset_date" in df.columns:
+            for i, sunset_val in enumerate(df["sunset_date"]):
+                if pd.notna(sunset_val) and isinstance(sunset_val, str) and sunset_val.strip() != "":
+                    try:
+                        from datetime import datetime
+                        datetime.strptime(sunset_val.strip(), "%Y-%m-%d")
+                    except ValueError:
+                        raise ValueError(f"Invalid sunset_date format at row {i}: '{sunset_val}'. Expected YYYY-MM-DD or empty string.")
 
         return True
 
@@ -242,6 +294,45 @@ class ProductMasterSchema:
             df["moq"] = 1.0
         else:
             df["moq"] = df["moq"].fillna(1.0).astype(float)
+
+        # Handle optional min_safety_stock column
+        if "min_safety_stock" not in df.columns:
+            df["min_safety_stock"] = 0.0
+        else:
+            # Handle empty strings and whitespace by cleaning the data
+            def clean_min_safety_stock(val):
+                if pd.isna(val):
+                    return 0.0
+                if isinstance(val, str):
+                    if val.strip() == "":
+                        return 0.0
+                    try:
+                        return float(val)
+                    except ValueError:
+                        return 0.0
+                return val
+            
+            df["min_safety_stock"] = df["min_safety_stock"].apply(clean_min_safety_stock).astype(float)
+
+        # Handle optional sunset_date column
+        if "sunset_date" not in df.columns:
+            df["sunset_date"] = None
+        else:
+            # Handle empty strings and convert to dates or None
+            def clean_sunset_date(val):
+                if pd.isna(val):
+                    return None
+                if isinstance(val, str):
+                    if val.strip() == "":
+                        return None
+                    try:
+                        from datetime import datetime
+                        return datetime.strptime(val.strip(), "%Y-%m-%d").date()
+                    except ValueError:
+                        return None  # Invalid date format becomes None
+                return val
+            
+            df["sunset_date"] = df["sunset_date"].apply(clean_sunset_date)
 
         # Sort for consistency
         df = df.sort_values(

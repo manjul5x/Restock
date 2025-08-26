@@ -77,6 +77,11 @@ class SimulationDataLoader:
             logger.info("Loading core data using DataLoader...")
             # Load product master and input data with regressors (demand data)
             self.product_master = self.loader.load_product_master()
+            
+            # Ensure product master is standardized to handle empty strings and ensure proper data types
+            from forecaster.validation.product_master_schema import ProductMasterSchema
+            self.product_master = ProductMasterSchema.standardize_dataframe(self.product_master)
+            
             self.customer_demand = self.loader.load_input_data_with_regressors()
 
             logger.info("Loading simulation-specific output files...")
@@ -138,6 +143,27 @@ class SimulationDataLoader:
             first_review_date = product_safety_stocks['review_date'].min()
             last_review_date = product_safety_stocks['review_date'].max()
             
+            # Check for sunset date and adjust last review date if necessary
+            sunset_date = product_record.get('sunset_date')
+            stop_ordering_date = None
+            
+            if sunset_date is not None:
+                # Convert sunset_date to datetime if it's a date object
+                if isinstance(sunset_date, date):
+                    sunset_datetime = pd.Timestamp(sunset_date)
+                else:
+                    sunset_datetime = pd.Timestamp(sunset_date)
+                
+                # Calculate stop ordering date: sunset_date - risk_period days
+                risk_period_days = product_record['risk_period']
+                stop_ordering_date = sunset_datetime - pd.Timedelta(days=risk_period_days)
+                
+                # Truncate simulation to sunset date
+                if sunset_datetime < last_review_date:
+                    last_review_date = sunset_datetime
+                    logger = get_logger(__name__, level=self.log_level)
+                    logger.info(f"Product {product_id} at {location_id} has sunset date {sunset_date}, stop ordering date {stop_ordering_date.date()}, truncating simulation to {last_review_date}")
+            
             # Determine frequency from input data with regressors (demand data)
             product_demand = self.customer_demand[
                 (self.customer_demand['product_id'] == product_id) &
@@ -180,7 +206,9 @@ class SimulationDataLoader:
                 'date_range': date_range,
                 'num_steps': len(date_range),
                 'leadtime': product_record['leadtime'],
-                'moq': product_record['moq'] 
+                'moq': product_record['moq'],
+                'sunset_date': sunset_date,  # Include sunset date in period info
+                'stop_ordering_date': stop_ordering_date  # Include stop ordering date in period info
             }
         
         logger = get_logger(__name__, level=self.log_level)

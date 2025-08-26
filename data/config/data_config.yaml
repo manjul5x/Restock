@@ -49,7 +49,7 @@ safety_stock:
     - "2025-06-01"
     - "2025-06-15"
 simulation:
-  enable_moq: false  # Enable MOQ (Minimum Order Quantity) constraints
+  enable_moq: true  # Enable MOQ (Minimum Order Quantity) constraints
 monitoring:
   log_access: false
   track_memory: true

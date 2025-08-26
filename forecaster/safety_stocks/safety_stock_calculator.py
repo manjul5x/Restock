@@ -100,7 +100,8 @@ class SafetyStockCalculator:
                 review_dates=review_dates,
                 distribution_type=distribution_type,
                 service_level=service_level,
-                ss_window_length=ss_window_length
+                ss_window_length=ss_window_length,
+                product_row=product_row # Pass the product_row to _calculate_product_safety_stocks
             )
             
             safety_stock_results.extend(product_safety_stocks)
@@ -120,7 +121,8 @@ class SafetyStockCalculator:
         review_dates: List[date],
         distribution_type: str,
         service_level: float,
-        ss_window_length: int
+        ss_window_length: int,
+        product_row: pd.Series # Added product_row parameter
     ) -> List[Dict[str, Any]]:
         """
         Calculate safety stocks for a specific product-location-method combination.
@@ -134,6 +136,7 @@ class SafetyStockCalculator:
             distribution_type: Type of distribution to use
             service_level: Service level percentage
             ss_window_length: Rolling window length for safety stock calculation in demand frequency units
+            product_row: The row from the expanded product master data for the current product-location-method
             
         Returns:
             List of safety stock results
@@ -150,6 +153,22 @@ class SafetyStockCalculator:
         if product_data.empty:
             self.logger.warning(f"No forecast comparison data found for {product} at {location} with method {forecast_method}")
             return results
+        
+        # Get minimum safety stock from product master
+        min_safety_stock = product_row.get('min_safety_stock', 0.0)
+        
+        # Ensure min_safety_stock is numeric and handle any edge cases
+        try:
+            if pd.isna(min_safety_stock) or min_safety_stock == "":
+                min_safety_stock = 0.0
+            else:
+                min_safety_stock = float(min_safety_stock)
+                if min_safety_stock < 0:
+                    self.logger.warning(f"Negative min_safety_stock found for {product} at {location}: {min_safety_stock}, setting to 0.0")
+                    min_safety_stock = 0.0
+        except (ValueError, TypeError) as e:
+            self.logger.warning(f"Invalid min_safety_stock value for {product} at {location}: {min_safety_stock}, setting to 0.0. Error: {e}")
+            min_safety_stock = 0.0
         
         # Convert ss_window_length to timedelta (assuming daily frequency for now)
         # This should be made more flexible based on demand frequency
@@ -176,6 +195,9 @@ class SafetyStockCalculator:
                     service_level=service_level
                 )
             
+            # Apply minimum safety stock constraint
+            safety_stock = max(safety_stock, min_safety_stock)
+            
             results.append({
                 'product_id': product,
                 'location_id': location,
@@ -186,7 +208,8 @@ class SafetyStockCalculator:
                 'distribution_type': distribution_type,
                 'service_level': service_level,
                 'ss_window_length': ss_window_length,
-                'error_count': len(errors)
+                'error_count': len(errors),
+                'min_safety_stock': min_safety_stock
             })
         
         return results

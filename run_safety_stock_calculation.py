@@ -126,6 +126,13 @@ def run_safety_stock_calculation(
     
     # Initialize safety stock calculator
     logger.info("🔧 Initializing safety stock calculator...")
+    
+    # Standardize product master data to handle empty strings and ensure proper data types
+    from forecaster.validation.product_master_schema import ProductMasterSchema
+    logger.info("📋 Standardizing product master data...")
+    product_master_data = ProductMasterSchema.standardize_dataframe(product_master_data)
+    logger.info(f"✅ Product master standardized: {len(product_master_data)} records")
+    
     calculator = SafetyStockCalculator(product_master_data)
     
     # Calculate safety stocks

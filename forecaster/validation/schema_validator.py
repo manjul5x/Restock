@@ -330,6 +330,86 @@ class SchemaValidator:
                             affected_records=len(product_master_data)
                         ))
                 
+                # Min safety stock validation
+                if 'min_safety_stock' in product_master_data.columns:
+                    try:
+                        # Handle empty strings and whitespace by cleaning the data
+                        def clean_min_safety_stock(val):
+                            if pd.isna(val):
+                                return 0.0
+                            if isinstance(val, str):
+                                if val.strip() == "":
+                                    return 0.0
+                                try:
+                                    return float(val)
+                                except ValueError:
+                                    return 0.0
+                            return val
+                        
+                        min_ss_clean = product_master_data['min_safety_stock'].apply(clean_min_safety_stock)
+                        min_ss_values = pd.to_numeric(min_ss_clean, errors='coerce')
+                        invalid_min_ss = (min_ss_values < 0).sum()
+                        if invalid_min_ss > 0:
+                            issues.append(ValidationIssue(
+                                severity=ValidationSeverity.ERROR,
+                                category="schema",
+                                message=f"Found {invalid_min_ss} negative minimum safety stock values",
+                                details={"invalid_min_ss_count": int(invalid_min_ss)},
+                                affected_records=int(invalid_min_ss)
+                            ))
+                    except Exception as e:
+                        issues.append(ValidationIssue(
+                            severity=ValidationSeverity.CRITICAL,
+                            category="schema",
+                            message=f"Minimum safety stock conversion failed: {str(e)}",
+                            details={"error": str(e)},
+                            affected_records=len(product_master_data)
+                        ))
+                
+                # Sunset date validation
+                if 'sunset_date' in product_master_data.columns:
+                    try:
+                        # Handle empty strings and convert to dates or None
+                        def clean_sunset_date(val):
+                            if pd.isna(val):
+                                return None
+                            if isinstance(val, str):
+                                if val.strip() == "":
+                                    return None
+                                try:
+                                    from datetime import datetime
+                                    return datetime.strptime(val.strip(), "%Y-%m-%d").date()
+                                except ValueError:
+                                    return None  # Invalid date format becomes None
+                            return val
+                        
+                        sunset_dates_clean = product_master_data['sunset_date'].apply(clean_sunset_date)
+                        
+                        # Count invalid dates (those that couldn't be parsed and became None when they shouldn't have)
+                        # Only count as invalid if the original value was a non-empty string that couldn't be parsed
+                        invalid_dates = 0
+                        for i, (original, cleaned) in enumerate(zip(product_master_data['sunset_date'], sunset_dates_clean)):
+                            if isinstance(original, str) and original.strip() != "" and cleaned is None:
+                                invalid_dates += 1
+                        
+                        if invalid_dates > 0:
+                            issues.append(ValidationIssue(
+                                severity=ValidationSeverity.ERROR,
+                                category="schema",
+                                message=f"Found {invalid_dates} invalid sunset date formats",
+                                details={"invalid_date_count": int(invalid_dates)},
+                                affected_records=int(invalid_dates)
+                            ))
+                            
+                    except Exception as e:
+                        issues.append(ValidationIssue(
+                            severity=ValidationSeverity.CRITICAL,
+                            category="schema",
+                            message=f"Sunset date conversion failed: {str(e)}",
+                            details={"error": str(e)},
+                            affected_records=len(product_master_data)
+                        ))
+                
                 # Check for duplicate product-location combinations
                 if all(col in product_master_data.columns for col in ['product_id', 'location_id']):
                     duplicates = product_master_data.duplicated(subset=['product_id', 'location_id']).sum()
