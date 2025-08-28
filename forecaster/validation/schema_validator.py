@@ -366,6 +366,48 @@ class SchemaValidator:
                             affected_records=len(product_master_data)
                         ))
                 
+                # Max safety stock validation
+                if 'max_safety_stock' in product_master_data.columns:
+                    try:
+                        # Handle empty strings and whitespace by cleaning the data
+                        def clean_max_safety_stock(val):
+                            if pd.isna(val):
+                                return None
+                            if isinstance(val, str):
+                                if val.strip() == "":
+                                    return None
+                                try:
+                                    return float(val)
+                                except ValueError:
+                                    return None
+                            return val
+                        
+                        max_ss_clean = product_master_data['max_safety_stock'].apply(clean_max_safety_stock)
+                        
+                        # Count negative values (excluding None values)
+                        invalid_max_ss = 0
+                        for val in max_ss_clean:
+                            if val is not None and val < 0:
+                                invalid_max_ss += 1
+                        
+                        if invalid_max_ss > 0:
+                            issues.append(ValidationIssue(
+                                severity=ValidationSeverity.ERROR,
+                                category="schema",
+                                message=f"Found {invalid_max_ss} negative maximum safety stock values",
+                                details={"invalid_max_ss_count": int(invalid_max_ss)},
+                                affected_records=int(invalid_max_ss)
+                            ))
+                            
+                    except Exception as e:
+                        issues.append(ValidationIssue(
+                            severity=ValidationSeverity.CRITICAL,
+                            category="schema",
+                            message=f"Maximum safety stock conversion failed: {str(e)}",
+                            details={"error": str(e)},
+                            affected_records=len(product_master_data)
+                        ))
+                
                 # Sunset date validation
                 if 'sunset_date' in product_master_data.columns:
                     try:

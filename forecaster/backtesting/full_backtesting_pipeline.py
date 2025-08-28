@@ -192,10 +192,10 @@ class FullBacktestingPipeline:
             product_master_df=self.product_master_df
         )
         
-        # Use cleaned data for further processing
-        if 'cleaned_data' in result and len(result['cleaned_data']) > 0:
-            self.outflow_data = result['cleaned_data']
-            self.logger.info(f"Outliers processed, using cleaned data: {len(self.outflow_data)} records")
+        # Use capped data for further processing
+        if 'capped_data' in result and len(result['capped_data']) > 0:
+            self.outflow_data = result['capped_data']
+            self.logger.info(f"Outliers processed, using capped data: {len(self.outflow_data)} records")
         else:
             self.logger.info("No outliers found, using original data")
     

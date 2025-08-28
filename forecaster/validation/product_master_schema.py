@@ -58,6 +58,9 @@ class ProductMasterRecord(BaseModel):
     min_safety_stock: Optional[float] = Field(
         0.0, ge=0.0, description="Minimum safety stock level (cannot be negative)"
     )
+    max_safety_stock: Optional[float] = Field(
+        None, ge=0.0, description="Maximum safety stock level (empty string = None = no maximum, cannot be negative)"
+    )
     sunset_date: Optional[date] = Field(
         None, description="Date when product is sunset (empty string = None = not sunset)"
     )
@@ -108,6 +111,21 @@ class ProductMasterRecord(BaseModel):
                 return float(v)
             except ValueError:
                 raise ValueError(f"Invalid min_safety_stock value: {v}")
+        return v
+
+    @validator("max_safety_stock", pre=True)
+    def validate_max_safety_stock(cls, v):
+        """Handle empty strings and convert to float or None"""
+        if v == "" or v is None:
+            return None
+        if isinstance(v, str):
+            # Handle whitespace-only strings
+            if v.strip() == "":
+                return None
+            try:
+                return float(v)
+            except ValueError:
+                raise ValueError(f"Invalid max_safety_stock value: {v}")
         return v
 
     @validator("sunset_date", pre=True)
@@ -197,6 +215,10 @@ class ProductMasterSchema:
         # Check for non-negative min_safety_stock values
         if "min_safety_stock" in df.columns and (df["min_safety_stock"] < 0).any():
             raise ValueError("Minimum safety stock values must be non-negative")
+
+        # Check for non-negative max_safety_stock values
+        if "max_safety_stock" in df.columns and (df["max_safety_stock"] < 0).any():
+            raise ValueError("Maximum safety stock values must be non-negative")
 
         # Check for reasonable risk period limits
         daily_risk = df[df["demand_frequency"] == "d"]["risk_period"]
@@ -313,6 +335,25 @@ class ProductMasterSchema:
                 return val
             
             df["min_safety_stock"] = df["min_safety_stock"].apply(clean_min_safety_stock).astype(float)
+
+        # Handle optional max_safety_stock column
+        if "max_safety_stock" not in df.columns:
+            df["max_safety_stock"] = None
+        else:
+            # Handle empty strings and whitespace by cleaning the data
+            def clean_max_safety_stock(val):
+                if pd.isna(val):
+                    return None
+                if isinstance(val, str):
+                    if val.strip() == "":
+                        return None
+                    try:
+                        return float(val)
+                    except ValueError:
+                        return None
+                return val
+            
+            df["max_safety_stock"] = df["max_safety_stock"].apply(clean_max_safety_stock)
 
         # Handle optional sunset_date column
         if "sunset_date" not in df.columns:

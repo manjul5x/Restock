@@ -154,8 +154,9 @@ class SafetyStockCalculator:
             self.logger.warning(f"No forecast comparison data found for {product} at {location} with method {forecast_method}")
             return results
         
-        # Get minimum safety stock from product master
+        # Get minimum and maximum safety stock from product master
         min_safety_stock = product_row.get('min_safety_stock', 0.0)
+        max_safety_stock = product_row.get('max_safety_stock', None)
         
         # Ensure min_safety_stock is numeric and handle any edge cases
         try:
@@ -169,6 +170,19 @@ class SafetyStockCalculator:
         except (ValueError, TypeError) as e:
             self.logger.warning(f"Invalid min_safety_stock value for {product} at {location}: {min_safety_stock}, setting to 0.0. Error: {e}")
             min_safety_stock = 0.0
+        
+        # Ensure max_safety_stock is numeric and handle any edge cases
+        try:
+            if pd.isna(max_safety_stock) or max_safety_stock == "":
+                max_safety_stock = None
+            else:
+                max_safety_stock = float(max_safety_stock)
+                if max_safety_stock < 0:
+                    self.logger.warning(f"Negative max_safety_stock found for {product} at {location}: {max_safety_stock}, setting to None")
+                    max_safety_stock = None
+        except (ValueError, TypeError) as e:
+            self.logger.warning(f"Invalid max_safety_stock value for {product} at {location}: {max_safety_stock}, setting to None. Error: {e}")
+            max_safety_stock = None
         
         # Convert ss_window_length to timedelta (assuming daily frequency for now)
         # This should be made more flexible based on demand frequency
@@ -195,8 +209,10 @@ class SafetyStockCalculator:
                     service_level=service_level
                 )
             
-            # Apply minimum safety stock constraint
+            # Apply minimum and maximum safety stock constraints
             safety_stock = max(safety_stock, min_safety_stock)
+            if max_safety_stock is not None:
+                safety_stock = min(safety_stock, max_safety_stock)
             
             results.append({
                 'product_id': product,
@@ -209,7 +225,8 @@ class SafetyStockCalculator:
                 'service_level': service_level,
                 'ss_window_length': ss_window_length,
                 'error_count': len(errors),
-                'min_safety_stock': min_safety_stock
+                'min_safety_stock': min_safety_stock,
+                'max_safety_stock': max_safety_stock
             })
         
         return results

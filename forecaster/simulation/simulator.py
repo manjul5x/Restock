@@ -63,6 +63,9 @@ class InventorySimulator:
         
         self.results = {}
         
+        # Initialize aggregated results DataFrame
+        self.aggregated_results = pd.DataFrame()
+        
     def run_single_simulation(self, product_location_key: str, 
                             order_policy: Optional[OrderPolicy] = None) -> Dict[str, Any]:
         """
@@ -361,11 +364,46 @@ class InventorySimulator:
         summary_df = pd.DataFrame(summary_data)
         self.data_loader.loader.save_simulation_results(summary_df)
         
-        # Save detailed results for each product-location
+        # Save detailed results for each product-location and build aggregated results
+        all_dfs = []  # List to store all DataFrames for efficient concatenation
+        
         for key, result in self.results.items():
             # Convert arrays to DataFrame
             arrays_df = pd.DataFrame(result['arrays'])
             
+            # Get rolling window size from config
+            window_size = self.data_loader.loader.config.get('simulation', {}).get('overstock_boundary_window', 30)
+            buffer_perc = self.data_loader.loader.config.get('simulation', {}).get('overstock_buffer_perc', 30)
+            
+            # Calculate rolling max inventory using vectorized operations
+            arrays_df['rolling_max_inventory'] = arrays_df['inventory_on_hand'].rolling(
+                window=window_size,
+                min_periods=1  # Use at least 1 period to handle start of series
+            ).max()*(1+buffer_perc/100)
+            
+            arrays_df["overstock_flag"] = arrays_df['actual_inventory'] > arrays_df['rolling_max_inventory']
+            arrays_df["understock_flag"] = arrays_df['actual_inventory'] < arrays_df['safety_stock']
+            arrays_df["simulated_understock_flag"] = arrays_df['inventory_on_hand'] < arrays_df['safety_stock']
+            
+            # Get inventory cost from product master
+            product_id = result['period_info']['product_id']
+            location_id = result['period_info']['location_id']
+            product_master = self.data_loader.loader.load_product_master()
+            inventory_cost = product_master[
+                (product_master['product_id'] == product_id) & 
+                (product_master['location_id'] == location_id)
+            ]['inventory_cost'].iloc[0]
+            
+            # Calculate monetary value columns
+            monetary_columns = [
+                'inventory_on_hand', 'actual_demand', 'safety_stock', 'FRSP',
+                'net_stock', 'rolling_max_inventory', 'incoming_inventory', 'actual_inventory'
+            ]
+            
+            for col in monetary_columns:
+                arrays_df[f'{col}_cost'] = arrays_df[col] * inventory_cost
+
+
             # Add metadata
             arrays_df['product_location_key'] = key
             arrays_df['product_id'] = result['period_info']['product_id']
@@ -374,12 +412,45 @@ class InventorySimulator:
             arrays_df['order_policy'] = result['order_policy']
             arrays_df['leadtime'] = result['period_info']['leadtime']
             
-            # Save to file
+            # Save individual result to file
             safe_key = key.replace('/', '_').replace('\\', '_')
             self.data_loader.loader.save_results(
                 arrays_df,
                 "simulation/detailed_results",
                 f"{safe_key}_simulation.csv"
+            )
+            
+            # Store DataFrame for aggregation
+            all_dfs.append(arrays_df)
+        
+        # Combine all DataFrames
+        if all_dfs:
+            combined_df = pd.concat(all_dfs, ignore_index=True)
+            
+            # Group by date and calculate aggregated metrics
+            numeric_columns = [
+                'actual_demand', 'actual_inventory', 'inventory_on_hand', 'inventory_on_order',
+                'incoming_inventory', 'order_placed', 'safety_stock', 'FRSP', 'min_level',
+                'max_level', 'net_stock', 'rolling_max_inventory',
+                'inventory_on_hand_cost', 'actual_demand_cost', 'safety_stock_cost', 'FRSP_cost',
+                'net_stock_cost', 'rolling_max_inventory_cost', 'incoming_inventory_cost', 'actual_inventory_cost'
+            ]
+            
+            aggregated_df = combined_df.groupby('date')[numeric_columns].sum().reset_index()
+            
+            # Add metadata for aggregated results
+            aggregated_df['product_location_key'] = 'all_all'
+            aggregated_df['product_id'] = 'all'
+            aggregated_df['location_id'] = 'all'
+            aggregated_df['forecast_method'] = 'aggregated'
+            aggregated_df['order_policy'] = 'aggregated'
+            aggregated_df['leadtime'] = combined_df['leadtime'].mean()
+            
+            # Save aggregated results
+            self.data_loader.loader.save_results(
+                aggregated_df,
+                "simulation/detailed_results",
+                "all_all_aggregated_simulation.csv"
             )
         
         # Return paths for backward compatibility

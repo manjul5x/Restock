@@ -37,14 +37,13 @@ class OutlierHandler:
             default_threshold: Default threshold for outlier detection
 
         Returns:
-            Dictionary with 'cleaned_data' and 'summary'
+            Dictionary with 'capped_data' (all rows with capped demand) and 'summary'
         """
 
         # TODO: Should handle 'no' early
 
-        # Initialize output dataframes
-        cleaned_demand = []
-        outlier_records = []
+        # Initialize output dataframe
+        capped_demand = []
 
         # Process each product-location combination
         for _, master_record in product_master_df.iterrows():
@@ -71,52 +70,43 @@ class OutlierHandler:
                 product_demand, outlier_method, outlier_threshold
             )
 
-            # Create cleaned demand records
-            cleaned_records = product_demand[~outliers_mask].copy()
-            cleaned_records["outlier_handled"] = False
-            cleaned_demand.extend(cleaned_records.to_dict("records"))
-
-            # Create outlier records
-            outlier_records_data = product_demand[outliers_mask].copy()
-            outlier_records_data["outlier_handled"] = True
-            outlier_records_data["outlier_method"] = outlier_method
-            outlier_records_data["outlier_threshold"] = outlier_threshold
-
-            # Add outlier statistics
-            if len(outlier_records_data) > 0:
-                outlier_records_data["original_demand"] = outlier_records_data["demand"]
-                outlier_records_data["demand"] = self._handle_outlier_demand(
-                    outlier_records_data,
-                    cleaned_records,
+            # Create capped demand records with all rows
+            capped_records = product_demand.copy()
+            
+            # Add original_demand column for all rows
+            capped_records["original_demand"] = capped_records["demand"]
+            
+            # Add outlier handling flags
+            capped_records["outlier_handled"] = outliers_mask
+            capped_records["outlier_method"] = outlier_method
+            capped_records["outlier_threshold"] = outlier_threshold
+            
+            # Cap outlier demand values
+            if outliers_mask.any():
+                outlier_indices = outliers_mask[outliers_mask].index
+                capped_records.loc[outlier_indices, "demand"] = self._handle_outlier_demand(
+                    capped_records.loc[outlier_indices],
+                    capped_records[~outliers_mask],
                     outlier_method,
                     outlier_threshold,
                 )
 
-            outlier_records.extend(outlier_records_data.to_dict("records"))
+            capped_demand.extend(capped_records.to_dict("records"))
 
-        # Create final dataframes
-        cleaned_df = pd.DataFrame(cleaned_demand) if cleaned_demand else pd.DataFrame()
-        outlier_df = (
-            pd.DataFrame(outlier_records) if outlier_records else pd.DataFrame()
-        )
+        # Create final dataframe
+        capped_df = pd.DataFrame(capped_demand) if capped_demand else pd.DataFrame()
 
         # Sort and reset index
-        if len(cleaned_df) > 0:
-            cleaned_df = cleaned_df.sort_values(
-                ["date", "product_id", "location_id"]
-            ).reset_index(drop=True)
-
-        if len(outlier_df) > 0:
-            outlier_df = outlier_df.sort_values(
+        if len(capped_df) > 0:
+            capped_df = capped_df.sort_values(
                 ["date", "product_id", "location_id"]
             ).reset_index(drop=True)
 
         # Generate summary
-        summary = self.get_outlier_summary(outlier_df)
+        summary = self.get_outlier_summary(capped_df[capped_df["outlier_handled"] == True])
 
         return {
-            "cleaned_data": cleaned_df,
-            "outlier_data": outlier_df,
+            "capped_data": capped_df,
             "summary": summary,
         }
 

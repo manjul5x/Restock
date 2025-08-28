@@ -636,6 +636,71 @@ class DataLoader:
             logger.error(f"Failed to load input data with regressors: {e}")
             raise
 
+    def load_simulation_detailed_data(self, filters: Dict[str, List[str]] = None) -> pd.DataFrame:
+        """
+        Load detailed simulation data from detailed_results directory
+        
+        Args:
+            filters: Optional dictionary of filters with keys:
+                    - products: List of product IDs to include
+                    - locations: List of location IDs to include
+                    - forecast_methods: List of forecast methods to include
+                    
+        Returns:
+            DataFrame containing filtered simulation data
+            
+        Raises:
+            DataAccessError: If no simulation data is available
+        """
+        detailed_dir = self.get_output_path("simulation", "detailed_results")
+        detailed_data = []
+        
+        if not detailed_dir.exists():
+            raise DataAccessError("No detailed simulation data available")
+        
+        for file_path in detailed_dir.glob("*_simulation.csv"):
+            # Parse filename to extract product_id, location_id, forecast_method
+            filename = file_path.stem
+            parts = filename.split("_")
+            
+            if len(parts) >= 4:
+                product_id = parts[0]
+                location_id = parts[1]
+                
+                # Extract forecast method
+                simulation_index = -1
+                for i, part in enumerate(parts):
+                    if part == "simulation":
+                        simulation_index = i
+                        break
+                
+                if simulation_index > 2:
+                    forecast_method = "_".join(parts[2:simulation_index])
+                else:
+                    forecast_method = parts[2] if len(parts) > 2 else "unknown"
+                
+                # Apply filters if provided
+                if filters:
+                    if 'products' in filters and product_id not in filters['products']:
+                        continue
+                    if 'locations' in filters and location_id not in filters['locations']:
+                        continue
+                    if 'forecast_methods' in filters and forecast_method not in filters['forecast_methods']:
+                        continue
+                
+                try:
+                    data = pd.read_csv(file_path)
+                    data["date"] = pd.to_datetime(data["date"])
+                    detailed_data.append(data)
+                except Exception as e:
+                    logger.warning(f"Error loading {file_path}: {e}")
+                    continue
+        
+        if not detailed_data:
+            raise DataAccessError("No detailed simulation data available")
+        
+        return pd.concat(detailed_data, ignore_index=True)
+        
     def load_holidays(self, location: Optional[str] = None) -> pd.DataFrame:
         """
         Load holiday data from the configured holiday CSV file.

@@ -336,9 +336,11 @@ def simulation_visualization():
             )
 
         # Get unique products and locations for filter dropdowns
-        products = sorted(simulation_data["product_id"].dropna().unique().tolist())
-        locations = sorted(simulation_data["location_id"].dropna().unique().tolist())
+        products = ['all'] + sorted(simulation_data["product_id"].dropna().unique().tolist())
+        locations = ['all'] + sorted(simulation_data["location_id"].dropna().unique().tolist())
         forecast_methods = sorted(simulation_data["forecast_method"].dropna().unique().tolist())
+        if 'aggregated' not in forecast_methods:
+            forecast_methods.append('aggregated')
 
         # Set default filter options
         default_product = products[0] if products else ""
@@ -460,6 +462,9 @@ def calculate_actual_metrics(actual_data, product_master=None):
         return {}
 
 
+from forecaster.utils.inventory_metrics_calculator import InventoryMetricsCalculator
+from data.exceptions import DataAccessError
+
 @app.route("/get_comparison_data", methods=["POST"])
 def get_comparison_data():
     """Generate comprehensive inventory comparison data comparing actual vs simulated inventory levels"""
@@ -468,290 +473,61 @@ def get_comparison_data():
         products = request.form.getlist("products")
         locations = request.form.getlist("locations")
         forecast_methods = request.form.getlist("forecast_methods")
-
-        # Load detailed simulation data for comparison
-        detailed_dir = loader.get_output_path("simulation", "detailed_results")
-        detailed_data = []
-
-        if not detailed_dir.exists():
-            return jsonify({"error": "No detailed simulation data available"})
-
-        for file_path in detailed_dir.glob("*_simulation.csv"):
-            filename = file_path.stem
-            parts = filename.split("_")
-            if len(parts) >= 4:
-                product_id = parts[0]
-                location_id = parts[1]
-
-                # Extract forecast method
-                simulation_index = -1
-                for i, part in enumerate(parts):
-                    if part == "simulation":
-                        simulation_index = i
-                        break
-
-                if simulation_index > 2:
-                    forecast_method = "_".join(parts[2:simulation_index])
-                else:
-                    forecast_method = parts[2] if len(parts) > 2 else "unknown"
-
-                # Apply filters
-                if products and product_id not in products:
-                    continue
-                if locations and location_id not in locations:
-                    continue
-                if forecast_methods and forecast_method not in forecast_methods:
-                    continue
-
-                try:
-                    data = pd.read_csv(file_path)
-                    data["date"] = pd.to_datetime(data["date"])
-                    detailed_data.append(data)
-                except Exception as e:
-                    print(f"Error loading {file_path}: {e}")
-                    continue
-
-        if not detailed_data:
-            return jsonify({"error": "No detailed simulation data available"})
-
-        combined_detailed = pd.concat(detailed_data, ignore_index=True)
-
-        # Calculate comprehensive comparison metrics
+        
+        # Create filters dict
+        filters = {}
+        if products:
+            filters['products'] = products
+        if locations:
+            filters['locations'] = locations
+        if forecast_methods:
+            filters['forecast_methods'] = forecast_methods
+        
+        # Load data using existing standard loader
+        try:
+            combined_detailed = loader.load_simulation_detailed_data(filters)
+        except DataAccessError as e:
+            return jsonify({"error": str(e)})
+        
+        # Calculate metrics using standardized calculator
+        calculator = InventoryMetricsCalculator(data_loader=loader)
         comparison_results = []
-
+        
         # Group by product-location-method
-        for (
-            product_id,
-            location_id,
-            forecast_method,
-        ), group in combined_detailed.groupby(
+        for (product_id, location_id, forecast_method), group in combined_detailed.groupby(
             ["product_id", "location_id", "forecast_method"]
         ):
             if len(group) == 0:
                 continue
-
-            # Calculate metrics comparing actual vs simulated inventory
-            total_days = int(len(group))
-
-            # Actual inventory metrics
-            actual_inventory = group["actual_inventory"].values
-            actual_avg_inventory = float(actual_inventory.mean())
-            actual_min_inventory = float(actual_inventory.min())
-            actual_max_inventory = float(actual_inventory.max())
-            actual_stockout_days = int((actual_inventory <= 0).sum())
-            actual_stockout_rate = float((actual_stockout_days / total_days) * 100)
-
-            # Simulated inventory metrics
-            simulated_inventory = group["inventory_on_hand"].values
-            simulated_avg_inventory = float(simulated_inventory.mean())
-            simulated_min_inventory = float(simulated_inventory.min())
-            simulated_max_inventory = float(simulated_inventory.max())
-            simulated_stockout_days = int((simulated_inventory <= 0).sum())
-            simulated_stockout_rate = float(
-                (simulated_stockout_days / total_days) * 100
-            )
-
-            # Comparison metrics
-            inventory_difference = float(simulated_avg_inventory - actual_avg_inventory)
-            inventory_difference_percentage = float(
-                (inventory_difference / actual_avg_inventory) * 100
-                if actual_avg_inventory > 0
-                else 0
-            )
-
-            # Stockout rate difference
-            stockout_rate_difference = float(
-                simulated_stockout_rate - actual_stockout_rate
-            )
-
-            # Overstocking/Understocking analysis
-            # Overstocking: days when inventory > max_level
-            actual_overstock_days = int((actual_inventory > group["max_level"]).sum())
-            simulated_overstock_days = int(
-                (simulated_inventory > group["max_level"]).sum()
-            )
-            actual_overstock_percentage = float(
-                (actual_overstock_days / total_days) * 100
-            )
-            simulated_overstock_percentage = float(
-                (simulated_overstock_days / total_days) * 100
-            )
-
-            # Understocking: days when inventory < min_level
-            actual_understock_days = int((actual_inventory < group["min_level"]).sum())
-            simulated_understock_days = int(
-                (simulated_inventory < group["min_level"]).sum()
-            )
-            actual_understock_percentage = float(
-                (actual_understock_days / total_days) * 100
-            )
-            simulated_understock_percentage = float(
-                (simulated_understock_days / total_days) * 100
-            )
-
-            # Service level calculation
-            actual_demand = group["actual_demand"].values
-            actual_service_level = 0.0
-            simulated_service_level = 0.0
-
-            if actual_demand.sum() > 0:
-                # Actual service level: demand met from actual inventory
-                actual_demand_met = int(
-                    ((actual_demand > 0) & (actual_inventory >= actual_demand)).sum()
-                )
-                actual_service_level = float(
-                    (actual_demand_met / (actual_demand > 0).sum()) * 100
-                )
-
-                # Simulated service level: demand met from simulated inventory
-                simulated_demand_met = int(
-                    ((actual_demand > 0) & (simulated_inventory >= actual_demand)).sum()
-                )
-                simulated_service_level = float(
-                    (simulated_demand_met / (actual_demand > 0).sum()) * 100
-                )
-
-            # Inventory days calculation (instead of turns)
-            avg_daily_demand = float(actual_demand.mean())
-            actual_inventory_days = float(
-                actual_avg_inventory / avg_daily_demand if avg_daily_demand > 0 else 0
-            )
-            simulated_inventory_days = float(
-                simulated_avg_inventory / avg_daily_demand
-                if avg_daily_demand > 0
-                else 0
-            )
-
-            # Stock days calculation
-            actual_stock_days = float(
-                actual_avg_inventory / avg_daily_demand if avg_daily_demand > 0 else 0
-            )
-            simulated_stock_days = float(
-                simulated_avg_inventory / avg_daily_demand
-                if avg_daily_demand > 0
-                else 0
-            )
-
-            # Total demand calculation
-            total_demand = float(actual_demand.sum())
-
-            # Total inventory holding calculations
-            # Get product master data for cost information
+                
+            # Get product cost from existing product master data
             product_master = loader.load_product_master()
-            inventory_cost = 0.0
-            if not product_master.empty:
-                product_record = product_master[
-                    (product_master["product_id"] == product_id)
-                    & (product_master["location_id"] == location_id)
-                ]
-                if len(product_record) > 0:
-                    inventory_cost = float(
-                        product_record.iloc[0].get("inventory_cost", 0.0)
-                    )
-
-            # Calculate total inventory holding
-            actual_total_inventory_units = float(
-                actual_avg_inventory + group["inventory_on_order"].mean()
-            )
-            simulated_total_inventory_units = float(
-                simulated_avg_inventory + group["inventory_on_order"].mean()
-            )
-
-            actual_total_inventory_cost = float(
-                actual_total_inventory_units * inventory_cost
-            )
-            simulated_total_inventory_cost = float(
-                simulated_total_inventory_units * inventory_cost
-            )
-
-            # Missed demand calculation
-            actual_missed_demand = float(
-                actual_demand[actual_inventory < actual_demand].sum()
-            )
-            simulated_missed_demand = float(
-                actual_demand[simulated_inventory < actual_demand].sum()
-            )
-
+            product_record = product_master[
+                (product_master["product_id"] == product_id) &
+                (product_master["location_id"] == location_id)
+            ]
+            inventory_cost = float(product_record.iloc[0].get("inventory_cost", 0.0)) if len(product_record) > 0 else 0.0
+            
+            # Calculate all metrics at once
+            metrics = calculator.calculate_all_metrics(group, inventory_cost)
+            
             # Create comparison result
             comparison_result = {
                 "product_id": str(product_id),
                 "location_id": str(location_id),
                 "forecast_method": str(forecast_method),
-                "total_days": total_days,
-                # Actual inventory metrics
-                "actual_avg_inventory": round(actual_avg_inventory, 0),
-                "actual_min_inventory": round(actual_min_inventory, 0),
-                "actual_max_inventory": round(actual_max_inventory, 0),
-                "actual_stockout_days": actual_stockout_days,
-                "actual_stockout_rate": round(actual_stockout_rate, 2),
-                "actual_service_level": round(actual_service_level, 2),
-                "actual_inventory_days": round(actual_inventory_days, 2),
-                "actual_stock_days": round(actual_stock_days, 2),
-                "actual_overstock_percentage": round(actual_overstock_percentage, 2),
-                "actual_understock_percentage": round(actual_understock_percentage, 2),
-                "actual_missed_demand": round(actual_missed_demand, 0),
-                "actual_total_inventory_units": round(actual_total_inventory_units, 0),
-                "actual_total_inventory_cost": round(actual_total_inventory_cost, 2),
-                # Simulated inventory metrics
-                "simulated_avg_inventory": round(simulated_avg_inventory, 0),
-                "simulated_min_inventory": round(simulated_min_inventory, 0),
-                "simulated_max_inventory": round(simulated_max_inventory, 0),
-                "simulated_stockout_days": simulated_stockout_days,
-                "simulated_stockout_rate": round(simulated_stockout_rate, 2),
-                "simulated_service_level": round(simulated_service_level, 2),
-                "simulated_inventory_days": round(simulated_inventory_days, 2),
-                "simulated_stock_days": round(simulated_stock_days, 2),
-                "simulated_overstock_percentage": round(
-                    simulated_overstock_percentage, 2
-                ),
-                "simulated_understock_percentage": round(
-                    simulated_understock_percentage, 2
-                ),
-                "simulated_missed_demand": round(simulated_missed_demand, 0),
-                "simulated_total_inventory_units": round(
-                    simulated_total_inventory_units, 0
-                ),
-                "simulated_total_inventory_cost": round(
-                    simulated_total_inventory_cost, 2
-                ),
-                # Comparison metrics
-                "inventory_difference": round(inventory_difference, 0),
-                "inventory_difference_percentage": round(
-                    inventory_difference_percentage, 2
-                ),
-                "stockout_rate_difference": round(stockout_rate_difference, 2),
-                "service_level_difference": round(
-                    simulated_service_level - actual_service_level, 2
-                ),
-                "inventory_days_difference": round(
-                    simulated_inventory_days - actual_inventory_days, 2
-                ),
-                "stock_days_difference": round(
-                    simulated_stock_days - actual_stock_days, 2
-                ),
-                "overstock_difference": round(
-                    simulated_overstock_percentage - actual_overstock_percentage, 2
-                ),
-                "understock_difference": round(
-                    simulated_understock_percentage - actual_understock_percentage, 2
-                ),
-                "missed_demand_difference": round(
-                    simulated_missed_demand - actual_missed_demand, 0
-                ),
-                "total_inventory_units_difference": round(
-                    simulated_total_inventory_units - actual_total_inventory_units, 0
-                ),
-                "total_inventory_cost_difference": round(
-                    simulated_total_inventory_cost - actual_total_inventory_cost, 2
-                ),
-                # Total demand for context
-                "total_demand": round(total_demand, 0),
+                **metrics
             }
-
+            
             comparison_results.append(comparison_result)
-
-        # Calculate overall averages
+        
+        # Calculate overall metrics
         if comparison_results:
+            total_actual_inventory_cost = sum(r["actual_total_inventory_cost"] for r in comparison_results)
+            total_simulated_inventory_cost = sum(r["simulated_total_inventory_cost"] for r in comparison_results)
+            inventory_difference = total_actual_inventory_cost - total_simulated_inventory_cost
+            inventory_difference_percentage = (inventory_difference / total_actual_inventory_cost * 100) if total_actual_inventory_cost > 0 else 0
+            
             overall_metrics = {
                 "avg_actual_service_level": round(
                     sum(r["actual_service_level"] for r in comparison_results)
@@ -773,21 +549,18 @@ def get_comparison_data():
                     / len(comparison_results),
                     2,
                 ),
-                "avg_actual_inventory_days": round(
-                    sum(r["actual_inventory_days"] for r in comparison_results)
+                "avg_actual_turnover_ratio": round(
+                    sum(r["actual_turnover_ratio"] for r in comparison_results)
                     / len(comparison_results),
                     2,
                 ),
-                "avg_simulated_inventory_days": round(
-                    sum(r["simulated_inventory_days"] for r in comparison_results)
+                "avg_simulated_turnover_ratio": round(
+                    sum(r["simulated_turnover_ratio"] for r in comparison_results)
                     / len(comparison_results),
                     2,
                 ),
                 "avg_inventory_difference_percentage": round(
-                    sum(
-                        r["inventory_difference_percentage"] for r in comparison_results
-                    )
-                    / len(comparison_results),
+                    inventory_difference_percentage,
                     2,
                 ),
                 "avg_service_level_difference": round(
@@ -800,8 +573,30 @@ def get_comparison_data():
                     / len(comparison_results),
                     2,
                 ),
-                "avg_inventory_days_difference": round(
-                    sum(r["inventory_days_difference"] for r in comparison_results)
+                "avg_turnover_ratio_difference": round(
+                    sum(r["turnover_ratio_difference"] for r in comparison_results)
+                    / len(comparison_results),
+                    2,
+                ),
+                
+                # Surplus stock metrics
+                "avg_actual_surplus_stock_percentage": round(
+                    sum(r["actual_surplus_stock_percentage"] for r in comparison_results)
+                    / len(comparison_results),
+                    2,
+                ),
+                "avg_actual_availability_percentage": round(
+                    sum(r["actual_availability_percentage"] for r in comparison_results)
+                    / len(comparison_results),
+                    2,
+                ),
+                "avg_simulated_availability_percentage": round(
+                    sum(r["simulated_availability_percentage"] for r in comparison_results)
+                    / len(comparison_results),
+                    2,
+                ),
+                "avg_availability_percentage_difference": round(
+                    sum(r["availability_percentage_difference"] for r in comparison_results)
                     / len(comparison_results),
                     2,
                 ),
@@ -822,32 +617,50 @@ def get_comparison_data():
                     0,
                 ),
                 "total_simulated_inventory_units": round(
-                    sum(
-                        r["simulated_total_inventory_units"] for r in comparison_results
-                    ),
+                    sum(r["simulated_total_inventory_units"] for r in comparison_results),
                     0,
                 ),
                 "total_actual_inventory_cost": round(
-                    sum(r["actual_total_inventory_cost"] for r in comparison_results), 2
+                    total_actual_inventory_cost, 2
                 ),
                 "total_simulated_inventory_cost": round(
-                    sum(
-                        r["simulated_total_inventory_cost"] for r in comparison_results
-                    ),
+                    total_simulated_inventory_cost,
                     2,
                 ),
                 "total_products": len(comparison_results),
+                
+                # Turnover ratio metrics
+                # Calculate weighted average turnover ratios based on total inventory cost
+                "avg_actual_turnover_ratio": round(
+                    sum(r["actual_turnover_ratio"] * r["actual_total_inventory_cost"] for r in comparison_results)
+                    / sum(r["actual_total_inventory_cost"] for r in comparison_results)
+                    if sum(r["actual_total_inventory_cost"] for r in comparison_results) > 0 else 0,
+                    2,
+                ),
+                "avg_simulated_turnover_ratio": round(
+                    sum(r["simulated_turnover_ratio"] * r["simulated_total_inventory_cost"] for r in comparison_results)
+                    / sum(r["simulated_total_inventory_cost"] for r in comparison_results)
+                    if sum(r["simulated_total_inventory_cost"] for r in comparison_results) > 0 else 0,
+                    2,
+                ),
+                "avg_turnover_ratio_difference": round(
+                    (sum(r["simulated_turnover_ratio"] * r["simulated_total_inventory_cost"] for r in comparison_results)
+                    / sum(r["simulated_total_inventory_cost"] for r in comparison_results)
+                    if sum(r["simulated_total_inventory_cost"] for r in comparison_results) > 0 else 0) -
+                    (sum(r["actual_turnover_ratio"] * r["actual_total_inventory_cost"] for r in comparison_results)
+                    / sum(r["actual_total_inventory_cost"] for r in comparison_results)
+                    if sum(r["actual_total_inventory_cost"] for r in comparison_results) > 0 else 0),
+                    2,
+                ),
             }
         else:
             overall_metrics = {}
-
-        return jsonify(
-            {
-                "comparison_results": comparison_results,
-                "overall_metrics": overall_metrics,
-            }
-        )
-
+        
+        return jsonify({
+            "comparison_results": comparison_results,
+            "overall_metrics": overall_metrics,
+        })
+        
     except Exception as e:
         return jsonify({"error": str(e)})
 
@@ -1026,11 +839,22 @@ def get_simulation_plot():
 
         # Find matching simulation files
         all_data = []
+        print(f"Looking for simulation files in: {detailed_dir}")
+        print(f"Selected filters - Products: {products}, Locations: {locations}, Methods: {forecast_methods}")
+        
         for file_path in detailed_dir.glob("*_simulation.csv"):
+            print(f"\nProcessing file: {file_path}")
             # Extract product, location, and method from filename
-            filename = file_path.stem  # e.g., "RSWQ_WB_moving_average_simulation"
+            filename = file_path.stem  # e.g., "RSWQ_WB_moving_average_simulation" or "all_all_aggregated_simulation"
             parts = filename.split("_")
-            if len(parts) >= 4:
+            
+            # Special handling for aggregated results
+            if filename.startswith("all_all_aggregated"):
+                product_id = "all"
+                location_id = "all"
+                forecast_method = "aggregated"
+                print("Found aggregated results file")
+            elif len(parts) >= 4:
                 product_id = parts[0]
                 location_id = parts[1]
 
@@ -1046,23 +870,44 @@ def get_simulation_plot():
                     forecast_method = "_".join(parts[2:simulation_index])
                 else:
                     forecast_method = parts[2] if len(parts) > 2 else "unknown"
+            else:
+                print(f"Skipping file with insufficient parts: {filename}")
+                continue
 
-                # Apply filters
-                if products and product_id not in products:
-                    continue
-                if locations and location_id not in locations:
-                    continue
-                if forecast_methods and forecast_method not in forecast_methods:
-                    continue
+            print(f"Extracted - Product: {product_id}, Location: {location_id}, Method: {forecast_method}")
 
-                # Load the data
-                try:
-                    data = pd.read_csv(file_path)
-                    data["date"] = pd.to_datetime(data["date"])
-                    all_data.append(data)
-                except Exception as e:
-                    print(f"Error loading {file_path}: {e}")
+            # Apply filters, handling 'all' selections
+            if products:
+                if 'all' not in products and product_id not in products:
+                    print(f"Skipping - product {product_id} not in selected products {products}")
                     continue
+                if 'all' in products and product_id != 'all':
+                    print(f"'all' selected but found individual product {product_id} - skipping")
+                    continue
+            if locations:
+                if 'all' not in locations and location_id not in locations:
+                    print(f"Skipping - location {location_id} not in selected locations {locations}")
+                    continue
+                if 'all' in locations and location_id != 'all':
+                    print(f"'all' selected but found individual location {location_id} - skipping")
+                    continue
+            if forecast_methods and forecast_method not in forecast_methods:
+                print(f"Skipping - method {forecast_method} not in selected methods {forecast_methods}")
+                continue
+
+            # Load the data
+            try:
+                print(f"Loading data from: {file_path}")
+                data = pd.read_csv(file_path)
+                data["date"] = pd.to_datetime(data["date"])
+                data["product_id"] = product_id
+                data["location_id"] = location_id
+                data["forecast_method"] = forecast_method
+                all_data.append(data)
+                print("Successfully loaded data")
+            except Exception as e:
+                print(f"Error loading {file_path}: {e}")
+                continue
 
         if not all_data:
             return jsonify({"error": "No data matches the selected filters"})
@@ -1131,6 +976,17 @@ def get_simulation_plot():
                 linewidth=2,
                 alpha=0.7,
                 color="#2ca02c",
+            )
+
+            # Plot rolling max inventory (brown dotted line)
+            ax.plot(
+                group["date"],
+                group["rolling_max_inventory"],
+                label="Rolling Max Inventory",
+                linewidth=1.5,
+                alpha=0.3,
+                color="#8B4513",  # Saddle brown
+                linestyle=":",
             )
 
             # Plot incoming inventory (gold stars)
