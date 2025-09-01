@@ -918,17 +918,33 @@ def get_simulation_plot():
         # Create the simulation chart
         fig, ax = plt.subplots(figsize=(20, 8))
 
+        # Get display mode from request
+        display_mode = request.form.get("display_mode", "units")
+        
         # Plot for each product-location-method combination
         for (product_id, location_id, forecast_method), group in combined_data.groupby(
             ["product_id", "location_id", "forecast_method"]
         ):
             # Sort by date
             group = group.sort_values("date")
+            
+            # Determine which columns to use based on display mode
+            column_mapping = {
+                "inventory_on_hand": "inventory_on_hand_cost" if display_mode == "cost" else "inventory_on_hand",
+                "actual_demand": "actual_demand_cost" if display_mode == "cost" else "actual_demand",
+                "safety_stock": "safety_stock_cost" if display_mode == "cost" else "safety_stock",
+                "FRSP": "FRSP_cost" if display_mode == "cost" else "FRSP",
+                "net_stock": "net_stock_cost" if display_mode == "cost" else "net_stock",
+                "rolling_max_inventory": "rolling_max_inventory_cost" if display_mode == "cost" else "rolling_max_inventory",
+                "incoming_inventory": "incoming_inventory_cost" if display_mode == "cost" else "incoming_inventory",
+                "actual_inventory": "actual_inventory_cost" if display_mode == "cost" else "actual_inventory",
+                "order_placed": "order_placed_cost" if display_mode == "cost" else "order_placed"
+            }
 
             # Plot simulated stock on hand (blue line)
             ax.plot(
                 group["date"],
-                group["inventory_on_hand"],
+                group[column_mapping["inventory_on_hand"]],
                 label="Stock on Hand",
                 linewidth=3,
                 alpha=0.9,
@@ -938,7 +954,7 @@ def get_simulation_plot():
             # Plot actual demand (orange line)
             ax.plot(
                 group["date"],
-                group["actual_demand"],
+                group[column_mapping["actual_demand"]],
                 label="Actual Demand",
                 linewidth=2,
                 alpha=0.8,
@@ -949,7 +965,7 @@ def get_simulation_plot():
             # Plot safety stock (red dashed line)
             ax.plot(
                 group["date"],
-                group["safety_stock"],
+                group[column_mapping["safety_stock"]],
                 label="Safety Stock",
                 linewidth=2,
                 alpha=0.7,
@@ -957,31 +973,31 @@ def get_simulation_plot():
                 color="#d62728",
             )
 
-            # Plot FRSP (purple dashed line)
-            ax.plot(
-                group["date"],
-                group["FRSP"],
-                label="FRSP (Forecast over Risk Period)",
-                linewidth=2,
-                alpha=0.7,
-                linestyle="--",
-                color="#9467bd",
-            )
+            # # Plot FRSP (purple dashed line)
+            # ax.plot(
+            #     group["date"],
+            #     group[column_mapping["FRSP"]],
+            #     label="FRSP (Forecast over Risk Period)",
+            #     linewidth=2,
+            #     alpha=0.7,
+            #     linestyle="--",
+            #     color="#9467bd",
+            # )
 
-            # Plot net stock (green line)
-            ax.plot(
-                group["date"],
-                group["net_stock"],
-                label="Net Stock Position",
-                linewidth=2,
-                alpha=0.7,
-                color="#2ca02c",
-            )
+            # # Plot net stock (green line)
+            # ax.plot(
+            #     group["date"],
+            #     group[column_mapping["net_stock"]],
+            #     label="Net Stock Position",
+            #     linewidth=2,
+            #     alpha=0.7,
+            #     color="#2ca02c",
+            # )
 
             # Plot rolling max inventory (brown dotted line)
             ax.plot(
                 group["date"],
-                group["rolling_max_inventory"],
+                group[column_mapping["rolling_max_inventory"]],
                 label="Rolling Max Inventory",
                 linewidth=1.5,
                 alpha=0.3,
@@ -989,33 +1005,33 @@ def get_simulation_plot():
                 linestyle=":",
             )
 
-            # Plot incoming inventory (gold stars)
-            incoming_dates = group[group["incoming_inventory"] > 0]["date"]
-            incoming_values = group[group["incoming_inventory"] > 0]["incoming_inventory"]
-            if not incoming_dates.empty:
-                ax.scatter(
-                    incoming_dates,
-                    incoming_values,
-                    marker="*",
-                    s=200,  # Size of the stars
-                    alpha=0.8,
-                    label="Incoming Inventory",
-                    color="#daa520",  # Golden color
-                    zorder=5  # Ensure stars are drawn on top
-                )
+            # # Plot incoming inventory (gold stars)
+            # incoming_dates = group[group[column_mapping["incoming_inventory"]] > 0]["date"]
+            # incoming_values = group[group[column_mapping["incoming_inventory"]] > 0][column_mapping["incoming_inventory"]]
+            # if not incoming_dates.empty:
+            #     ax.scatter(
+            #         incoming_dates,
+            #         incoming_values,
+            #         marker="*",
+            #         s=200,  # Size of the stars
+            #         alpha=0.8,
+            #         label="Incoming Inventory",
+            #         color="#daa520",  # Golden color
+            #         zorder=5  # Ensure stars are drawn on top
+            #     )
 
             # Plot actual inventory as shaded area (light blue)
             ax.fill_between(
                 group["date"],
-                group["actual_inventory"],
+                group[column_mapping["actual_inventory"]],
                 alpha=0.2,
                 label="Actual Inventory",
                 color="#aec7e8",
             )
 
             # Plot orders placed as vertical bars (cyan)
-            order_dates = group[group["order_placed"] > 0]["date"]
-            order_values = group[group["order_placed"] > 0]["order_placed"]
+            order_dates = group[group[column_mapping["order_placed"]] > 0]["date"]
+            order_values = group[group[column_mapping["order_placed"]] > 0][column_mapping["order_placed"]]
             if not order_dates.empty:
                 ax.bar(
                     order_dates,
@@ -1029,7 +1045,8 @@ def get_simulation_plot():
         # Customize the plot
         ax.set_title("Inventory Simulation", fontsize=18, fontweight="bold", pad=20)
         ax.set_xlabel("Date", fontsize=14, fontweight="bold")
-        ax.set_ylabel("Quantity", fontsize=14, fontweight="bold")
+        y_label = "Cost ($)" if display_mode == "cost" else "Quantity (Units)"
+        ax.set_ylabel(y_label, fontsize=14, fontweight="bold")
         ax.grid(True, alpha=0.4, linestyle="-", linewidth=0.5)
         ax.legend(loc="upper right", fontsize=10)
 
@@ -2008,6 +2025,88 @@ def generate_forecast_comparison(
         print(f"Error generating forecast comparison: {str(e)}")
         return None
 
+
+@app.route("/get_stock_status_plot", methods=["POST"])
+def get_stock_status_plot():
+    """Generate stock status plot showing understock and overstock percentages over time"""
+    try:
+        # Load aggregated simulation data
+        detailed_dir = loader.get_output_path("simulation/detailed_results", "")
+        aggregated_file = detailed_dir / "all_all_aggregated_simulation.csv"
+        
+        if not aggregated_file.exists():
+            return jsonify({"error": "Aggregated simulation data not found"})
+            
+        # Load the data
+        data = pd.read_csv(aggregated_file)
+        data["date"] = pd.to_datetime(data["date"])
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(20, 6))
+        
+        # Plot actual understock percentage
+        ax.plot(
+            data["date"],
+            data["understock_percentage"],
+            label="Actual Understock %",
+            color="red",
+            linewidth=2,
+            alpha=0.8
+        )
+
+        # Plot simulated understock percentage
+        ax.plot(
+            data["date"],
+            data["simulated_understock_percentage"],
+            label="Simulated Understock %",
+            color="green",
+            linewidth=2,
+            alpha=0.8
+        )
+        
+        # Plot overstock percentage
+        ax.plot(
+            data["date"],
+            data["overstock_percentage"],
+            label="Overstock %",
+            color="blue",
+            linewidth=2,
+            alpha=0.8
+        )
+        
+        # Customize the plot
+        ax.set_title("Stock Status Over Time (All Products)", fontsize=16, fontweight="bold")
+        ax.set_xlabel("Date", fontsize=12)
+        ax.set_ylabel("Percentage", fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="upper right", fontsize=10)
+        
+        # Add horizontal lines at key percentages
+        ax.axhline(y=20, color='gray', linestyle='--', alpha=0.3)  # 20% reference line
+        ax.axhline(y=50, color='gray', linestyle='--', alpha=0.3)  # 50% reference line
+        
+        # Rotate x-axis labels for better readability
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+        
+        # Set y-axis to percentage range with some padding
+        ax.set_ylim(-5, max(max(data["understock_percentage"].max(), 
+                              data["simulated_understock_percentage"].max(),
+                              data["overstock_percentage"].max()) + 5, 100))
+        
+        plt.tight_layout()
+        
+        # Convert plot to base64 string
+        img = io.BytesIO()
+        fig.savefig(img, format="png", bbox_inches="tight", dpi=300)
+        img.seek(0)
+        plot_url = base64.b64encode(img.getvalue()).decode()
+        
+        plt.close(fig)
+        
+        return jsonify({"plot_url": plot_url})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route("/get_demand_analysis_plot", methods=["POST"])
 def get_demand_analysis_plot():

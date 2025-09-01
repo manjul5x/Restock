@@ -155,8 +155,8 @@ class SimulationDataLoader:
                     sunset_datetime = pd.Timestamp(sunset_date)
                 
                 # Calculate stop ordering date: sunset_date - risk_period days
-                risk_period_days = product_record['risk_period']
-                stop_ordering_date = sunset_datetime - pd.Timedelta(days=risk_period_days)
+                leadtime_days = product_record['leadtime']
+                stop_ordering_date = sunset_datetime - pd.Timedelta(days=leadtime_days)
                 
                 # Truncate simulation to sunset date
                 if sunset_datetime < last_review_date:
@@ -331,7 +331,7 @@ class SimulationDataLoader:
             logger = get_logger(__name__, level=self.log_level)
             logger.warning(f"No forecast data found for {product_id} at {location_id} with method {forecast_method}")
         
-        # Populate actual_demand array from input data with regressors. NB! This has had outliers capped!
+        # Populate original_demand array from input data with regressors. 
         product_demand = self.customer_demand[
             (self.customer_demand['product_id'] == product_id) &
             (self.customer_demand['location_id'] == location_id)
@@ -341,7 +341,7 @@ class SimulationDataLoader:
         
         demand_dict = dict(zip(
             product_demand['date'],
-            product_demand['demand']
+            product_demand['original_demand']
         ))
         
         for i, sim_date in enumerate(date_range):

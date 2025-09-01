@@ -78,6 +78,14 @@
                                 </select>
                                 <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
                             </div>
+
+                            <div class="mb-3">
+                                <label for="display_mode" class="form-label">Display Mode:</label>
+                                <select class="form-select" id="display_mode" name="display_mode">
+                                    <option value="units">Units</option>
+                                    <option value="cost">Monetary Value</option>
+                                </select>
+                            </div>
                             
                             <button type="submit" class="btn btn-primary w-100">Generate Both Graphs</button>
                         </form>
@@ -107,6 +115,14 @@
                     <h4 class="mb-3">Demand Analysis</h4>
                     <div class="plot-container">
                         <img id="demandPlotImage" class="plot-image" alt="Demand Analysis">
+                    </div>
+                </div>
+
+                <!-- Stock Status Plot Container (only shown for all_all) -->
+                <div id="stockStatusPlotContainer" style="display: none;">
+                    <h4 class="mb-3">Stock Status Over Time</h4>
+                    <div class="plot-container">
+                        <img id="stockStatusPlotImage" class="plot-image" alt="Stock Status">
                     </div>
                 </div>
                 
@@ -200,6 +216,36 @@ document.getElementById('simulationForm').addEventListener('submit', function(e)
             
             // Show demand analysis plot
             document.getElementById('demandPlotContainer').style.display = 'block';
+
+            // Check if we should show stock status plot (all_all selected)
+            const selectedProducts = Array.from(document.getElementById('products').selectedOptions).map(opt => opt.value);
+            const selectedLocations = Array.from(document.getElementById('locations').selectedOptions).map(opt => opt.value);
+            
+            if (selectedProducts.includes('all') && selectedLocations.includes('all')) {
+                // Generate stock status plot
+                return fetch('/get_stock_status_plot', {
+                    method: 'POST',
+                    body: formData
+                });
+            }
+        }
+    })
+    .then(response => {
+        if (!response) return; // If previous step failed
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.error) {
+            console.warn('Error generating stock status plot:', data.error);
+            return;
+        }
+        
+        if (data) {
+            // Display stock status plot
+            document.getElementById('stockStatusPlotImage').src = 'data:image/png;base64,' + data.plot_url;
+            
+            // Show stock status plot
+            document.getElementById('stockStatusPlotContainer').style.display = 'block';
         }
         
         // Update statistics

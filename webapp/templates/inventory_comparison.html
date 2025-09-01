@@ -207,13 +207,13 @@
                                         <span class="performance-indicator" id="stockout-rate-indicator"></span>
                                     </div>
                                 </div>
-                                <div class="metric-line" id="inventory-days-line">
+                                <div class="metric-line" id="turnover-ratio-line">
                                     <div class="metric-comparison">
-                                        <span class="metric-label">Inventory Days:</span>
-                                        <span class="actual-value" id="actual-inventory-days">-</span>
+                                        <span class="metric-label">Turnover Ratio:</span>
+                                        <span class="actual-value" id="actual-turnover-ratio">-</span>
                                         <span class="comparison-separator">|</span>
-                                        <span class="simulated-value" id="simulated-inventory-days">-</span>
-                                        <span class="performance-indicator" id="inventory-days-indicator"></span>
+                                        <span class="simulated-value" id="simulated-turnover-ratio">-</span>
+                                        <span class="performance-indicator" id="turnover-ratio-indicator"></span>
                                     </div>
                                 </div>
                                 <div class="metric-line" id="missed-demand-line">
@@ -278,6 +278,22 @@
                                         <span class="difference-value" id="inventory-difference">-</span>
                                     </div>
                                 </div>
+                                <div class="metric-line" id="surplus-stock-line">
+                                    <div class="metric-comparison">
+                                        <span class="metric-label">Surplus Stock %:</span>
+                                        <span class="actual-value" id="actual-surplus-stock">-</span>
+                                        <span class="performance-indicator" id="surplus-stock-indicator"></span>
+                                    </div>
+                                </div>
+                                <div class="metric-line" id="availability-line">
+                                    <div class="metric-comparison">
+                                        <span class="metric-label">Availability %:</span>
+                                        <span class="actual-value" id="actual-availability">-</span>
+                                        <span class="comparison-separator">|</span>
+                                        <span class="simulated-value" id="simulated-availability">-</span>
+                                        <span class="performance-indicator" id="availability-indicator"></span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -302,13 +318,15 @@
                                         <th>Method</th>
                                         <th colspan="2" class="text-center">Service Level (%)</th>
                                         <th colspan="2" class="text-center">Stockout Rate (%)</th>
-                                        <th colspan="2" class="text-center">Inventory Days</th>
+                                        <th colspan="2" class="text-center">Turnover Ratio</th>
                                         <th colspan="2" class="text-center">Avg Inventory</th>
                                         <th colspan="2" class="text-center">Total Inventory (Units)</th>
                                         <th colspan="2" class="text-center">Total Inventory (Cost)</th>
                                         <th colspan="2" class="text-center">Stockout Days</th>
                                         <th colspan="2" class="text-center">Missed Demand</th>
                                         <th>Inventory Diff %</th>
+                                        <th>Surplus Stock %</th>
+                                        <th colspan="2" class="text-center">Availability %</th>
                                     </tr>
                                     <tr>
                                         <th></th>
@@ -415,9 +433,9 @@ document.getElementById('comparisonForm').addEventListener('submit', function(e)
             document.getElementById('simulated-stockout-rate').textContent = data.overall_metrics.avg_simulated_stockout_rate + '%';
             applyHighlighting('stockout-rate-line', data.overall_metrics.avg_actual_stockout_rate, data.overall_metrics.avg_simulated_stockout_rate, true, 'stockout-rate-indicator');
             
-            document.getElementById('actual-inventory-days').textContent = data.overall_metrics.avg_actual_inventory_days;
-            document.getElementById('simulated-inventory-days').textContent = data.overall_metrics.avg_simulated_inventory_days;
-            applyHighlighting('inventory-days-line', data.overall_metrics.avg_actual_inventory_days, data.overall_metrics.avg_simulated_inventory_days, true, 'inventory-days-indicator');
+            document.getElementById('actual-turnover-ratio').textContent = data.overall_metrics.avg_actual_turnover_ratio;
+            document.getElementById('simulated-turnover-ratio').textContent = data.overall_metrics.avg_simulated_turnover_ratio;
+            applyHighlighting('turnover-ratio-line', data.overall_metrics.avg_actual_turnover_ratio, data.overall_metrics.avg_simulated_turnover_ratio, false, 'turnover-ratio-indicator');
             
             document.getElementById('actual-missed-demand').textContent = data.overall_metrics.total_actual_missed_demand.toLocaleString();
             document.getElementById('simulated-missed-demand').textContent = data.overall_metrics.total_simulated_missed_demand.toLocaleString();
@@ -445,6 +463,16 @@ document.getElementById('comparisonForm').addEventListener('submit', function(e)
             
             document.getElementById('inventory-difference').textContent = data.overall_metrics.avg_inventory_difference_percentage + '%';
             document.getElementById('inventory-difference').className = 'difference-value ' + (Math.abs(data.overall_metrics.avg_inventory_difference_percentage) < 10 ? 'text-success' : 'text-warning');
+            
+            // Surplus stock percentage
+            document.getElementById('actual-surplus-stock').textContent = data.overall_metrics.avg_actual_surplus_stock_percentage + '%';
+            applyHighlighting('surplus-stock-line', data.overall_metrics.avg_actual_surplus_stock_percentage, null, true, 'surplus-stock-indicator');
+            
+            // Availability percentage
+            document.getElementById('actual-availability').textContent = data.overall_metrics.avg_actual_availability_percentage + '%';
+            document.getElementById('simulated-availability').textContent = data.overall_metrics.avg_simulated_availability_percentage + '%';
+            applyHighlighting('availability-line', data.overall_metrics.avg_actual_availability_percentage, 
+                            data.overall_metrics.avg_simulated_availability_percentage, false, 'availability-indicator');
         }
         
         // Populate detailed table
@@ -461,8 +489,8 @@ document.getElementById('comparisonForm').addEventListener('submit', function(e)
                 <td class="text-info">${result.simulated_service_level}%</td>
                 <td class="text-danger">${result.actual_stockout_rate}%</td>
                 <td class="text-warning">${result.simulated_stockout_rate}%</td>
-                <td class="text-primary">${result.actual_inventory_days}</td>
-                <td class="text-secondary">${result.simulated_inventory_days}</td>
+                <td class="text-primary">${result.actual_turnover_ratio}</td>
+                <td class="text-secondary">${result.simulated_turnover_ratio}</td>
                 <td class="text-success">${result.actual_avg_inventory.toLocaleString()}</td>
                 <td class="text-info">${result.simulated_avg_inventory.toLocaleString()}</td>
                 <td class="text-success">${result.actual_total_inventory_units.toLocaleString()}</td>
@@ -474,6 +502,9 @@ document.getElementById('comparisonForm').addEventListener('submit', function(e)
                 <td class="text-danger">${result.actual_missed_demand.toLocaleString()}</td>
                 <td class="text-warning">${result.simulated_missed_demand.toLocaleString()}</td>
                 <td class="${Math.abs(result.inventory_difference_percentage) < 10 ? 'text-success' : 'text-warning'}">${result.inventory_difference_percentage}%</td>
+                <td class="${result.actual_surplus_stock_percentage < 10 ? 'text-success' : 'text-warning'}">${result.actual_surplus_stock_percentage}%</td>
+                <td class="${result.actual_availability_percentage >= 95 ? 'text-success' : 'text-warning'}">${result.actual_availability_percentage}%</td>
+                <td class="${result.simulated_availability_percentage >= 95 ? 'text-info' : 'text-warning'}">${result.simulated_availability_percentage}%</td>
             `;
             tableBody.appendChild(row);
         });

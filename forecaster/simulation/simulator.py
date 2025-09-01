@@ -396,7 +396,7 @@ class InventorySimulator:
             
             # Calculate monetary value columns
             monetary_columns = [
-                'inventory_on_hand', 'actual_demand', 'safety_stock', 'FRSP',
+                'inventory_on_hand', 'actual_demand', 'safety_stock', 'FRSP', 'order_placed',
                 'net_stock', 'rolling_max_inventory', 'incoming_inventory', 'actual_inventory'
             ]
             
@@ -432,7 +432,7 @@ class InventorySimulator:
                 'actual_demand', 'actual_inventory', 'inventory_on_hand', 'inventory_on_order',
                 'incoming_inventory', 'order_placed', 'safety_stock', 'FRSP', 'min_level',
                 'max_level', 'net_stock', 'rolling_max_inventory',
-                'inventory_on_hand_cost', 'actual_demand_cost', 'safety_stock_cost', 'FRSP_cost',
+                'inventory_on_hand_cost', 'actual_demand_cost', 'safety_stock_cost', 'FRSP_cost', 'order_placed_cost',
                 'net_stock_cost', 'rolling_max_inventory_cost', 'incoming_inventory_cost', 'actual_inventory_cost'
             ]
             
@@ -445,6 +445,23 @@ class InventorySimulator:
             aggregated_df['forecast_method'] = 'aggregated'
             aggregated_df['order_policy'] = 'aggregated'
             aggregated_df['leadtime'] = combined_df['leadtime'].mean()
+
+            # Add understock_percentage and overstock_percentage columns using mean (since flags are binary)
+            understock_overstock_by_date = combined_df.groupby('date').agg(
+                understock_percentage=('understock_flag', 'mean'),
+                simulated_understock_percentage=('simulated_understock_flag', 'mean'),
+                overstock_percentage=('overstock_flag', 'mean')
+            ).reset_index()
+            understock_overstock_by_date['understock_percentage'] *= 100
+            understock_overstock_by_date['simulated_understock_percentage'] *= 100
+            understock_overstock_by_date['overstock_percentage'] *= 100
+
+            # Merge percentages into aggregated results
+            aggregated_df = aggregated_df.merge(
+                understock_overstock_by_date[['date', 'understock_percentage', 'simulated_understock_percentage', 'overstock_percentage']],
+                on='date',
+                how='left'
+            )
             
             # Save aggregated results
             self.data_loader.loader.save_results(

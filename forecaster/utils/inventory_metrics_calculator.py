@@ -126,15 +126,16 @@ class InventoryMetricsCalculator:
         actual_turnover_ratio = round(cogs / avg_actual_inventory_value, 2) if avg_actual_inventory_value > 0 else 0.0
         simulated_turnover_ratio = round(cogs / avg_simulated_inventory_value, 2) if avg_simulated_inventory_value > 0 else 0.0
         
-        # Calculate surplus stock percentage (vectorized)
-        # Handle division by zero by masking where inventory is zero
-        actual_mask = actual_inventory > 0
-        rolling_max = group['rolling_max_inventory'].values
+        # Calculate surplus stock percentage using cost metrics (vectorized)
+        # Handle division by zero by masking where inventory cost is zero
+        actual_inventory_cost = group['actual_inventory_cost'].values
+        rolling_max_cost = group['rolling_max_inventory_cost'].values
+        actual_mask = actual_inventory_cost > 0
         
-        # Calculate surplus percentage where inventory > 0
+        # Calculate surplus percentage where inventory cost > 0
         actual_surplus_pct = np.where(
             actual_mask,
-            ((actual_inventory - rolling_max) / actual_inventory) * 100,
+            ((actual_inventory_cost - rolling_max_cost) / actual_inventory_cost) * 100,
             -100
         )
         

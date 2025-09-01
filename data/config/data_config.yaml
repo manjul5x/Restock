@@ -50,6 +50,9 @@ safety_stock:
     - "2025-06-15"
 simulation:
   enable_moq: true  # Enable MOQ (Minimum Order Quantity) constraints
+  overstock_buffer_perc: 20
+  overstock_boundary_window: 30 # this is in days
+  calc_metrics_after_lt: true
 monitoring:
   log_access: false
   track_memory: true
