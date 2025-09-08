@@ -2108,6 +2108,48 @@ def get_stock_status_plot():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+@app.route("/insights")
+def insights():
+    """Insights dashboard page"""
+    try:
+        # Load simulation summary data for available filter options
+        filename = loader.config['paths']['output_files']['simulation_results']
+        path = loader.get_output_path("simulation", filename)
+        
+        if not path.exists():
+            return render_template(
+                "insights.html",
+                products=[],
+                locations=[],
+                forecast_methods=[],
+                error="Simulation data not found. Please run the complete workflow first."
+            )
+        
+        summary_data = pd.read_csv(path)
+        
+        # Get unique products and locations for filter dropdowns
+        products = sorted(summary_data["product_id"].dropna().unique().tolist())
+        locations = sorted(summary_data["location_id"].dropna().unique().tolist())
+        forecast_methods = sorted(summary_data["forecast_method"].dropna().unique().tolist())
+        
+        return render_template(
+            "insights.html",
+            products=products,
+            locations=locations,
+            forecast_methods=forecast_methods,
+            error=None
+        )
+        
+    except Exception as e:
+        return render_template(
+            "insights.html",
+            products=[],
+            locations=[],
+            forecast_methods=[],
+            error=f"Error loading data: {str(e)}"
+        )
+
+
 @app.route("/get_demand_analysis_plot", methods=["POST"])
 def get_demand_analysis_plot():
     """Generate demand analysis chart showing actual demand, orders placed, and forecasted demand"""
@@ -2285,6 +2327,305 @@ def get_demand_analysis_plot():
 
     except Exception as e:
         return jsonify({"error": str(e)})
+
+
+# ============================================================================
+# INSIGHTS API ROUTES (Independent from other tabs)
+# ============================================================================
+
+@app.route("/insights_filter_options")
+def insights_filter_options():
+    """Get filter options for insights dashboard"""
+    try:
+        # Load data using existing loader but with different variable names
+        insights_outflow_data = loader.load_outflow()
+        
+        if insights_outflow_data.empty:
+            return jsonify({
+                "locations": [],
+                "categories": [], 
+                "products": []
+            })
+        
+        # Get unique values for insights filters
+        insights_locations = sorted(insights_outflow_data["location_id"].dropna().unique().tolist())
+        insights_categories = sorted(insights_outflow_data["product_category"].dropna().unique().tolist()) if "product_category" in insights_outflow_data.columns else []
+        insights_products = sorted(insights_outflow_data["product_id"].dropna().unique().tolist())
+        
+        return jsonify({
+            "locations": insights_locations,
+            "categories": insights_categories,
+            "products": insights_products
+        })
+        
+    except Exception as insights_error:
+        return jsonify({
+            "locations": [],
+            "categories": [],
+            "products": [],
+            "error": str(insights_error)
+        })
+
+
+@app.route("/insights_analysis_data", methods=["POST"])
+def insights_analysis_data():
+    """Generate analysis data for insights dashboard"""
+    try:
+        # Get form data with insights prefix
+        insights_start_date = request.form.get('start_date')
+        insights_end_date = request.form.get('end_date') 
+        insights_locations = request.form.getlist('locations')
+        insights_categories = request.form.getlist('categories')
+        insights_products = request.form.getlist('products')
+        
+        # Load data using existing loader
+        insights_demand_data = loader.load_outflow()
+        insights_product_master = loader.load_product_master()
+        
+        if insights_demand_data.empty:
+            return jsonify({"error": "No demand data available"})
+        
+        # Filter data based on insights filters
+        insights_filtered_data = insights_demand_data.copy()
+        
+        # Apply date filtering for insights
+        if insights_start_date:
+            insights_filtered_data = insights_filtered_data[
+                pd.to_datetime(insights_filtered_data['date']) >= pd.to_datetime(insights_start_date)
+            ]
+        if insights_end_date:
+            insights_filtered_data = insights_filtered_data[
+                pd.to_datetime(insights_filtered_data['date']) <= pd.to_datetime(insights_end_date)
+            ]
+        
+        # Apply other filters for insights
+        if insights_locations and insights_locations != ['']:
+            insights_filtered_data = insights_filtered_data[
+                insights_filtered_data['location_id'].isin(insights_locations)
+            ]
+        if insights_categories and insights_categories != [''] and 'product_category' in insights_filtered_data.columns:
+            insights_filtered_data = insights_filtered_data[
+                insights_filtered_data['product_category'].isin(insights_categories)
+            ]
+        if insights_products and insights_products != ['']:
+            insights_filtered_data = insights_filtered_data[
+                insights_filtered_data['product_id'].isin(insights_products)
+            ]
+        
+        if insights_filtered_data.empty:
+            return jsonify({"error": "No data matches the selected filters"})
+        
+        # Calculate insights metrics
+        insights_metrics = insights_calculate_metrics(insights_filtered_data, insights_product_master)
+        
+        # Generate insights charts
+        insights_charts = insights_generate_charts(insights_filtered_data)
+        
+        return jsonify({
+            "metrics": insights_metrics,
+            "revenue_by_category_plotly": insights_charts.get('revenue_by_category'),
+            "revenue_by_location_plotly": insights_charts.get('revenue_by_location'),
+            "cogs_stock_value_plotly": insights_charts.get('cogs_stock_value'),
+            "pareto_revenue_plotly": insights_charts.get('pareto_revenue'),
+            "pareto_demand_plotly": insights_charts.get('pareto_demand'),
+            "classification_plotly": insights_charts.get('classification')
+        })
+        
+    except Exception as insights_error:
+        import traceback
+        print(f"Error in insights analysis: {insights_error}")
+        print(traceback.format_exc())
+        return jsonify({"error": str(insights_error)})
+
+
+def insights_calculate_metrics(insights_data, insights_product_master):
+    """Calculate KPI metrics for insights dashboard"""
+    try:
+        insights_metrics = {}
+        
+        # Basic business metrics for insights
+        insights_metrics['total_unique_products'] = insights_data['product_id'].nunique()
+        insights_metrics['total_skus'] = len(insights_data.groupby(['product_id', 'location_id']))
+        insights_metrics['total_demand'] = insights_data['demand'].sum()
+        
+        # Calculate revenue for insights
+        if 'price' in insights_data.columns:
+            insights_metrics['total_revenue'] = (insights_data['demand'] * insights_data['price']).sum()
+        elif 'revenue' in insights_data.columns:
+            insights_metrics['total_revenue'] = insights_data['revenue'].sum()
+        else:
+            insights_metrics['total_revenue'] = 0
+        
+        # Calculate margin percentage for insights
+        if 'margin_pct' in insights_data.columns:
+            insights_metrics['mean_margin_pct'] = insights_data['margin_pct'].mean()
+        else:
+            insights_metrics['mean_margin_pct'] = 0
+        
+        # Calculate smooth percentage for insights (products with consistent demand)
+        insights_cv_data = insights_data.groupby('product_id')['demand'].agg(['mean', 'std']).reset_index()
+        insights_cv_data['cv'] = insights_cv_data['std'] / insights_cv_data['mean']
+        insights_smooth_products = (insights_cv_data['cv'] <= 0.5).sum()
+        insights_metrics['smooth_percentage'] = (insights_smooth_products / len(insights_cv_data)) * 100
+        
+        # Inventory metrics for insights (simplified calculations)
+        if 'stock_value' in insights_data.columns:
+            insights_metrics['current_inventory_holding'] = insights_data['stock_value'].iloc[-1] if not insights_data.empty else 0
+            insights_metrics['avg_inventory_holding'] = insights_data['stock_value'].mean()
+        else:
+            insights_metrics['current_inventory_holding'] = 0
+            insights_metrics['avg_inventory_holding'] = 0
+        
+        # Calculate turnover ratio for insights
+        if insights_metrics['avg_inventory_holding'] > 0:
+            insights_metrics['inventory_turnover_ratio'] = insights_metrics['total_revenue'] / insights_metrics['avg_inventory_holding']
+        else:
+            insights_metrics['inventory_turnover_ratio'] = 0
+        
+        # Service level and stockout metrics for insights (simplified)
+        if 'stock_level' in insights_data.columns:
+            insights_stockout_periods = (insights_data['stock_level'] <= 0).sum()
+            insights_total_periods = len(insights_data)
+            insights_metrics['service_level'] = ((insights_total_periods - insights_stockout_periods) / insights_total_periods) * 100
+            insights_metrics['stockout_frequency'] = (insights_stockout_periods / insights_total_periods) * 100
+        else:
+            insights_metrics['service_level'] = 95.0  # Default assumption
+            insights_metrics['stockout_frequency'] = 5.0  # Default assumption
+        
+        # Missed revenue calculation for insights
+        if 'missed_demand' in insights_data.columns and 'price' in insights_data.columns:
+            insights_metrics['total_missed_revenue'] = (insights_data['missed_demand'] * insights_data['price']).sum()
+        else:
+            insights_metrics['total_missed_revenue'] = 0
+        
+        return insights_metrics
+        
+    except Exception as insights_error:
+        print(f"Error calculating insights metrics: {insights_error}")
+        return {}
+
+
+def insights_generate_charts(insights_data):
+    """Generate chart data for insights dashboard"""
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        
+        insights_charts = {}
+        
+        # Revenue by Category chart for insights
+        if 'product_category' in insights_data.columns and 'revenue' in insights_data.columns:
+            insights_category_revenue = insights_data.groupby('product_category')['revenue'].sum()
+            insights_fig_cat = go.Figure(data=[go.Pie(
+                labels=insights_category_revenue.index,
+                values=insights_category_revenue.values,
+                hole=0.3
+            )])
+            insights_fig_cat.update_layout(
+                title="Revenue by Category",
+                height=380,
+                showlegend=True
+            )
+            insights_charts['revenue_by_category'] = insights_fig_cat.to_json()
+        
+        # Revenue by Location chart for insights
+        if 'location_id' in insights_data.columns and 'revenue' in insights_data.columns:
+            insights_location_revenue = insights_data.groupby('location_id')['revenue'].sum()
+            insights_fig_loc = go.Figure(data=[go.Pie(
+                labels=insights_location_revenue.index,
+                values=insights_location_revenue.values,
+                hole=0.3
+            )])
+            insights_fig_loc.update_layout(
+                title="Revenue by Location", 
+                height=380,
+                showlegend=True
+            )
+            insights_charts['revenue_by_location'] = insights_fig_loc.to_json()
+        
+        # COGS and Stock Value trends for insights (simplified)
+        if 'date' in insights_data.columns:
+            insights_daily_data = insights_data.groupby('date').agg({
+                'demand': 'sum',
+                'revenue': 'sum' if 'revenue' in insights_data.columns else lambda x: 0
+            }).reset_index()
+            
+            insights_fig_trends = go.Figure()
+            insights_fig_trends.add_trace(go.Scatter(
+                x=insights_daily_data['date'],
+                y=insights_daily_data['demand'],
+                mode='lines',
+                name='Daily Demand'
+            ))
+            if 'revenue' in insights_daily_data.columns:
+                insights_fig_trends.add_trace(go.Scatter(
+                    x=insights_daily_data['date'],
+                    y=insights_daily_data['revenue'],
+                    mode='lines',
+                    name='Daily Revenue',
+                    yaxis='y2'
+                ))
+            
+            insights_fig_trends.update_layout(
+                title="Demand and Revenue Trends",
+                height=380,
+                xaxis_title="Date",
+                yaxis_title="Demand",
+                yaxis2=dict(
+                    title="Revenue",
+                    overlaying='y',
+                    side='right'
+                )
+            )
+            insights_charts['cogs_stock_value'] = insights_fig_trends.to_json()
+        
+        # Simple Pareto analysis for insights
+        insights_product_revenue = insights_data.groupby('product_id')['revenue'].sum().sort_values(ascending=False) if 'revenue' in insights_data.columns else insights_data.groupby('product_id')['demand'].sum().sort_values(ascending=False)
+        insights_cumulative_pct = (insights_product_revenue.cumsum() / insights_product_revenue.sum() * 100)
+        insights_product_pct = [(i+1)/len(insights_product_revenue)*100 for i in range(len(insights_product_revenue))]
+        
+        insights_fig_pareto = go.Figure()
+        insights_fig_pareto.add_trace(go.Scatter(
+            x=insights_product_pct,
+            y=insights_cumulative_pct.values,
+            mode='lines+markers',
+            name='Cumulative %'
+        ))
+        insights_fig_pareto.update_layout(
+            title="Revenue Pareto Analysis",
+            height=380,
+            xaxis_title="% of Products",
+            yaxis_title="Cumulative % of Revenue"
+        )
+        insights_charts['pareto_revenue'] = insights_fig_pareto.to_json()
+        insights_charts['pareto_demand'] = insights_fig_pareto.to_json()  # Simplified - same chart
+        
+        # Simple classification plot for insights
+        insights_product_stats = insights_data.groupby('product_id').agg({
+            'demand': ['sum', 'mean'],
+            'revenue': 'sum' if 'revenue' in insights_data.columns else lambda x: 0
+        }).reset_index()
+        
+        insights_fig_class = go.Figure()
+        insights_fig_class.add_trace(go.Scatter(
+            x=insights_product_stats[('demand', 'sum')],
+            y=insights_product_stats[('revenue', 'sum')] if ('revenue', 'sum') in insights_product_stats.columns else insights_product_stats[('demand', 'mean')],
+            mode='markers',
+            name='Products'
+        ))
+        insights_fig_class.update_layout(
+            title="Product Classification",
+            height=750,
+            xaxis_title="Total Demand", 
+            yaxis_title="Total Revenue" if 'revenue' in insights_data.columns else "Average Demand"
+        )
+        insights_charts['classification'] = insights_fig_class.to_json()
+        
+        return insights_charts
+        
+    except Exception as insights_error:
+        print(f"Error generating insights charts: {insights_error}")
+        return {}
 
 
 if __name__ == "__main__":

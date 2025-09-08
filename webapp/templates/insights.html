@@ -1,0 +1,701 @@
+{% extends 'base.html' %}
+
+{% block title %}Insights - Forecaster{% endblock %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+<style>
+    /* Insights page specific styling */
+    html, body {
+        background: #f7f4f2 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    .insights-page .container.my-4 {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100vw !important;
+    }
+
+    /* Fixed controls panel for insights */
+    .insights-controls-panel {
+        position: fixed !important;
+        top: 80px !important;
+        left: 10px !important;
+        width: calc(15vw - 15px) !important;
+        height: calc(100vh - 100px) !important;
+        overflow-y: auto !important;
+        z-index: 1000 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        background: #f8f9fc;
+        padding: 25px;
+    }
+
+    /* Content area for insights */
+    .insights-content-area {
+        margin-left: calc(15vw + 10px) !important;
+        margin-top: 80px !important;
+        width: calc(85vw - 20px) !important;
+    }
+
+    .insights-container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .insights-plot-row {
+        margin-bottom: 40px;
+    }
+
+    .insights-plot-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .insights-plot-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .insights-plot-header h3 {
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .insights-plot-content {
+        padding: 20px;
+        min-height: 420px;
+    }
+
+    /* Insights chart containers */
+    #insights-revenue-by-category-plot,
+    #insights-revenue-by-location-plot,
+    #insights-cogs-stock-value-plot,
+    #insights-pareto-revenue-plot,
+    #insights-pareto-demand-plot {
+        width: 100%;
+        height: 400px;
+        display: block;
+    }
+
+    #insights-classification-plot {
+        width: 100%;
+        height: 750px;
+        display: block;
+    }
+
+    /* Insights KPI cards styling */
+    .insights-metric-card {
+        background: #ffffff;
+        border: 1px solid #e1e5e9;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .insights-metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .insights-metric-icon {
+        font-size: 2.5rem;
+        color: #de6a45;
+        margin-bottom: 10px;
+    }
+
+    .insights-metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+
+    .insights-metric-label {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .insights-plot-placeholder {
+        text-align: center;
+        color: #666;
+        font-size: 1.1em;
+    }
+
+    .insights-plot-placeholder i {
+        font-size: 3em;
+        margin-bottom: 15px;
+        display: block;
+        color: #ddd;
+    }
+
+    .insights-form-group {
+        margin-bottom: 20px;
+    }
+
+    .insights-form-label {
+        font-weight: 500;
+        color: #5a6c7d;
+        margin-bottom: 8px;
+    }
+
+    .insights-btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 12px 25px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .insights-btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<body class="insights-page">
+    <div class="insights-container">
+        <!-- Fixed Controls Panel -->
+        <div class="insights-controls-panel">
+            <h5><i class="fas fa-sliders-h me-2"></i>Analysis Controls</h5>
+            
+            <div class="insights-form-group">
+                <label class="insights-form-label">Start Date:</label>
+                <input type="date" id="insights-start-date" class="form-control">
+            </div>
+            
+            <div class="insights-form-group">
+                <label class="insights-form-label">End Date:</label>
+                <input type="date" id="insights-end-date" class="form-control">
+            </div>
+            
+            <div class="insights-form-group">
+                <label class="insights-form-label">Locations:</label>
+                <select id="insights-location-filter" class="form-select" multiple>
+                    <option value="">All Locations</option>
+                </select>
+            </div>
+            
+            <div class="insights-form-group">
+                <label class="insights-form-label">Categories:</label>
+                <select id="insights-category-filter" class="form-select" multiple>
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            
+            <div class="insights-form-group">
+                <label class="insights-form-label">Products:</label>
+                <select id="insights-product-filter" class="form-select" multiple>
+                    <option value="">All Products</option>
+                </select>
+            </div>
+            
+            <button id="insights-update-btn" class="btn insights-btn-primary w-100">
+                <i class="fas fa-sync-alt me-2"></i>Update Analysis
+            </button>
+            
+            <div id="insights-data-warnings" class="alert alert-warning mt-3" style="display: none;">
+                <small><i class="fas fa-exclamation-triangle me-1"></i>Some data may be excluded from analysis</small>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="insights-content-area">
+            <div class="container-fluid">
+                
+                <!-- KPI Dashboard -->
+                <div id="insights-metrics-dashboard" class="row mb-4">
+                    <div class="col-12">
+                        <div class="card" style="background: linear-gradient(135deg, #de6a45 0%, #cfc8c2 100%); color: white; margin-bottom: 20px;">
+                            <div class="card-header" style="background: transparent; border: none;">
+                                <h4 class="mb-0"><i class="fas fa-chart-line"></i> Key Performance Metrics</h4>
+                            </div>
+                            <div class="card-body" style="background: rgba(255,255,255,0.95); color: #333; border-radius: 0 0 10px 10px;">
+                                <div class="row">
+                                    <!-- Business Metrics Row 1 -->
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-cubes"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-total-unique-products">0</div>
+                                                <div class="insights-metric-label">Unique Products</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-boxes"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-total-skus">0</div>
+                                                <div class="insights-metric-label">Total SKUs</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-shopping-cart"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-total-demand">0</div>
+                                                <div class="insights-metric-label">Total Demand</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-dollar-sign"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-total-revenue">$0</div>
+                                                <div class="insights-metric-label">Total Revenue</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-percentage"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-mean-margin-pct">0%</div>
+                                                <div class="insights-metric-label">Mean Margin</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-chart-pie"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-smooth-percentage">0%</div>
+                                                <div class="insights-metric-label">Smooth %</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Inventory Metrics Row 2 -->
+                                <div class="row">
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-warehouse"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-current-inventory-holding">$0</div>
+                                                <div class="insights-metric-label">Current Inventory</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-chart-area"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-avg-inventory-holding">$0</div>
+                                                <div class="insights-metric-label">Avg Inventory</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-sync-alt"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-inventory-turnover-ratio">0x</div>
+                                                <div class="insights-metric-label">Turnover Ratio</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-shield-alt"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-service-level">0%</div>
+                                                <div class="insights-metric-label">Service Level</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-stockout-frequency">0%</div>
+                                                <div class="insights-metric-label">Stockout Rate</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-coins"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-total-missed-revenue">$0</div>
+                                                <div class="insights-metric-label">Missed Revenue</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Revenue Charts Row -->
+                <div class="row insights-plot-row">
+                    <div class="col-md-6">
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Revenue by Category</h3>
+                                <p>Distribution of revenue across product categories</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-revenue-by-category-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-chart-pie"></i>
+                                        <div>Revenue by category chart will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Revenue by Location</h3>
+                                <p>Distribution of revenue across locations</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-revenue-by-location-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-chart-pie"></i>
+                                        <div>Revenue by location chart will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COGS and Stock Value Chart -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>COGS and Stock Value Trends</h3>
+                                <p>Total cost of goods sold and stock value trends over time</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-cogs-stock-value-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-chart-area"></i>
+                                        <div>COGS and stock value chart will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pareto Charts Row -->
+                <div class="row insights-plot-row">
+                    <div class="col-md-6">
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Revenue Pareto Analysis</h3>
+                                <p>80/20 analysis of revenue distribution</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-pareto-revenue-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-chart-line"></i>
+                                        <div>Revenue Pareto chart will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Demand Pareto Analysis</h3>
+                                <p>80/20 analysis of demand distribution</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-pareto-demand-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-chart-line"></i>
+                                        <div>Demand Pareto chart will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Classification Plot -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Product Classification Analysis</h3>
+                                <p>Detailed product classification and performance analysis</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-classification-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-th"></i>
+                                        <div>Classification analysis will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    console.log('🚀 Insights Dashboard Initializing...');
+    
+    // Initialize insights dashboard
+    insightsInitializePage();
+    
+    // Event listeners
+    $('#insights-update-btn').on('click', insightsUpdateAnalysis);
+    
+    // Functions with insights prefix to avoid conflicts
+    function insightsInitializePage() {
+        console.log('📊 Loading insights filter options...');
+        insightsLoadFilterOptions();
+        
+        // Set default date range
+        const insightsEndDate = new Date();
+        const insightsStartDate = new Date();
+        insightsStartDate.setFullYear(insightsEndDate.getFullYear() - 1);
+        
+        $('#insights-start-date').val(insightsStartDate.toISOString().split('T')[0]);
+        $('#insights-end-date').val(insightsEndDate.toISOString().split('T')[0]);
+        
+        // Load initial analysis
+        insightsUpdateAnalysis();
+    }
+    
+    function insightsLoadFilterOptions() {
+        $.ajax({
+            url: '/insights_filter_options',
+            type: 'GET',
+            success: function(insightsResponse) {
+                if (insightsResponse.locations) {
+                    const insightsLocationSelect = $('#insights-location-filter');
+                    insightsLocationSelect.empty().append('<option value="">All Locations</option>');
+                    insightsResponse.locations.forEach(function(insightsLocation) {
+                        insightsLocationSelect.append(`<option value="${insightsLocation}">${insightsLocation}</option>`);
+                    });
+                }
+                
+                if (insightsResponse.categories) {
+                    const insightsCategorySelect = $('#insights-category-filter');
+                    insightsCategorySelect.empty().append('<option value="">All Categories</option>');
+                    insightsResponse.categories.forEach(function(insightsCategory) {
+                        insightsCategorySelect.append(`<option value="${insightsCategory}">${insightsCategory}</option>`);
+                    });
+                }
+                
+                if (insightsResponse.products) {
+                    const insightsProductSelect = $('#insights-product-filter');
+                    insightsProductSelect.empty().append('<option value="">All Products</option>');
+                    insightsResponse.products.forEach(function(insightsProduct) {
+                        insightsProductSelect.append(`<option value="${insightsProduct}">${insightsProduct}</option>`);
+                    });
+                }
+            },
+            error: function(insightsXhr, insightsStatus, insightsError) {
+                console.error('❌ Error loading insights filter options:', insightsError);
+            }
+        });
+    }
+    
+    function insightsUpdateAnalysis() {
+        console.log('🔄 Updating insights analysis...');
+        
+        const insightsFilters = {
+            start_date: $('#insights-start-date').val(),
+            end_date: $('#insights-end-date').val(),
+            locations: $('#insights-location-filter').val(),
+            categories: $('#insights-category-filter').val(),
+            products: $('#insights-product-filter').val()
+        };
+        
+        $.ajax({
+            url: '/insights_analysis_data',
+            type: 'POST',
+            data: insightsFilters,
+            success: function(insightsData) {
+                console.log('✅ Insights analysis data received');
+                
+                if (insightsData.error) {
+                    console.error('❌ Insights analysis error:', insightsData.error);
+                    return;
+                }
+                
+                // Update KPI dashboard
+                insightsUpdateMetricsDashboard(insightsData.metrics);
+                
+                // Update charts
+                insightsRenderCharts(insightsData);
+            },
+            error: function(insightsXhr, insightsStatus, insightsError) {
+                console.error('❌ Error updating insights analysis:', insightsError);
+            }
+        });
+    }
+    
+    function insightsUpdateMetricsDashboard(insightsMetrics) {
+        if (!insightsMetrics) return;
+        
+        console.log('📈 Updating insights metrics dashboard...');
+        
+        // Helper function to format numbers for insights
+        const insightsFormatNumber = (insightsValue, insightsPrefix = '', insightsSuffix = '') => {
+            if (typeof insightsValue !== 'number' || insightsValue === null || insightsValue === undefined) {
+                return 'N/A';
+            }
+            
+            if (insightsValue >= 1000000) {
+                return insightsPrefix + (insightsValue / 1000000).toFixed(1) + 'M' + insightsSuffix;
+            } else if (insightsValue >= 1000) {
+                return insightsPrefix + (insightsValue / 1000).toFixed(1) + 'K' + insightsSuffix;
+            } else {
+                return insightsPrefix + insightsValue.toLocaleString() + insightsSuffix;
+            }
+        };
+        
+        // Update business metrics
+        $('#insights-total-unique-products').text(insightsFormatNumber(insightsMetrics.total_unique_products));
+        $('#insights-total-skus').text(insightsFormatNumber(insightsMetrics.total_skus));
+        $('#insights-total-demand').text(insightsFormatNumber(insightsMetrics.total_demand));
+        $('#insights-total-revenue').text(insightsFormatNumber(insightsMetrics.total_revenue, '$'));
+        $('#insights-smooth-percentage').text((insightsMetrics.smooth_percentage || 0).toFixed(1) + '%');
+        $('#insights-mean-margin-pct').text(
+            typeof insightsMetrics.mean_margin_pct === 'string' ?
+                insightsMetrics.mean_margin_pct :
+                (insightsMetrics.mean_margin_pct || 0).toFixed(1) + '%'
+        );
+        
+        // Update inventory metrics
+        $('#insights-current-inventory-holding').text(
+            typeof insightsMetrics.current_inventory_holding === 'string' ?
+                insightsMetrics.current_inventory_holding :
+                insightsFormatNumber(insightsMetrics.current_inventory_holding, '$')
+        );
+        $('#insights-avg-inventory-holding').text(
+            typeof insightsMetrics.avg_inventory_holding === 'string' ?
+                insightsMetrics.avg_inventory_holding :
+                insightsFormatNumber(insightsMetrics.avg_inventory_holding, '$')
+        );
+        $('#insights-inventory-turnover-ratio').text(
+            typeof insightsMetrics.inventory_turnover_ratio === 'string' ?
+                insightsMetrics.inventory_turnover_ratio :
+                (insightsMetrics.inventory_turnover_ratio !== null ? (insightsMetrics.inventory_turnover_ratio || 0).toFixed(2) + 'x' : 'N/A')
+        );
+        $('#insights-service-level').text(insightsMetrics.service_level !== null ? (insightsMetrics.service_level || 0).toFixed(1) + '%' : 'N/A');
+        $('#insights-total-missed-revenue').text(insightsFormatNumber(insightsMetrics.total_missed_revenue, '$'));
+        $('#insights-stockout-frequency').text(insightsMetrics.stockout_frequency !== null ? (insightsMetrics.stockout_frequency || 0).toFixed(1) + '%' : 'N/A');
+        
+        console.log('✅ Insights metrics dashboard updated');
+    }
+    
+    function insightsRenderCharts(insightsData) {
+        console.log('🎨 Rendering insights charts...');
+        
+        // Helper function to render Plotly charts for insights
+        const insightsRenderPlot = (insightsTargetId, insightsFigJson) => {
+            const insightsEl = document.getElementById(insightsTargetId);
+            if (!insightsEl || !insightsFigJson) return;
+            
+            $(insightsEl).empty();
+            const insightsFig = typeof insightsFigJson === 'string' ? JSON.parse(insightsFigJson) : insightsFigJson;
+            insightsFig.layout = Object.assign({ 
+                height: 380, 
+                autosize: true, 
+                margin: { l: 40, r: 20, t: 50, b: 40 } 
+            }, insightsFig.layout || {});
+            
+            Plotly.newPlot(insightsEl, insightsFig.data, insightsFig.layout, { 
+                responsive: true, 
+                displayModeBar: false 
+            }).then(() => {
+                if (window.ResizeObserver) {
+                    const insightsRo = new ResizeObserver(() => Plotly.Plots.resize(insightsEl));
+                    insightsRo.observe(insightsEl);
+                } else {
+                    window.addEventListener('resize', () => Plotly.Plots.resize(insightsEl));
+                }
+            });
+        };
+        
+        // Render revenue by category chart
+        if (insightsData.revenue_by_category_plotly) {
+            console.log('📊 Rendering insights category pie chart');
+            insightsRenderPlot('insights-revenue-by-category-plot', insightsData.revenue_by_category_plotly);
+        }
+        
+        // Render revenue by location chart
+        if (insightsData.revenue_by_location_plotly) {
+            console.log('📊 Rendering insights location pie chart');
+            insightsRenderPlot('insights-revenue-by-location-plot', insightsData.revenue_by_location_plotly);
+        }
+        
+        // Render COGS and stock value chart
+        if (insightsData.cogs_stock_value_plotly) {
+            console.log('📊 Rendering insights COGS chart');
+            insightsRenderPlot('insights-cogs-stock-value-plot', insightsData.cogs_stock_value_plotly);
+        }
+        
+        // Render Pareto charts
+        if (insightsData.pareto_revenue_plotly) {
+            console.log('📊 Rendering insights revenue Pareto chart');
+            insightsRenderPlot('insights-pareto-revenue-plot', insightsData.pareto_revenue_plotly);
+        }
+        
+        if (insightsData.pareto_demand_plotly) {
+            console.log('📊 Rendering insights demand Pareto chart');
+            insightsRenderPlot('insights-pareto-demand-plot', insightsData.pareto_demand_plotly);
+        }
+        
+        // Render classification plot
+        if (insightsData.classification_plotly) {
+            console.log('📊 Rendering insights classification plot');
+            insightsRenderPlot('insights-classification-plot', insightsData.classification_plotly);
+        }
+        
+        console.log('✅ All insights charts rendered');
+    }
+});
+</script>
+{% endblock %}
