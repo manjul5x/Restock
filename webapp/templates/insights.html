@@ -51,7 +51,9 @@
     }
 
     .insights-plot-row {
-        margin-bottom: 40px;
+        margin-bottom: 30px;
+        width: 100%;
+        clear: both;
     }
 
     .insights-plot-card {
@@ -59,6 +61,10 @@
         border-radius: 15px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         overflow: hidden;
+        position: relative;
+        width: 100%;
+        margin-bottom: 0;
+        clear: both;
     }
 
     .insights-plot-header {
@@ -74,8 +80,19 @@
     }
 
     .insights-plot-content {
-        padding: 20px;
-        min-height: 420px;
+        padding: 0 !important;
+        margin: 0 !important;
+        position: relative;
+        overflow: hidden;
+        display: block;
+        height: auto;
+    }
+    
+    
+    
+    /* Prevent any chart drift or float issues */
+    .insights-plot-content * {
+        box-sizing: border-box;
     }
 
     /* Insights chart containers */
@@ -83,17 +100,24 @@
     #insights-revenue-by-location-plot,
     #insights-cogs-stock-value-plot,
     #insights-pareto-revenue-plot,
-    #insights-pareto-demand-plot {
+    #insights-pareto-demand-plot,
+    #insights-leadtime-histogram-plot,
+    #insights-ordering-analysis-plot {
         width: 100%;
-        height: 400px;
+        height: 380px;
+        margin: 0 !important;
+        padding: 0 !important;
         display: block;
     }
 
     #insights-classification-plot {
         width: 100%;
-        height: 750px;
+        height: 700px;
+        margin: 0 !important;
+        padding: 0 !important;
         display: block;
     }
+
 
     /* Insights KPI cards styling */
     .insights-metric-card {
@@ -141,13 +165,33 @@
         text-align: center;
         color: #666;
         font-size: 1.1em;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1 !important;
+        height: auto !important;
+    }
+    
+    .insights-plot-placeholder div {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1.2 !important;
     }
 
     .insights-plot-placeholder i {
         font-size: 3em;
-        margin-bottom: 15px;
+        margin: 0 !important;
+        padding: 0 !important;
         display: block;
         color: #ddd;
+        line-height: 1 !important;
+        height: auto !important;
+    }
+    
+    /* Override any FontAwesome default spacing for specific icons */
+    .fa-chart-bar, .fa-clock, .fa-truck {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1 !important;
     }
 
     .insights-form-group {
@@ -181,42 +225,186 @@
     <div class="insights-container">
         <!-- Fixed Controls Panel -->
         <div class="insights-controls-panel">
-            <h5><i class="fas fa-sliders-h me-2"></i>Analysis Controls</h5>
+            <h5 style="color: #de6a45; margin-bottom: 20px; font-weight: 600;">
+                <i class="fas fa-cogs me-2"></i>Analysis Controls
+            </h5>
             
-            <div class="insights-form-group">
-                <label class="insights-form-label">Start Date:</label>
-                <input type="date" id="insights-start-date" class="form-control">
-            </div>
-            
-            <div class="insights-form-group">
-                <label class="insights-form-label">End Date:</label>
-                <input type="date" id="insights-end-date" class="form-control">
-            </div>
-            
-            <div class="insights-form-group">
-                <label class="insights-form-label">Locations:</label>
-                <select id="insights-location-filter" class="form-select" multiple>
-                    <option value="">All Locations</option>
-                </select>
-            </div>
-            
-            <div class="insights-form-group">
-                <label class="insights-form-label">Categories:</label>
-                <select id="insights-category-filter" class="form-select" multiple>
-                    <option value="">All Categories</option>
-                </select>
-            </div>
-            
-            <div class="insights-form-group">
-                <label class="insights-form-label">Products:</label>
-                <select id="insights-product-filter" class="form-select" multiple>
-                    <option value="">All Products</option>
-                </select>
-            </div>
-            
-            <button id="insights-update-btn" class="btn insights-btn-primary w-100">
-                <i class="fas fa-sync-alt me-2"></i>Update Analysis
-            </button>
+            <form id="insights-form">
+                <!-- Plant/Location Filter -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">Plant/Location</label>
+                    <select class="form-select" id="insights-location-filter" multiple>
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                    <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+
+                <!-- Product Category Filter -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">Product Category</label>
+                    <select class="form-select" id="insights-category-filter" multiple>
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                    <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+
+                <!-- Product ID Filter -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">Product ID Filter</label>
+                    <input type="text" class="form-control" id="insights-product-id-filter" 
+                           placeholder="e.g., PROD1, PROD2, PROD3">
+                    <small class="form-text text-muted">Enter comma-separated product IDs (optional)</small>
+                </div>
+
+                <!-- Analysis Period -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">Analysis Period</label>
+                    <select class="form-select" id="insights-analysis-period">
+                        <option value="last_3_months">Last 3 Months</option>
+                        <option value="last_6_months" selected>Last 6 Months</option>
+                        <option value="last_12_months">Last 12 Months</option>
+                        <option value="last_24_months">Last 24 Months</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+
+                <!-- Custom date range -->
+                <div id="insights-custom-date-range" style="display: none;" class="mb-3">
+                    <div class="insights-form-group mb-2">
+                        <label class="insights-form-label">Start Date</label>
+                        <input type="date" class="form-control" id="insights-start-date">
+                    </div>
+                    <div class="insights-form-group mb-2">
+                        <label class="insights-form-label">End Date</label>
+                        <input type="date" class="form-control" id="insights-end-date">
+                    </div>
+                </div>
+
+                <!-- Time Granularity -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">Time Granularity</label>
+                    <select class="form-select" id="insights-time-unit">
+                        <option value="day">Daily</option>
+                        <option value="week">Weekly</option>
+                        <option value="month" selected>Monthly</option>
+                    </select>
+                </div>
+
+                <!-- Group By (SKU Definition) -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">SKU Definition</label>
+                    <select class="form-select" id="insights-group-by">
+                        <option value="product_id" selected>Product (SKU = Product ID)</option>
+                        <option value="product_id,location_id">Product + Location (SKU = Product + Location)</option>
+                    </select>
+                    <small class="form-text text-muted">Defines how SKUs are counted and analyzed</small>
+                </div>
+
+                <!-- Include Revenue Analysis -->
+                <div class="insights-form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="insights-show-revenue" checked>
+                        <label class="form-check-label" for="insights-show-revenue">
+                            Include Revenue Analysis
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Pareto Reference Lines -->
+                <div class="insights-form-group mb-3">
+                    <label class="insights-form-label">Pareto Reference Lines (%)</label>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control" id="insights-pareto-lines" 
+                               placeholder="e.g., 50,80,90" value="50,80,90" 
+                               title="Enter comma-separated values from 0 to 100">
+                        <button class="btn btn-outline-secondary" type="button" id="insights-clear-pareto-lines">Clear</button>
+                    </div>
+                    <small class="form-text text-muted">
+                        Enter comma-separated values (0-100). Leave empty to hide all reference lines.
+                        <br>Examples: "50,80,90" or "25,50,75" or "70"
+                    </small>
+                </div>
+
+                <!-- Include Zero Demand -->
+                <div class="insights-form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="insights-include-zero-demand" checked>
+                        <label class="form-check-label" for="insights-include-zero-demand">
+                            Include Zero Demand Products
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Chart Display Options -->
+                <div class="insights-form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="insights-show-values-with-percent" checked>
+                        <label class="form-check-label" for="insights-show-values-with-percent">
+                            Show Values with Percentages
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Show actual values (counts, $amounts) along with percentages on chart bars
+                    </small>
+                </div>
+
+                <!-- Master Table Toggle -->
+                <div class="mb-3">
+                    <label class="insights-form-label"><strong>Product Master Table:</strong></label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="insights-master-table" 
+                               id="insights-master-original" value="original" checked>
+                        <label class="form-check-label" for="insights-master-original">
+                            <i class="fas fa-database me-1"></i> Original Master Table
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="insights-master-table" 
+                               id="insights-master-selected" value="selected">
+                        <label class="form-check-label" for="insights-master-selected">
+                            <i class="fas fa-filter me-1"></i> Selected Products Master
+                        </label>
+                    </div>
+                    <small class="text-muted">Selected table is created when you export products from analysis</small>
+                    <div id="insights-master-table-status" class="mt-2" style="display: none;">
+                        <small class="badge bg-info">Current: 
+                            <span id="insights-current-table-type">Original</span>
+                        </small>
+                    </div>
+                </div>
+
+                <!-- OTIF Analysis Toggle -->
+                <div class="insights-form-group mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="insights-include-otif" checked>
+                        <label class="form-check-label" for="insights-include-otif" style="font-size: 0.9em;">
+                            <i class="fas fa-truck me-1"></i>Include OTIF Analysis
+                            <i class="fas fa-info-circle info-icon ms-1" data-bs-toggle="tooltip"
+                               data-bs-title="On Time In Full analysis using sales transaction data - calculates delivery performance metrics"
+                               style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- OTIF X Days Control -->
+                <div class="insights-form-group mb-3" id="insights-otif-x-days-control">
+                    <label class="insights-form-label">OTIF Tolerance (Days)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">±</span>
+                        <input type="number" class="form-control" id="insights-otif-x-days" 
+                               value="3" min="0" max="30" step="1">
+                        <span class="input-group-text">days</span>
+                    </div>
+                    <small class="form-text text-muted">
+                        Consider delivery "On Time" if within ± <span id="insights-x-days-display">3</span> days of requested date
+                    </small>
+                </div>
+
+                <button type="button" id="insights-update-btn" class="btn insights-btn-primary w-100">
+                    <i class="fas fa-sync-alt me-2"></i>Generate Insights
+                </button>
+                
+            </form>
             
             <div id="insights-data-warnings" class="alert alert-warning mt-3" style="display: none;">
                 <small><i class="fas fa-exclamation-triangle me-1"></i>Some data may be excluded from analysis</small>
@@ -324,6 +512,15 @@
                                     </div>
                                     <div class="col-lg-2 col-md-4 mb-3">
                                         <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-calendar-check"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-avg-inventory-coverage">0%</div>
+                                                <div class="insights-metric-label">Inventory Coverage</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
                                             <div class="insights-metric-icon"><i class="fas fa-shield-alt"></i></div>
                                             <div class="insights-metric-content">
                                                 <div class="insights-metric-value" id="insights-service-level">0%</div>
@@ -331,6 +528,19 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-check-circle"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-availability-percentage">0%</div>
+                                                <div class="insights-metric-label">Availability %</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Additional Metrics Row 3 -->
+                                <div class="row">
                                     <div class="col-lg-2 col-md-4 mb-3">
                                         <div class="insights-metric-card">
                                             <div class="insights-metric-icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -349,10 +559,136 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-chart-bar"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-avg-missed-demand-per-period">0</div>
+                                                <div class="insights-metric-label">Avg Missed Demand</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-boxes"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-skus-with-stock">0</div>
+                                                <div class="insights-metric-label">SKUs with Stock</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-ban"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-decapable-inventory-holding">$0</div>
+                                                <div class="insights-metric-label">Decapable Inventory</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Additional Metrics Row 4: OTIF Metrics (Always visible) -->
+                                <div class="row" id="insights-otif-metrics-row">
+                                    <div class="col-lg-2 col-md-6 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-truck"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-otif-value-percentage">N/A</div>
+                                                <div class="insights-metric-label">OTIF % (Value)
+                                                    <i class="fas fa-info-circle info-icon ms-1"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="On Time In Full percentage by value - orders delivered with full quantity on or before expected date"
+                                                        style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-6 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-cubes"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-otif-units-percentage">N/A</div>
+                                                <div class="insights-metric-label">OTIF % (Units)
+                                                    <i class="fas fa-info-circle info-icon ms-1"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="On Time In Full percentage by units - orders delivered with full quantity on or before expected date"
+                                                        style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-6 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-clock"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-time-delay-percentage">N/A</div>
+                                                <div class="insights-metric-label">Time Delay %
+                                                    <i class="fas fa-info-circle info-icon ms-1"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="Percentage of orders delivered late but with correct quantity"
+                                                        style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-6 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-minus-circle"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-qty-shortage-percentage">N/A</div>
+                                                <div class="insights-metric-label">Quantity Shortage %
+                                                    <i class="fas fa-info-circle info-icon ms-1"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="Percentage of orders delivered on time but with insufficient quantity"
+                                                        style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-6 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-both-issues-percentage">N/A</div>
+                                                <div class="insights-metric-label">Both Issues %
+                                                    <i class="fas fa-info-circle info-icon ms-1"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="Percentage of orders with both time delay and quantity shortage"
+                                                        style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-2 col-md-6 mb-3">
+                                        <div class="insights-metric-card">
+                                            <div class="insights-metric-icon"><i class="fas fa-calendar-times"></i></div>
+                                            <div class="insights-metric-content">
+                                                <div class="insights-metric-value" id="insights-avg-delay-days">N/A</div>
+                                                <div class="insights-metric-label">Avg Delay Days
+                                                    <i class="fas fa-info-circle info-icon ms-1"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-title="Average delay in days for late deliveries"
+                                                        style="font-size: 0.8em; opacity: 0.7; cursor: help;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Product Analysis Section -->
+                <div id="insights-product-analysis-section" class="text-center py-4" style="display: none;">
+                    <hr class="my-4">
+                    <button type="button" class="btn btn-outline-primary btn-lg" id="insights-select-products-btn"
+                        style="border-color: #de6a45; color: #de6a45;">
+                        <i class="fas fa-search me-2"></i>
+                        Select Products for Analysis
+                    </button>
+                    <p class="text-muted mt-2">View detailed product analysis based on current filters and insights</p>
                 </div>
 
                 <!-- Revenue Charts Row -->
@@ -447,19 +783,58 @@
                     </div>
                 </div>
 
-                <!-- Classification Plot -->
-                <div class="row mb-4">
+
+                <!-- Classification Distribution Plot -->
+                <div class="row insights-plot-row">
                     <div class="col-12">
                         <div class="insights-plot-card">
                             <div class="insights-plot-header">
-                                <h3>Product Classification Analysis</h3>
-                                <p>Detailed product classification and performance analysis</p>
+                                <h3>Demand Classification Distribution</h3>
+                                <p>Distribution of products across different demand patterns</p>
                             </div>
                             <div class="insights-plot-content">
                                 <div id="insights-classification-plot">
                                     <div class="insights-plot-placeholder">
-                                        <i class="fas fa-th"></i>
-                                        <div>Classification analysis will appear here</div>
+                                        <i class="fas fa-chart-bar"></i>
+                                        <div>Classification plot will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Charts Row -->
+                <div class="row insights-plot-row">
+                    <div class="col-md-6">
+                        <!-- Lead Time Distribution Chart -->
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Lead Time Distribution</h3>
+                                <p>Distribution of products by lead time from product master</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-leadtime-histogram-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-clock"></i>
+                                        <div>Lead time distribution will appear here</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <!-- Supply Pattern Analysis Chart -->
+                        <div class="insights-plot-card">
+                            <div class="insights-plot-header">
+                                <h3>Supply Pattern Analysis</h3>
+                                <p>Analysis of supply patterns based on inbound inventory</p>
+                            </div>
+                            <div class="insights-plot-content">
+                                <div id="insights-ordering-analysis-plot">
+                                    <div class="insights-plot-placeholder">
+                                        <i class="fas fa-truck"></i>
+                                        <div>Supply pattern analysis will appear here</div>
                                     </div>
                                 </div>
                             </div>
@@ -488,18 +863,74 @@ $(document).ready(function() {
     // Event listeners
     $('#insights-update-btn').on('click', insightsUpdateAnalysis);
     
+    // Handle analysis period change - show/hide custom date range
+    $('#insights-analysis-period').on('change', function() {
+        if ($(this).val() === 'custom') {
+            $('#insights-custom-date-range').show();
+        } else {
+            $('#insights-custom-date-range').hide();
+        }
+    });
+
+    // Handle master table selection change
+    $('input[name="insights-master-table"]').change(function() {
+        const insightsSelectedType = $(this).val();
+        const insightsStatusElement = $('#insights-master-table-status');
+        const insightsCurrentTypeElement = $('#insights-current-table-type');
+
+        if (insightsSelectedType === 'selected') {
+            insightsCurrentTypeElement.text('Selected Products Master');
+            insightsStatusElement.removeClass('d-none').show();
+        } else {
+            insightsCurrentTypeElement.text('Original Master Table');
+            insightsStatusElement.removeClass('d-none').show();
+        }
+    });
+
+    // Handle OTIF toggle - show/hide X days control
+    $('#insights-include-otif').change(function() {
+        if ($(this).is(':checked')) {
+            $('#insights-otif-x-days-control').show();
+        } else {
+            $('#insights-otif-x-days-control').hide();
+        }
+    });
+
+    // Update X days display when input changes
+    $('#insights-otif-x-days').on('input', function() {
+        $('#insights-x-days-display').text($(this).val());
+    });
+
+    // Handle clear pareto lines button
+    $('#insights-clear-pareto-lines').on('click', function() {
+        $('#insights-pareto-lines').val('');
+    });
+    
+    // Handle product analysis button click
+    $('#insights-select-products-btn').on('click', function() {
+        insightsOpenProductAnalysisModal();
+    });
+    
     // Functions with insights prefix to avoid conflicts
     function insightsInitializePage() {
         console.log('📊 Loading insights filter options...');
         insightsLoadFilterOptions();
         
-        // Set default date range
-        const insightsEndDate = new Date();
-        const insightsStartDate = new Date();
-        insightsStartDate.setFullYear(insightsEndDate.getFullYear() - 1);
-        
-        $('#insights-start-date').val(insightsStartDate.toISOString().split('T')[0]);
-        $('#insights-end-date').val(insightsEndDate.toISOString().split('T')[0]);
+        // Initialize with current date for custom range
+        const insightsToday = new Date().toISOString().split('T')[0];
+        const insightsSixMonthsAgo = new Date();
+        insightsSixMonthsAgo.setMonth(insightsSixMonthsAgo.getMonth() - 6);
+        const insightsSixMonthsAgoStr = insightsSixMonthsAgo.toISOString().split('T')[0];
+
+        $('#insights-end-date').val(insightsToday);
+        $('#insights-start-date').val(insightsSixMonthsAgoStr);
+
+        // Initialize OTIF control visibility
+        if ($('#insights-include-otif').is(':checked')) {
+            $('#insights-otif-x-days-control').show();
+        } else {
+            $('#insights-otif-x-days-control').hide();
+        }
         
         // Load initial analysis
         insightsUpdateAnalysis();
@@ -543,42 +974,85 @@ $(document).ready(function() {
     function insightsUpdateAnalysis() {
         console.log('🔄 Updating insights analysis...');
         
-        const insightsFilters = {
-            start_date: $('#insights-start-date').val(),
-            end_date: $('#insights-end-date').val(),
-            locations: $('#insights-location-filter').val(),
-            categories: $('#insights-category-filter').val(),
-            products: $('#insights-product-filter').val()
-        };
+        // Collect all form data with insights prefixing
+        const insightsFormData = new FormData();
+        const insightsMasterTableType = $('input[name="insights-master-table"]:checked').val();
+
+        console.log('Form data collection:');
+        console.log('- Master table type:', insightsMasterTableType);
+        console.log('- Analysis period:', $('#insights-analysis-period').val());
+        console.log('- Group by:', $('#insights-group-by').val());
+
+        insightsFormData.append('analysis_period', $('#insights-analysis-period').val());
+        insightsFormData.append('group_by', $('#insights-group-by').val());
+        insightsFormData.append('time_unit', $('#insights-time-unit').val());
+        insightsFormData.append('show_revenue', $('#insights-show-revenue').is(':checked'));
+        
+        // Handle multiple selections for location and category filters
+        const insightsSelectedLocations = $('#insights-location-filter').val() || [];
+        const insightsSelectedCategories = $('#insights-category-filter').val() || [];
+        insightsFormData.append('location_filter', insightsSelectedLocations.join(','));
+        insightsFormData.append('category_filter', insightsSelectedCategories.join(','));
+        insightsFormData.append('product_id_filter', $('#insights-product-id-filter').val());
+        insightsFormData.append('include_zero_demand', $('#insights-include-zero-demand').is(':checked'));
+        insightsFormData.append('include_otif', $('#insights-include-otif').is(':checked'));
+        insightsFormData.append('otif_x_days', $('#insights-otif-x-days').val());
+        insightsFormData.append('pareto_lines', $('#insights-pareto-lines').val());
+        insightsFormData.append('show_values_with_percent', $('#insights-show-values-with-percent').is(':checked'));
+        insightsFormData.append('master_table_type', insightsMasterTableType);
+
+        if ($('#insights-analysis-period').val() === 'custom') {
+            insightsFormData.append('start_date', $('#insights-start-date').val());
+            insightsFormData.append('end_date', $('#insights-end-date').val());
+        }
         
         $.ajax({
             url: '/insights_analysis_data',
             type: 'POST',
-            data: insightsFilters,
+            data: insightsFormData,
+            processData: false,
+            contentType: false,
             success: function(insightsData) {
                 console.log('✅ Insights analysis data received');
+                console.log('📊 Full response data:', insightsData);
                 
                 if (insightsData.error) {
                     console.error('❌ Insights analysis error:', insightsData.error);
+                    $('#insights-data-warnings').show().find('small').html('<i class="fas fa-exclamation-triangle me-1"></i>' + (insightsData.error || 'Unknown error'));
                     return;
+                } else {
+                    $('#insights-data-warnings').hide();
                 }
                 
                 // Update KPI dashboard
-                insightsUpdateMetricsDashboard(insightsData.metrics);
+                console.log('📈 Calling metrics update with:', insightsData.metrics);
+                if (insightsData.metrics) {
+                    insightsUpdateMetricsDashboard(insightsData.metrics, insightsData.excluded_products_count);
+                    console.log('✅ Metrics dashboard updated successfully');
+                } else {
+                    console.warn('⚠️ No metrics data received');
+                }
                 
                 // Update charts
+                console.log('🎨 Starting chart rendering...');
                 insightsRenderCharts(insightsData);
+                console.log('✅ Chart rendering completed');
             },
             error: function(insightsXhr, insightsStatus, insightsError) {
                 console.error('❌ Error updating insights analysis:', insightsError);
+                $('#insights-data-warnings').show().find('small').html('<i class="fas fa-exclamation-triangle me-1"></i>Failed to update analysis. Please try again.');
             }
         });
     }
     
     function insightsUpdateMetricsDashboard(insightsMetrics) {
-        if (!insightsMetrics) return;
+        if (!insightsMetrics) {
+            console.log('❌ No insights metrics received');
+            return;
+        }
         
         console.log('📈 Updating insights metrics dashboard...');
+        console.log('📊 Full insights metrics object:', insightsMetrics);
         
         // Helper function to format numbers for insights
         const insightsFormatNumber = (insightsValue, insightsPrefix = '', insightsSuffix = '') => {
@@ -623,79 +1097,351 @@ $(document).ready(function() {
                 insightsMetrics.inventory_turnover_ratio :
                 (insightsMetrics.inventory_turnover_ratio !== null ? (insightsMetrics.inventory_turnover_ratio || 0).toFixed(2) + 'x' : 'N/A')
         );
-        $('#insights-service-level').text(insightsMetrics.service_level !== null ? (insightsMetrics.service_level || 0).toFixed(1) + '%' : 'N/A');
+        $('#insights-avg-inventory-coverage').text(
+            insightsMetrics.avg_inventory_coverage !== null ? (insightsMetrics.avg_inventory_coverage || 0).toFixed(1) + '%' : 'N/A'
+        );
+        $('#insights-service-level').text(
+            insightsMetrics.service_level !== null ? (insightsMetrics.service_level || 0).toFixed(1) + '%' : 'N/A'
+        );
+        $('#insights-availability-percentage').text(
+            insightsMetrics.availability_percentage !== null ? (insightsMetrics.availability_percentage || 0).toFixed(1) + '%' : 'N/A'
+        );
+        
+        // Update additional metrics
+        $('#insights-stockout-frequency').text(
+            insightsMetrics.stockout_frequency !== null ? (insightsMetrics.stockout_frequency || 0).toFixed(1) + '%' : 'N/A'
+        );
         $('#insights-total-missed-revenue').text(insightsFormatNumber(insightsMetrics.total_missed_revenue, '$'));
-        $('#insights-stockout-frequency').text(insightsMetrics.stockout_frequency !== null ? (insightsMetrics.stockout_frequency || 0).toFixed(1) + '%' : 'N/A');
+        $('#insights-avg-missed-demand-per-period').text(insightsFormatNumber(insightsMetrics.avg_missed_demand_per_period));
+        $('#insights-skus-with-stock').text(insightsFormatNumber(insightsMetrics.skus_with_stock));
+        $('#insights-decapable-inventory-holding').text(insightsFormatNumber(insightsMetrics.decapable_inventory_holding, '$'));
+        
+        // Update OTIF metrics (always show, even if data not available)
+        $('#insights-otif-value-percentage').text(
+            typeof insightsMetrics.otif_value_percentage === 'string' ?
+                insightsMetrics.otif_value_percentage :
+                (insightsMetrics.otif_value_percentage !== null && insightsMetrics.otif_value_percentage !== undefined ? 
+                 (insightsMetrics.otif_value_percentage || 0).toFixed(1) + '%' : 'Data Not Available')
+        );
+        $('#insights-otif-units-percentage').text(
+            typeof insightsMetrics.otif_units_percentage === 'string' ?
+                insightsMetrics.otif_units_percentage :
+                (insightsMetrics.otif_units_percentage !== null && insightsMetrics.otif_units_percentage !== undefined ? 
+                 (insightsMetrics.otif_units_percentage || 0).toFixed(1) + '%' : 'Data Not Available')
+        );
+
+        // Update delivery performance metrics
+        $('#insights-time-delay-percentage').text(
+            typeof insightsMetrics.time_delay_percentage === 'string' ?
+                insightsMetrics.time_delay_percentage :
+                (insightsMetrics.time_delay_percentage !== null && insightsMetrics.time_delay_percentage !== undefined ? 
+                 (insightsMetrics.time_delay_percentage || 0).toFixed(1) + '%' : 'Data Not Available')
+        );
+        $('#insights-qty-shortage-percentage').text(
+            typeof insightsMetrics.qty_shortage_percentage === 'string' ?
+                insightsMetrics.qty_shortage_percentage :
+                (insightsMetrics.qty_shortage_percentage !== null && insightsMetrics.qty_shortage_percentage !== undefined ? 
+                 (insightsMetrics.qty_shortage_percentage || 0).toFixed(1) + '%' : 'Data Not Available')
+        );
+        $('#insights-both-issues-percentage').text(
+            typeof insightsMetrics.both_issues_percentage === 'string' ?
+                insightsMetrics.both_issues_percentage :
+                (insightsMetrics.both_issues_percentage !== null && insightsMetrics.both_issues_percentage !== undefined ? 
+                 (insightsMetrics.both_issues_percentage || 0).toFixed(1) + '%' : 'Data Not Available')
+        );
+        $('#insights-avg-delay-days').text(
+            typeof insightsMetrics.avg_delay_days === 'string' ?
+                insightsMetrics.avg_delay_days :
+                (insightsMetrics.avg_delay_days !== null && insightsMetrics.avg_delay_days !== undefined ? 
+                 (insightsMetrics.avg_delay_days || 0).toFixed(1) + ' days' : 'Data Not Available')
+        );
+        
+        console.log('✅ OTIF metrics updated for insights (always visible)');
+        
+        // Show product analysis section
+        $('#insights-product-analysis-section').show();
         
         console.log('✅ Insights metrics dashboard updated');
     }
     
+    // Helper function to render Plotly charts for insights
+    const insightsRenderPlot = (insightsTargetId, insightsFigJson) => {
+        const insightsEl = document.getElementById(insightsTargetId);
+        if (!insightsEl || !insightsFigJson) return;
+        
+        $(insightsEl).empty();
+        const insightsFig = typeof insightsFigJson === 'string' ? JSON.parse(insightsFigJson) : insightsFigJson;
+        
+        // Classification chart gets 700px, others get 380px
+        const chartHeight = insightsTargetId === 'insights-classification-plot' ? 700 : 380;
+        
+        insightsFig.layout = Object.assign({ 
+            height: chartHeight, 
+            width: null,
+            autosize: true, 
+            // Don't override margins - let the chart use its own margins from Python
+            showlegend: true,
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        }, insightsFig.layout || {});
+        
+        Plotly.newPlot(insightsEl, insightsFig.data, insightsFig.layout, { 
+            responsive: true, 
+            displayModeBar: false,
+            staticPlot: false,
+            scrollZoom: false,
+            doubleClick: false,
+            showTips: false,
+            showAxisDragHandles: false,
+            showAxisRangeEntryBoxes: false
+        }).then(() => {
+            console.log(`✅ Chart ${insightsTargetId} rendered successfully`);
+            if (window.ResizeObserver) {
+                const insightsRo = new ResizeObserver(() => {
+                    setTimeout(() => Plotly.Plots.resize(insightsEl), 100);
+                });
+                insightsRo.observe(insightsEl);
+            } else {
+                window.addEventListener('resize', () => {
+                    setTimeout(() => Plotly.Plots.resize(insightsEl), 100);
+                });
+            }
+        }).catch(err => {
+            console.error(`❌ Error rendering chart ${insightsTargetId}:`, err);
+        });
+    };
+    
+    // Function to show "Data Not Available" message in charts for insights
+    const insightsShowDataNotAvailable = (insightsTargetId, insightsMessage) => {
+        const insightsEl = document.getElementById(insightsTargetId);
+        if (!insightsEl) {
+            console.warn(`Target element ${insightsTargetId} not found for data not available message.`);
+            return;
+        }
+        
+        // Classification chart gets 700px, others get 380px
+        const messageHeight = insightsTargetId === 'insights-classification-plot' ? 700 : 380;
+        
+        $(insightsEl).html(`
+            <div class="d-flex align-items-center justify-content-center" style="height: ${messageHeight}px; margin: 0; padding: 0;">
+                <div class="text-center text-muted">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3" style="opacity: 0.3;"></i>
+                    <h5>${insightsMessage}</h5>
+                    <p class="small">Please check your data sources or try different filters</p>
+                </div>
+            </div>
+        `);
+    };
+    
+    // Function to render all insights charts
     function insightsRenderCharts(insightsData) {
-        console.log('🎨 Rendering insights charts...');
+        console.log('🎨 insightsRenderCharts called with data:', insightsData);
         
-        // Helper function to render Plotly charts for insights
-        const insightsRenderPlot = (insightsTargetId, insightsFigJson) => {
-            const insightsEl = document.getElementById(insightsTargetId);
-            if (!insightsEl || !insightsFigJson) return;
-            
-            $(insightsEl).empty();
-            const insightsFig = typeof insightsFigJson === 'string' ? JSON.parse(insightsFigJson) : insightsFigJson;
-            insightsFig.layout = Object.assign({ 
-                height: 380, 
-                autosize: true, 
-                margin: { l: 40, r: 20, t: 50, b: 40 } 
-            }, insightsFig.layout || {});
-            
-            Plotly.newPlot(insightsEl, insightsFig.data, insightsFig.layout, { 
-                responsive: true, 
-                displayModeBar: false 
-            }).then(() => {
-                if (window.ResizeObserver) {
-                    const insightsRo = new ResizeObserver(() => Plotly.Plots.resize(insightsEl));
-                    insightsRo.observe(insightsEl);
-                } else {
-                    window.addEventListener('resize', () => Plotly.Plots.resize(insightsEl));
-                }
-            });
-        };
+        if (!insightsData) {
+            console.error('❌ No data provided to insightsRenderCharts');
+            return;
+        }
         
-        // Render revenue by category chart
+        // Render revenue by category chart or show data not available
         if (insightsData.revenue_by_category_plotly) {
             console.log('📊 Rendering insights category pie chart');
             insightsRenderPlot('insights-revenue-by-category-plot', insightsData.revenue_by_category_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-revenue-by-category-plot', 'Revenue by Category data not available');
         }
         
-        // Render revenue by location chart
+        // Render revenue by location chart or show data not available
         if (insightsData.revenue_by_location_plotly) {
             console.log('📊 Rendering insights location pie chart');
             insightsRenderPlot('insights-revenue-by-location-plot', insightsData.revenue_by_location_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-revenue-by-location-plot', 'Revenue by Location data not available');
         }
         
-        // Render COGS and stock value chart
+        // Render COGS and stock value chart or show data not available
         if (insightsData.cogs_stock_value_plotly) {
             console.log('📊 Rendering insights COGS chart');
             insightsRenderPlot('insights-cogs-stock-value-plot', insightsData.cogs_stock_value_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-cogs-stock-value-plot', 'Demand and Revenue Trends data not available');
         }
         
-        // Render Pareto charts
+        // Render Pareto charts or show data not available
         if (insightsData.pareto_revenue_plotly) {
             console.log('📊 Rendering insights revenue Pareto chart');
             insightsRenderPlot('insights-pareto-revenue-plot', insightsData.pareto_revenue_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-pareto-revenue-plot', 'Revenue Pareto Analysis data not available');
         }
         
         if (insightsData.pareto_demand_plotly) {
             console.log('📊 Rendering insights demand Pareto chart');
             insightsRenderPlot('insights-pareto-demand-plot', insightsData.pareto_demand_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-pareto-demand-plot', 'Demand Pareto Analysis data not available');
         }
         
-        // Render classification plot
+        // Render classification plot (4-bar chart) or show data not available
         if (insightsData.classification_plotly) {
-            console.log('📊 Rendering insights classification plot');
+            console.log('📊 Rendering insights classification plot (4-bar chart)');
             insightsRenderPlot('insights-classification-plot', insightsData.classification_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-classification-plot', 'Demand Classification data not available');
+        }
+        
+        // Render leadtime histogram plot or show data not available
+        if (insightsData.leadtime_histogram_plotly) {
+            console.log('📊 Rendering insights leadtime histogram plot');
+            insightsRenderPlot('insights-leadtime-histogram-plot', insightsData.leadtime_histogram_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-leadtime-histogram-plot', 'Lead Time Distribution data not available');
+        }
+        
+        // Render ordering analysis plot or show data not available
+        if (insightsData.ordering_analysis_plotly) {
+            console.log('📊 Rendering insights ordering analysis plot');
+            insightsRenderPlot('insights-ordering-analysis-plot', insightsData.ordering_analysis_plotly);
+        } else {
+            insightsShowDataNotAvailable('insights-ordering-analysis-plot', 'Supply Pattern Analysis data not available');
         }
         
         console.log('✅ All insights charts rendered');
     }
+    
+    // Function to open product analysis modal for insights
+    function insightsOpenProductAnalysisModal() {
+        // Show modal and loading state
+        $('#insightsProductAnalysisModal').modal('show');
+        $('#insights-modal-loading').show();
+        $('#insights-modal-content').hide();
+        $('#insights-modal-error').hide();
+
+        // Collect form data
+        const insightsFormData = new FormData();
+        insightsFormData.append('analysis_period', $('#insights-analysis-period').val());
+        insightsFormData.append('group_by', $('#insights-group-by').val());
+        insightsFormData.append('time_unit', $('#insights-time-unit').val());
+        
+        // Handle multiple selections for location and category filters
+        const insightsSelectedLocations = $('#insights-location-filter').val() || [];
+        const insightsSelectedCategories = $('#insights-category-filter').val() || [];
+        insightsFormData.append('location_filter', insightsSelectedLocations.join(','));
+        insightsFormData.append('category_filter', insightsSelectedCategories.join(','));
+        insightsFormData.append('product_id_filter', $('#insights-product-id-filter').val());
+        insightsFormData.append('include_zero_demand', $('#insights-include-zero-demand').is(':checked'));
+        insightsFormData.append('master_table_type', $('input[name="insights-master-table"]:checked').val());
+
+        if ($('#insights-analysis-period').val() === 'custom') {
+            insightsFormData.append('start_date', $('#insights-start-date').val());
+            insightsFormData.append('end_date', $('#insights-end-date').val());
+        }
+
+            // Make AJAX request
+            $.ajax({
+                url: '/get_product_analysis',
+            type: 'POST',
+            data: insightsFormData,
+            processData: false,
+            contentType: false,
+            success: function (insightsResponse) {
+                $('#insights-modal-loading').hide();
+                console.log('Product analysis response for insights:', insightsResponse);
+                if (insightsResponse.success) {
+                    insightsDisplayProductAnalysis(insightsResponse);
+                } else {
+                    insightsShowModalError(insightsResponse.error || 'Failed to load product analysis');
+                }
+            },
+            error: function (insightsXhr, insightsStatus, insightsError) {
+                $('#insights-modal-loading').hide();
+                insightsShowModalError('Error loading product analysis: ' + insightsError);
+            }
+        });
+    }
+
+    function insightsDisplayProductAnalysis(insightsData) {
+        // Simple display for now - just show that it loaded
+        const insightsFormatNumber = (num) => {
+            if (num >= 1000000) {
+                return '$' + (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return '$' + (num / 1000).toFixed(1) + 'K';
+            } else {
+                return '$' + num.toLocaleString();
+            }
+        };
+
+        $('#insights-modal-total-revenue').text(insightsFormatNumber(insightsData.total_revenue || 0));
+        $('#insights-modal-product-count').text((insightsData.products || []).length.toLocaleString());
+        
+        $('#insights-modal-content').show();
+    }
+
+    function insightsShowModalError(insightsErrorMessage) {
+        $('#insights-modal-error-message').text(insightsErrorMessage);
+        $('#insights-modal-error').show();
+    }
 });
 </script>
+
+<!-- Product Analysis Modal for Insights -->
+<div class="modal fade" id="insightsProductAnalysisModal" tabindex="-1" aria-labelledby="insightsProductAnalysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #de6a45 0%, #cfc8c2 100%); color: white;">
+                <h5 class="modal-title" id="insightsProductAnalysisModalLabel">
+                    <i class="fas fa-search me-2"></i>Product Analysis Dashboard (Insights)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
+                
+                <!-- Loading State -->
+                <div id="insights-modal-loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading product analysis...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="insights-modal-error" class="alert alert-danger" style="display: none;">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Error</h6>
+                    <p id="insights-modal-error-message"></p>
+                </div>
+
+                <!-- Main Content -->
+                <div id="insights-modal-content" style="display: none;">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Total Revenue</h5>
+                                    <h3 class="text-primary" id="insights-modal-total-revenue">$0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Product Count</h5>
+                                    <h3 class="text-success" id="insights-modal-product-count">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Product analysis modal is now integrated. Additional detailed analysis features can be added here.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
