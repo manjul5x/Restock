@@ -60,7 +60,7 @@
         background: white;
         border-radius: 15px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
+        overflow: visible;
         position: relative;
         width: 100%;
         margin-bottom: 0;
@@ -83,7 +83,7 @@
         padding: 0 !important;
         margin: 0 !important;
         position: relative;
-        overflow: hidden;
+        overflow: visible;
         display: block;
         height: auto;
     }
@@ -105,17 +105,25 @@
     #insights-ordering-analysis-plot {
         width: 100%;
         height: 380px;
+        min-height: 380px;
         margin: 0 !important;
         padding: 0 !important;
         display: block;
+        position: relative;
+        background: white;
     }
 
     #insights-classification-plot {
         width: 100%;
-        height: 700px;
+        height: 900px;
+        min-height: 900px;
         margin: 0 !important;
         padding: 0 !important;
         display: block;
+        position: relative;
+        top: 0;
+        left: 0;
+        background: white;
     }
 
 
@@ -415,8 +423,25 @@
         <div class="insights-content-area">
             <div class="container-fluid">
                 
-                <!-- KPI Dashboard -->
-                <div id="insights-metrics-dashboard" class="row mb-4">
+                <!-- Welcome Message (shown initially) -->
+                <div id="insights-welcome-message" class="row mb-4">
+                    <div class="col-12">
+                        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px;">
+                            <div class="card-body text-center py-5">
+                                <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                                <h3>Welcome to Insights Dashboard</h3>
+                                <p class="lead">Click the "Generate Insights" button in the left panel to analyze your inventory data and generate comprehensive business insights.</p>
+                                <div class="mt-4">
+                                    <i class="fas fa-arrow-left"></i>
+                                    <span class="ms-2">Configure your analysis settings and click "Generate Insights"</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Dashboard (initially hidden) -->
+                <div id="insights-metrics-dashboard" class="row mb-4" style="display: none;">
                     <div class="col-12">
                         <div class="card" style="background: linear-gradient(135deg, #de6a45 0%, #cfc8c2 100%); color: white; margin-bottom: 20px;">
                             <div class="card-header" style="background: transparent; border: none;">
@@ -692,7 +717,7 @@
                 </div>
 
                 <!-- Revenue Charts Row -->
-                <div class="row insights-plot-row">
+                <div class="row insights-plot-row" id="insights-charts-section" style="display: none;">
                     <div class="col-md-6">
                         <div class="insights-plot-card">
                             <div class="insights-plot-header">
@@ -728,7 +753,7 @@
                 </div>
 
                 <!-- COGS and Stock Value Chart -->
-                <div class="row mb-4">
+                <div class="row mb-4" id="insights-cogs-chart-section" style="display: none;">
                     <div class="col-12">
                         <div class="insights-plot-card">
                             <div class="insights-plot-header">
@@ -748,7 +773,7 @@
                 </div>
 
                 <!-- Pareto Charts Row -->
-                <div class="row insights-plot-row">
+                <div class="row insights-plot-row" id="insights-pareto-charts-section" style="display: none;">
                     <div class="col-md-6">
                         <div class="insights-plot-card">
                             <div class="insights-plot-header">
@@ -783,9 +808,8 @@
                     </div>
                 </div>
 
-
                 <!-- Classification Distribution Plot -->
-                <div class="row insights-plot-row">
+                <div class="row insights-plot-row" id="insights-classification-section" style="display: none;">
                     <div class="col-12">
                         <div class="insights-plot-card">
                             <div class="insights-plot-header">
@@ -805,7 +829,7 @@
                 </div>
 
                 <!-- Additional Charts Row -->
-                <div class="row insights-plot-row">
+                <div class="row insights-plot-row" id="insights-additional-charts-section" style="display: none;">
                     <div class="col-md-6">
                         <!-- Lead Time Distribution Chart -->
                         <div class="insights-plot-card">
@@ -913,8 +937,8 @@ $(document).ready(function() {
     
     // Functions with insights prefix to avoid conflicts
     function insightsInitializePage() {
-        console.log('📊 Loading insights filter options...');
-        insightsLoadFilterOptions();
+        console.log('📊 Insights page initializing (no auto-load)...');
+        // Completely disabled automatic loading - filter options and analysis will load only when user clicks button
         
         // Initialize with current date for custom range
         const insightsToday = new Date().toISOString().split('T')[0];
@@ -932,8 +956,7 @@ $(document).ready(function() {
             $('#insights-otif-x-days-control').hide();
         }
         
-        // Load initial analysis
-        insightsUpdateAnalysis();
+        console.log('📊 Insights page ready. Click "Generate Insights" to load analysis.');
     }
     
     function insightsLoadFilterOptions() {
@@ -972,7 +995,18 @@ $(document).ready(function() {
     }
     
     function insightsUpdateAnalysis() {
-        console.log('🔄 Updating insights analysis...');
+        console.log('🔄 Starting insights analysis...');
+        
+        // Show loading state on button
+        const $button = $('#insights-update-btn');
+        const originalHtml = $button.html();
+        $button.html('<i class="fas fa-spinner fa-spin me-2"></i>Generating Insights...').prop('disabled', true);
+        
+        // First, load filter options if they haven't been loaded yet
+        if ($('#insights-location-filter option').length <= 1) {
+            console.log('📊 Loading filter options first...');
+            insightsLoadFilterOptions();
+        }
         
         // Collect all form data with insights prefixing
         const insightsFormData = new FormData();
@@ -1041,6 +1075,11 @@ $(document).ready(function() {
             error: function(insightsXhr, insightsStatus, insightsError) {
                 console.error('❌ Error updating insights analysis:', insightsError);
                 $('#insights-data-warnings').show().find('small').html('<i class="fas fa-exclamation-triangle me-1"></i>Failed to update analysis. Please try again.');
+            },
+            complete: function() {
+                // Restore button state
+                const $button = $('#insights-update-btn');
+                $button.html('<i class="fas fa-sync-alt me-2"></i>Generate Insights').prop('disabled', false);
             }
         });
     }
@@ -1053,6 +1092,23 @@ $(document).ready(function() {
         
         console.log('📈 Updating insights metrics dashboard...');
         console.log('📊 Full insights metrics object:', insightsMetrics);
+        
+        // Hide welcome message and show dashboard and charts
+        $('#insights-welcome-message').hide();
+        $('#insights-metrics-dashboard').show();
+        
+        // Show specific chart sections
+        $('#insights-charts-section').show();
+        $('#insights-cogs-chart-section').show();
+        $('#insights-pareto-charts-section').show();
+        $('#insights-classification-section').show();
+        $('#insights-additional-charts-section').show();
+        
+        // Force a small delay to ensure proper layout calculation
+        setTimeout(() => {
+            // Trigger window resize to fix any Plotly chart sizing issues
+            window.dispatchEvent(new Event('resize'));
+        }, 100);
         
         // Helper function to format numbers for insights
         const insightsFormatNumber = (insightsValue, insightsPrefix = '', insightsSuffix = '') => {
@@ -1172,18 +1228,30 @@ $(document).ready(function() {
         $(insightsEl).empty();
         const insightsFig = typeof insightsFigJson === 'string' ? JSON.parse(insightsFigJson) : insightsFigJson;
         
-        // Classification chart gets 700px, others get 380px
-        const chartHeight = insightsTargetId === 'insights-classification-plot' ? 700 : 380;
-        
-        insightsFig.layout = Object.assign({ 
-            height: chartHeight, 
-            width: null,
-            autosize: true, 
-            // Don't override margins - let the chart use its own margins from Python
-            showlegend: true,
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)'
-        }, insightsFig.layout || {});
+        // For classification plot, respect server-side layout settings
+        if (insightsTargetId === 'insights-classification-plot') {
+            // Only add minimal overrides for classification plot - respect server layout
+            insightsFig.layout = Object.assign({ 
+                autosize: true,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                dragmode: false,
+                scrollZoom: false
+            }, insightsFig.layout || {});
+        } else {
+            // For other charts, apply standard layout
+            insightsFig.layout = Object.assign({ 
+                height: 380, 
+                width: null,
+                autosize: true, 
+                margin: { l: 50, r: 30, t: 10, b: 30 },
+                showlegend: true,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                dragmode: false,
+                scrollZoom: false
+            }, insightsFig.layout || {});
+        }
         
         Plotly.newPlot(insightsEl, insightsFig.data, insightsFig.layout, { 
             responsive: true, 
@@ -1219,11 +1287,11 @@ $(document).ready(function() {
             return;
         }
         
-        // Classification chart gets 700px, others get 380px
-        const messageHeight = insightsTargetId === 'insights-classification-plot' ? 700 : 380;
+        // Use the CSS-defined heights for consistent sizing
+        const messageHeight = insightsTargetId === 'insights-classification-plot' ? 900 : 380;
         
         $(insightsEl).html(`
-            <div class="d-flex align-items-center justify-content-center" style="height: ${messageHeight}px; margin: 0; padding: 0;">
+            <div class="d-flex align-items-center justify-content-center" style="height: ${messageHeight}px; margin: 0; padding: 0; position: relative; top: 0; left: 0;">
                 <div class="text-center text-muted">
                     <i class="fas fa-exclamation-triangle fa-3x mb-3" style="opacity: 0.3;"></i>
                     <h5>${insightsMessage}</h5>
@@ -1245,16 +1313,21 @@ $(document).ready(function() {
         // Render revenue by category chart or show data not available
         if (insightsData.revenue_by_category_plotly) {
             console.log('📊 Rendering insights category pie chart');
+            console.log('📊 Category chart data:', insightsData.revenue_by_category_plotly);
             insightsRenderPlot('insights-revenue-by-category-plot', insightsData.revenue_by_category_plotly);
         } else {
+            console.log('⚠️ No revenue_by_category_plotly data received');
             insightsShowDataNotAvailable('insights-revenue-by-category-plot', 'Revenue by Category data not available');
         }
         
         // Render revenue by location chart or show data not available
         if (insightsData.revenue_by_location_plotly) {
             console.log('📊 Rendering insights location pie chart');
+            console.log('📊 Location chart data:', insightsData.revenue_by_location_plotly);
             insightsRenderPlot('insights-revenue-by-location-plot', insightsData.revenue_by_location_plotly);
         } else {
+            console.log('⚠️ No revenue_by_location_plotly data received');
+            console.log('📊 Available data keys:', Object.keys(insightsData));
             insightsShowDataNotAvailable('insights-revenue-by-location-plot', 'Revenue by Location data not available');
         }
         

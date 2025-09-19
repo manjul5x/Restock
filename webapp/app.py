@@ -2994,9 +2994,17 @@ def insights_analysis_data():
             
         try:
             print(f"📊 Building revenue by location chart...")
+            print(f"📊 Input data shape: {insights_filtered_data.shape}")
+            print(f"📊 Input data columns: {insights_filtered_data.columns.tolist()}")
             insights_charts['revenue_by_location'] = insights_build_revenue_by_location_chart(insights_filtered_data)
+            if insights_charts['revenue_by_location']:
+                print(f"✅ Revenue by location chart generated successfully")
+            else:
+                print(f"⚠️ Revenue by location chart returned None")
         except Exception as loc_error:
             print(f"❌ Error building location chart: {loc_error}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             insights_charts['revenue_by_location'] = None
             
         try:
@@ -3660,19 +3668,50 @@ def insights_build_revenue_by_location_chart(insights_data):
     
     try:
         if insights_data.empty or 'location_id' not in insights_data.columns:
+            print(f"📊 Location chart: Data is empty or no location_id column")
             return None
+        
+        print(f"📊 Location chart: Processing {len(insights_data)} rows")
+        print(f"📊 Available columns: {insights_data.columns.tolist()}")
+        print(f"📊 Unique locations: {insights_data['location_id'].nunique()}")
         
         # Calculate revenue if needed
         if 'revenue' not in insights_data.columns:
             if 'unit_price' in insights_data.columns:
                 insights_data['revenue'] = insights_data['demand'] * insights_data['unit_price']
+                print(f"📊 Location chart: Calculated revenue from demand * unit_price")
+            elif 'price' in insights_data.columns:
+                insights_data['revenue'] = insights_data['demand'] * insights_data['price']
+                print(f"📊 Location chart: Calculated revenue from demand * price")
             else:
-                return None
+                print(f"📊 Location chart: No revenue or price columns available")
+                # Try to proceed with demand instead of revenue
+                insights_location_revenue = insights_data.groupby('location_id', observed=True)['demand'].sum().sort_values(ascending=False)
+                chart_title = 'Demand by Location'
+                value_label = 'Demand'
+        else:
+            print(f"📊 Location chart: Using existing revenue column")
+            insights_location_revenue = insights_data.groupby('location_id', observed=True)['revenue'].sum().sort_values(ascending=False)
+            chart_title = 'Revenue by Location'
+            value_label = 'Revenue'
         
-        # Group by location and sum revenue
-        insights_location_revenue = insights_data.groupby('location_id', observed=True)['revenue'].sum().sort_values(ascending=False)
+        # If we haven't set the location revenue yet, calculate it
+        if 'insights_location_revenue' not in locals():
+            if 'revenue' in insights_data.columns:
+                insights_location_revenue = insights_data.groupby('location_id', observed=True)['revenue'].sum().sort_values(ascending=False)
+                chart_title = 'Revenue by Location'
+                value_label = 'Revenue'
+            else:
+                print(f"📊 Location chart: Falling back to demand")
+                insights_location_revenue = insights_data.groupby('location_id', observed=True)['demand'].sum().sort_values(ascending=False)
+                chart_title = 'Demand by Location'
+                value_label = 'Demand'
+        
+        print(f"📊 Location chart: Calculated {chart_title} with {len(insights_location_revenue)} locations")
+        print(f"📊 Top locations: {dict(insights_location_revenue.head())}")
         
         if insights_location_revenue.empty:
+            print(f"📊 Location chart: No data after grouping")
             return None
         
         # Create pie chart
@@ -3681,7 +3720,7 @@ def insights_build_revenue_by_location_chart(insights_data):
             values=insights_location_revenue.values.tolist(),
             textinfo='label+percent',
             textposition='auto',
-            hovertemplate='<b>%{label}</b><br>Revenue: $%{value:,.0f}<br>Percentage: %{percent}<extra></extra>'
+            hovertemplate=f'<b>%{{label}}</b><br>{value_label}: %{{value:,.0f}}<br>Percentage: %{{percent}}<extra></extra>'
         )])
         
         insights_fig.update_layout(
@@ -3698,10 +3737,13 @@ def insights_build_revenue_by_location_chart(insights_data):
             )
         )
         
+        print(f"📊 Location chart: Successfully created")
         return insights_fig.to_json()
         
     except Exception as insights_error:
-        print(f"Error building revenue by location chart for insights: {insights_error}")
+        print(f"❌ Error building revenue by location chart for insights: {insights_error}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return None
 
 
@@ -4033,18 +4075,19 @@ def build_plotly_classification_chart(class_counts, total_products, revenue_by_t
         template='plotly_white',
         # xaxis_title='Demand Classification Type',
         yaxis_title='Percentage (%)',
-        height=700,  # Taller height for classification chart
+        height=900,  # Match the CSS height expectation
         barmode='group',
         bargap=0.2,
         bargroupgap=0.1,
-        legend=dict(orientation='h', yanchor='bottom', y=-0.1, xanchor='center', x=0.5),  # Position legend below chart
+        legend=dict(orientation='h', yanchor='bottom', y=-0.05, xanchor='center', x=0.5),  # Position legend below chart
         xaxis=dict(tickangle=0),
         yaxis=dict(
             title='Percentage (%)',
             ticksuffix='%',
             range=[0, 100]
         ),
-        margin=dict(t=20, b=80, l=60, r=20)  # More bottom margin for taller chart
+        margin=dict(t=10, b=100, l=60, r=20),  # Consistent margins with frontend
+        autosize=True
     )
     
     return fig.to_json()
@@ -4636,11 +4679,13 @@ def insights_generate_charts(insights_data, insights_group_variables=['product_i
                 
                 insights_fig_class.update_layout(
                     title="Demand Classification Analysis<br><sub>Products classified by demand patterns</sub>",
-                    height=750,
+                    height=900,  # Match the CSS height expectation
                     xaxis_title="Mean Interdemand Interval (days)",
                     yaxis_title="CV² (Coefficient of Variation Squared)",
                     template='plotly_white',
-                    showlegend=True
+                    showlegend=True,
+                    margin=dict(t=40, b=60, l=60, r=20),
+                    autosize=True
                 )
                 
                 insights_charts['classification'] = insights_fig_class.to_json()
@@ -4655,8 +4700,10 @@ def insights_generate_charts(insights_data, insights_group_variables=['product_i
                 )
                 insights_fig_class.update_layout(
                     title="Demand Classification Analysis",
-                    height=750,
-                    template='plotly_white'
+                    height=900,  # Match the CSS height expectation
+                    template='plotly_white',
+                    margin=dict(t=40, b=60, l=60, r=20),
+                    autosize=True
                 )
                 insights_charts['classification'] = insights_fig_class.to_json()
         
@@ -4672,8 +4719,10 @@ def insights_generate_charts(insights_data, insights_group_variables=['product_i
             )
             insights_fig_class.update_layout(
                 title="Demand Classification Analysis", 
-                height=750,
-                template='plotly_white'
+                height=900,  # Match the CSS height expectation
+                template='plotly_white',
+                margin=dict(t=40, b=60, l=60, r=20),
+                autosize=True
             )
             insights_charts['classification'] = insights_fig_class.to_json()
         
