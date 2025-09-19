@@ -2408,67 +2408,80 @@ def insights_apply_standard_filters(insights_data, insights_location_filter, ins
         return insights_data
 
 
-def insights_calculate_otif_metrics(insights_data, insights_otif_x_days=3):
-    """Calculate OTIF (On Time In Full) metrics for insights using real sales data"""
+def insights_calculate_otif_metrics(insights_data, insights_otif_x_days=3, insights_location_filter=None, insights_category_filter=None, insights_product_id_filter=None, insights_group_variables=None):
+    """Calculate OTIF (On Time In Full) metrics for insights using real sales data with feat-insights branch logic"""
     import os
     
     try:
-        # Try multiple possible paths for the sales details file for insights
-        insights_possible_paths = [
-            'data/customer_data/fct_sales_details.csv',
-            '../data/customer_data/fct_sales_details.csv',
-            '../../data/customer_data/fct_sales_details.csv',
-            os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'customer_data', 'fct_sales_details.csv')
-        ]
+        # Path to the sales details file (using same path as feat-insights branch)
+        insights_sales_file_path = 'data/customer_data/fct_sales_details.csv'
         
-        insights_sales_file_path = None
-        for insights_path in insights_possible_paths:
-            if os.path.exists(insights_path):
-                insights_sales_file_path = insights_path
-                break
-        
-        if not insights_sales_file_path:
-            print("⚠️ OTIF Warning for insights: fct_sales_details.csv file not found in any expected location")
-            print(f"Checked paths: {insights_possible_paths}")
+        if not os.path.exists(insights_sales_file_path):
+            print("⚠️ OTIF Warning for insights: fct_sales_details.csv file not found")
             return {
-                'otif_value_percentage': 'Data Not Available',
-                'otif_units_percentage': 'Data Not Available', 
-                'time_delay_percentage': 'Data Not Available',
-                'qty_shortage_percentage': 'Data Not Available',
-                'both_issues_percentage': 'Data Not Available',
-                'avg_delay_days': 'Data Not Available'
+                'otif_value_percentage': 'N/A - Missing sales data file',
+                'otif_units_percentage': 'N/A - Missing sales data file',
+                'time_delay_percentage': 'N/A - Missing sales data file',
+                'qty_shortage_percentage': 'N/A - Missing sales data file',
+                'both_issues_percentage': 'N/A - Missing sales data file',
+                'avg_delay_days': 'N/A - Missing sales data file',
+                'avg_qty_shortage': 'N/A - Missing sales data file'
             }
         
-        # Load sales data for insights
+        # Load sales data for insights (same as feat-insights branch)
         print(f"📊 Loading OTIF sales data for insights from {insights_sales_file_path}")
         insights_df = pd.read_csv(insights_sales_file_path)
+        
+        # Apply filters similar to feat-insights branch
+        if insights_location_filter:
+            insights_locations = [loc.strip() for loc in insights_location_filter.split(',') if loc.strip()]
+            if insights_locations and 'location_id' in insights_df.columns:
+                insights_df = insights_df[insights_df['location_id'].isin(insights_locations)]
+        
+        if insights_category_filter:
+            insights_categories = [cat.strip() for cat in insights_category_filter.split(',') if cat.strip()]
+            if insights_categories and 'product_category' in insights_df.columns:
+                insights_df = insights_df[insights_df['product_category'].isin(insights_categories)]
+        
+        if insights_product_id_filter:
+            insights_product_ids = [pid.strip() for pid in insights_product_id_filter.split(',') if pid.strip()]
+            if insights_product_ids and 'product_id' in insights_df.columns:
+                insights_df = insights_df[insights_df['product_id'].isin(insights_product_ids)]
+        
+        if insights_df.empty:
+            print("⚠️ OTIF Warning for insights: No data after applying filters")
+            return {
+                'otif_value_percentage': 'N/A - No data after filters',
+                'otif_units_percentage': 'N/A - No data after filters',
+                'time_delay_percentage': 'N/A - No data after filters',
+                'qty_shortage_percentage': 'N/A - No data after filters',
+                'both_issues_percentage': 'N/A - No data after filters',
+                'avg_delay_days': 'N/A - No data after filters',
+                'avg_qty_shortage': 'N/A - No data after filters'
+            }
         
         # Convert date columns for insights
         insights_df['FULFILLMENT_DATE'] = pd.to_datetime(insights_df['FULFILLMENT_DATE'])
         insights_df['DYNAMIC_EXPECTED_DATE'] = pd.to_datetime(insights_df['DYNAMIC_EXPECTED_DATE'])
         
-        # Add X days tolerance to expected date for insights
+        # Add X days tolerance to expected date (same as feat-insights branch)
         insights_df['DYNAMIC_EXPECTED_DATE'] = insights_df['DYNAMIC_EXPECTED_DATE'] + pd.Timedelta(days=insights_otif_x_days)
         
-        # Calculate OTIF conditions for insights
-        # OTIF = On Time (within expected date + X days) AND In Full (fulfilled >= booked)
+        # Calculate OTIF conditions (same as feat-insights branch)
         insights_otif_mask = (insights_df['FULFILLED_UNITS'] >= insights_df['BOOKED_UNITS']) & \
                            (insights_df['FULFILLMENT_DATE'] <= insights_df['DYNAMIC_EXPECTED_DATE'])
         
-        # Calculate issue types for insights
-        # 1. Time delay but correct quantity
+        # Calculate issue types (same as feat-insights branch)
         insights_time_delay_mask = (insights_df['FULFILLED_UNITS'] >= insights_df['BOOKED_UNITS']) & \
                                  (insights_df['FULFILLMENT_DATE'] > insights_df['DYNAMIC_EXPECTED_DATE'])
         
-        # 2. Quantity shortage but on time
         insights_qty_shortage_mask = (insights_df['FULFILLED_UNITS'] < insights_df['BOOKED_UNITS']) & \
                                    (insights_df['FULFILLMENT_DATE'] <= insights_df['DYNAMIC_EXPECTED_DATE'])
         
-        # 3. Both quantity and time issues
         insights_both_issues_mask = (insights_df['FULFILLED_UNITS'] < insights_df['BOOKED_UNITS']) & \
                                   (insights_df['FULFILLMENT_DATE'] > insights_df['DYNAMIC_EXPECTED_DATE'])
         
-        # Calculate aggregated OTIF metrics for insights
+        # Calculate aggregated OTIF metrics (same as feat-insights branch)
         insights_total_sales = insights_df['TOTAL_BOOKED_SALES'].sum()
         insights_total_units = insights_df['BOOKED_UNITS'].sum()
         
@@ -2480,7 +2493,7 @@ def insights_calculate_otif_metrics(insights_data, insights_otif_x_days=3):
             insights_df.loc[insights_otif_mask, 'BOOKED_UNITS'].sum() / insights_total_units * 100
         ) if insights_total_units > 0 else 0
         
-        # Calculate additional delivery performance metrics for insights
+        # Calculate additional delivery performance metrics (same as feat-insights branch)
         insights_time_delay_percentage = (
             insights_df.loc[insights_time_delay_mask, 'TOTAL_BOOKED_SALES'].sum() / insights_total_sales * 100
         ) if insights_total_sales > 0 else 0
@@ -2493,7 +2506,7 @@ def insights_calculate_otif_metrics(insights_data, insights_otif_x_days=3):
             insights_df.loc[insights_both_issues_mask, 'TOTAL_BOOKED_SALES'].sum() / insights_total_sales * 100
         ) if insights_total_sales > 0 else 0
         
-        # Calculate average delay days for time delay cases for insights
+        # Calculate average delay days (same as feat-insights branch)
         if insights_time_delay_mask.any():
             insights_delay_days = (insights_df.loc[insights_time_delay_mask, 'FULFILLMENT_DATE'] - 
                                  insights_df.loc[insights_time_delay_mask, 'DYNAMIC_EXPECTED_DATE']).dt.days
@@ -2501,9 +2514,18 @@ def insights_calculate_otif_metrics(insights_data, insights_otif_x_days=3):
         else:
             insights_avg_delay_days = 0
         
+        # Calculate average quantity shortage (same as feat-insights branch)
+        if insights_qty_shortage_mask.any():
+            insights_qty_differences = insights_df.loc[insights_qty_shortage_mask, 'BOOKED_UNITS'] - insights_df.loc[insights_qty_shortage_mask, 'FULFILLED_UNITS']
+            insights_avg_qty_shortage = insights_qty_differences.mean()
+        else:
+            insights_avg_qty_shortage = 0
+        
         print(f"✅ OTIF Value for insights: {insights_otif_value:.1f}%")
         print(f"✅ OTIF Units for insights: {insights_otif_units:.1f}%")
         print(f"⚠️ Time Delay for insights: {insights_time_delay_percentage:.1f}%")
+        print(f"⚠️ Qty Shortage for insights: {insights_qty_shortage_percentage:.1f}%")
+        print(f"⚠️ Both Issues for insights: {insights_both_issues_percentage:.1f}%")
         
         return {
             'otif_value_percentage': round(insights_otif_value, 1),
@@ -2511,18 +2533,20 @@ def insights_calculate_otif_metrics(insights_data, insights_otif_x_days=3):
             'time_delay_percentage': round(insights_time_delay_percentage, 1),
             'qty_shortage_percentage': round(insights_qty_shortage_percentage, 1),
             'both_issues_percentage': round(insights_both_issues_percentage, 1),
-            'avg_delay_days': round(insights_avg_delay_days, 1)
+            'avg_delay_days': round(insights_avg_delay_days, 1),
+            'avg_qty_shortage': round(insights_avg_qty_shortage, 1)
         }
         
     except Exception as insights_error:
         print(f"❌ Error calculating OTIF metrics for insights: {insights_error}")
         return {
-            'otif_value_percentage': 'Data Not Available',
-            'otif_units_percentage': 'Data Not Available',
-            'time_delay_percentage': 'Data Not Available',
-            'qty_shortage_percentage': 'Data Not Available',
-            'both_issues_percentage': 'Data Not Available',
-            'avg_delay_days': 'Data Not Available'
+            'otif_value_percentage': f'N/A - Error: {str(insights_error)}',
+            'otif_units_percentage': f'N/A - Error: {str(insights_error)}',
+            'time_delay_percentage': f'N/A - Error: {str(insights_error)}',
+            'qty_shortage_percentage': f'N/A - Error: {str(insights_error)}',
+            'both_issues_percentage': f'N/A - Error: {str(insights_error)}',
+            'avg_delay_days': f'N/A - Error: {str(insights_error)}',
+            'avg_qty_shortage': f'N/A - Error: {str(insights_error)}'
         }
 
 
@@ -2873,25 +2897,38 @@ def insights_analysis_data():
             print("❌ Insights filtered data is empty after filtering!")
             return jsonify({"error": "No data matches the selected filters"})
         
+        # Parse group variables for insights FIRST (before OTIF calculation)
+        insights_group_by = request.form.get('group_by', 'product_id')
+        insights_group_variables = [col.strip() for col in insights_group_by.split(',')]
+        
         # Always calculate OTIF metrics for insights (show all the time)
         insights_include_otif = request.form.get('include_otif', 'true').lower() == 'true'  # Default to true
         insights_otif_x_days = int(request.form.get('otif_x_days', 3))
         
-        # Always calculate OTIF metrics regardless of checkbox state
-        insights_otif_metrics = insights_calculate_otif_metrics(insights_filtered_data, insights_otif_x_days)
+        # Always calculate OTIF metrics regardless of checkbox state (using feat-insights branch logic)
+        insights_otif_metrics = insights_calculate_otif_metrics(
+            insights_filtered_data, 
+            insights_otif_x_days,
+            insights_location_filter,
+            insights_category_filter, 
+            insights_product_id_filter,
+            insights_group_variables
+        )
         print(f"📊 OTIF metrics calculated for insights: {insights_otif_metrics}")
-        
-        # Parse group variables for insights
-        insights_group_by = request.form.get('group_by', 'product_id')
-        insights_group_variables = [col.strip() for col in insights_group_by.split(',')]
         
         # Get other chart parameters for insights
         insights_time_unit = request.form.get('time_unit', 'day')
         insights_pareto_lines = request.form.get('pareto_lines', '50,80,90')
         insights_show_values = request.form.get('show_values_with_percent', 'true').lower() == 'true'
         
-        # Calculate insights metrics
-        insights_metrics = insights_calculate_metrics(insights_filtered_data, insights_product_master)
+        # Calculate insights metrics with proper parameters
+        insights_metrics = insights_calculate_metrics(
+            insights_filtered_data, 
+            insights_product_master,
+            insights_group_variables,
+            insights_analysis_start_date.strftime('%Y-%m-%d') if insights_analysis_start_date else None,
+            insights_analysis_end_date.strftime('%Y-%m-%d') if insights_analysis_end_date else None
+        )
         print(f"📊 Insights calculated metrics: {insights_metrics}")
         
         # Always add OTIF metrics to insights response (even if "Data Not Available")
@@ -3009,21 +3046,42 @@ def insights_analysis_data():
             
         try:
             print(f"📊 Building COGS chart...")
-            insights_charts['cogs_stock_value'] = insights_build_cogs_stock_value_chart(insights_filtered_data, insights_time_unit)
+            # Merge with product master to get inventory_cost for COGS calculation (feat-insights branch logic)
+            if not insights_product_master.empty and 'inventory_cost' in insights_product_master.columns:
+                merge_cols = ['product_id', 'location_id'] if 'location_id' in insights_filtered_data.columns else ['product_id']
+                master_cols = [col for col in merge_cols if col in insights_product_master.columns] + ['inventory_cost']
+                insights_data_with_costs = insights_filtered_data.merge(
+                    insights_product_master[master_cols], 
+                    on=[col for col in merge_cols if col in insights_product_master.columns], 
+                    how='left'
+                )
+                insights_charts['cogs_stock_value'] = insights_build_cogs_stock_value_chart(insights_data_with_costs, insights_time_unit)
+            else:
+                print(f"⚠️ Warning: No inventory_cost in product master for COGS calculation")
+                insights_charts['cogs_stock_value'] = None
         except Exception as cogs_error:
             print(f"❌ Error building COGS chart: {cogs_error}")
             insights_charts['cogs_stock_value'] = None
             
         try:
             print(f"📊 Building Pareto revenue chart...")
-            insights_charts['pareto_revenue'] = insights_build_pareto_revenue_chart(insights_filtered_data, insights_pareto_lines)
+            # Ensure revenue column exists for pareto analysis (feat-insights branch logic)
+            insights_pareto_data = insights_filtered_data.copy()
+            if 'revenue' not in insights_pareto_data.columns:
+                if 'unit_price' in insights_pareto_data.columns:
+                    insights_pareto_data['revenue'] = insights_pareto_data['demand'] * insights_pareto_data['unit_price']
+                elif 'price' in insights_pareto_data.columns:
+                    insights_pareto_data['revenue'] = insights_pareto_data['demand'] * insights_pareto_data['price']
+                else:
+                    insights_pareto_data['revenue'] = 0
+            insights_charts['pareto_revenue'] = insights_build_pareto_revenue_chart(insights_pareto_data, insights_pareto_lines, insights_group_variables)
         except Exception as pareto_rev_error:
             print(f"❌ Error building Pareto revenue chart: {pareto_rev_error}")
             insights_charts['pareto_revenue'] = None
             
         try:
             print(f"📊 Building Pareto demand chart...")
-            insights_charts['pareto_demand'] = insights_build_pareto_demand_chart(insights_filtered_data, insights_pareto_lines)
+            insights_charts['pareto_demand'] = insights_build_pareto_demand_chart(insights_filtered_data, insights_pareto_lines, insights_group_variables)
         except Exception as pareto_dem_error:
             print(f"❌ Error building Pareto demand chart: {pareto_dem_error}")
             insights_charts['pareto_demand'] = None
@@ -3748,77 +3806,98 @@ def insights_build_revenue_by_location_chart(insights_data):
 
 
 def insights_build_cogs_stock_value_chart(insights_data, insights_time_unit):
-    """Build COGS and stock value trends chart for insights"""
+    """Build COGS and stock value trends chart using feat-insights branch logic"""
     import plotly.graph_objs as go
     
     try:
-        if insights_data.empty or 'date' not in insights_data.columns:
+        if insights_data is None or insights_data.empty or 'date' not in insights_data.columns:
             return None
         
-        # Ensure date column
-        insights_data['date'] = pd.to_datetime(insights_data['date'])
+        # Convert date column to datetime if needed (feat-insights branch logic)
+        df = insights_data.copy()
+        df['date'] = pd.to_datetime(df['date'])
         
-        # Calculate revenue if needed
-        if 'revenue' not in insights_data.columns:
-            if 'unit_price' in insights_data.columns:
-                insights_data['revenue'] = insights_data['demand'] * insights_data['unit_price']
-            else:
-                return None
-        
-        # Group by date and calculate trends
-        insights_daily_trends = insights_data.groupby('date', observed=True).agg({
-            'revenue': 'sum',
-            'stock_level': 'sum' if 'stock_level' in insights_data.columns else lambda x: 0
-        }).reset_index()
-        
-        if insights_daily_trends.empty:
+        if df.empty:
             return None
         
-        # Create line chart
+        # Map time unit to pandas frequency (feat-insights branch logic)
+        freq = {'day': 'D', 'week': 'W', 'month': 'ME'}.get(insights_time_unit, 'D')
+        
+        # Calculate COGS for each row (demand * inventory_cost) - feat-insights branch logic
+        if 'inventory_cost' in df.columns and 'demand' in df.columns:
+            valid_mask = df['inventory_cost'].notna() & df['demand'].notna()
+            df.loc[valid_mask, 'cogs'] = df.loc[valid_mask, 'demand'] * df.loc[valid_mask, 'inventory_cost']
+            if not valid_mask.any():
+                return None  # No valid COGS data
+        else:
+            return None
+        
+        # Calculate stock value for each row (stock_level * inventory_cost) - feat-insights branch logic
+        if 'stock_level' in df.columns and 'inventory_cost' in df.columns:
+            valid_mask = df['stock_level'].notna() & df['inventory_cost'].notna()
+            df.loc[valid_mask, 'stock_value'] = df.loc[valid_mask, 'stock_level'] * df.loc[valid_mask, 'inventory_cost']
+            if not valid_mask.any():
+                return None  # No valid stock value data
+        else:
+            return None
+        
+        # Aggregate data by time period (feat-insights branch logic)
+        agg_dict = {
+            'cogs': lambda x: x.fillna(0).sum(),           # Total COGS across all products
+            'stock_value': lambda x: x.fillna(0).sum(),    # Total stock value across all products
+        }
+        agg = df.groupby(pd.Grouper(key='date', freq=freq)).agg(agg_dict).reset_index()
+        
+        # Remove rows where both cogs and stock_value are 0 (feat-insights branch logic)
+        agg = agg[(agg['cogs'] > 0) | (agg['stock_value'] > 0)]
+        
+        if agg.empty:
+            return None
+        
+        # Create area chart with single y-axis (feat-insights branch logic)
         insights_fig = go.Figure()
         
-        # Revenue trend
+        # Add COGS area plot
         insights_fig.add_trace(go.Scatter(
-            x=insights_daily_trends['date'],
-            y=insights_daily_trends['revenue'],
+            x=list(agg['date']), 
+            y=list(agg['cogs']), 
             mode='lines',
-            name='Revenue',
-            line=dict(color='#de6a45', width=2),
-            yaxis='y'
+            name='Total COGS', 
+            line=dict(color='#3D315A', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(61, 49, 90, 0.3)',
+            hovertemplate='<b>COGS Trends</b><br>' +
+                          'Date: %{x}<br>' +
+                          'Total COGS: $%{y:,.0f}<br>' +
+                          '<extra></extra>'
         ))
         
-        # Stock level trend (if available)
-        if 'stock_level' in insights_data.columns:
-            insights_fig.add_trace(go.Scatter(
-                x=insights_daily_trends['date'],
-                y=insights_daily_trends['stock_level'],
-                mode='lines',
-                name='Stock Level',
-                line=dict(color='#3d315a', width=2),
-                yaxis='y2'
-            ))
-        
+        # Add stock value area plot
+        insights_fig.add_trace(go.Scatter(
+            x=list(agg['date']), 
+            y=list(agg['stock_value']), 
+            mode='lines',
+            name='Total Stock Value', 
+            line=dict(color='#807368', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(128, 115, 104, 0.3)',
+            hovertemplate='<b>Stock Value Trends</b><br>' +
+                          'Date: %{x}<br>' +
+                          'Total Stock Value: $%{y:,.0f}<br>' +
+                          '<extra></extra>'
+        ))
+
         insights_fig.update_layout(
+            margin=dict(l=40, r=40, t=40, b=40),
             template='plotly_white',
-            height=380,
-            margin=dict(t=20, b=40, l=40, r=40),
-            xaxis_title='Date',
+            xaxis_title='Time Period',
+            height=420,
+            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0),
             yaxis=dict(
-                title='Revenue ($)',
-                side='left'
+                title='Value ($)',
+                tickformat='$,.0s'
             ),
-            yaxis2=dict(
-                title='Stock Level',
-                side='right',
-                overlaying='y'
-            ),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5
-            )
+            autosize=True
         )
         
         return insights_fig.to_json()
@@ -3828,80 +3907,104 @@ def insights_build_cogs_stock_value_chart(insights_data, insights_time_unit):
         return None
 
 
-def insights_build_pareto_revenue_chart(insights_data, insights_pareto_lines):
-    """Build Pareto revenue analysis chart for insights"""
+def insights_build_pareto_revenue_chart(insights_data, insights_pareto_lines, insights_group_variables=['product_id']):
+    """Build Pareto revenue analysis chart using feat-insights branch logic"""
     import plotly.graph_objs as go
+    import json
     
     try:
         if insights_data.empty:
             return None
         
-        # Calculate revenue if needed
-        if 'revenue' not in insights_data.columns:
-            if 'unit_price' in insights_data.columns:
-                insights_data['revenue'] = insights_data['demand'] * insights_data['unit_price']
-            else:
-                return None
+        # Prepare pareto data using feat-insights branch logic
+        pareto_data = insights_prepare_pareto_data(insights_data, insights_group_variables)
         
-        # Group by product and sum revenue
-        insights_product_revenue = insights_data.groupby('product_id', observed=True)['revenue'].sum().sort_values(ascending=False)
+        if not pareto_data or 'revenue_pareto' not in pareto_data:
+            return None
+            
+        revenue_data = pareto_data['revenue_pareto']
         
-        if insights_product_revenue.empty:
+        # Ensure we have valid DataFrame with data
+        if not isinstance(revenue_data, pd.DataFrame) or len(revenue_data) == 0:
+            return None
+            
+        # Check if required columns exist
+        required_cols = ['product_pct', 'cumulative_revenue_pct']
+        if not all(col in revenue_data.columns for col in required_cols):
             return None
         
-        # Calculate cumulative percentage
-        insights_cumulative_pct = (insights_product_revenue.cumsum() / insights_product_revenue.sum() * 100)
+        # Parse pareto lines from string (feat-insights branch logic)
+        reference_lines = []
+        if insights_pareto_lines and insights_pareto_lines.strip():
+            try:
+                reference_lines = [float(x.strip()) for x in insights_pareto_lines.split(',') if x.strip()]
+                reference_lines = [x for x in reference_lines if 0 <= x <= 100]
+            except ValueError:
+                reference_lines = []
         
-        # Create Pareto chart
         insights_fig = go.Figure()
         
-        # Bar chart for revenue
-        insights_fig.add_trace(go.Bar(
-            x=list(range(len(insights_product_revenue))),
-            y=insights_product_revenue.values,
-            name='Revenue',
-            yaxis='y',
-            marker_color='#de6a45'
-        ))
+        # Determine the grouping type for better labeling (feat-insights branch logic)
+        group_type = 'Products'  # Default
+        if 'group_label' in revenue_data.columns and not revenue_data.empty:
+            first_label = str(revenue_data['group_label'].iloc[0])
+            if 'location_id:' in first_label:
+                group_type = 'Locations'
+            elif 'product_category:' in first_label or 'category:' in first_label:
+                group_type = 'Categories'
+            elif '|' in first_label:  # Multiple grouping variables
+                group_type = 'Groups'
         
-        # Line chart for cumulative percentage
+        # Main revenue curve with enhanced hover information (feat-insights branch logic)
         insights_fig.add_trace(go.Scatter(
-            x=list(range(len(insights_cumulative_pct))),
-            y=insights_cumulative_pct.values,
-            mode='lines',
-            name='Cumulative %',
-            yaxis='y2',
-            line=dict(color='#3d315a', width=2)
+            x=revenue_data['product_pct'].tolist(), 
+            y=revenue_data['cumulative_revenue_pct'].tolist(),
+            mode='lines+markers', 
+            name='Revenue Curve',
+            line=dict(color='#A23B72', width=3),
+            marker=dict(size=6, color='#A23B72'),
+            hovertemplate=f'<b>Revenue Pareto Analysis</b><br>' +
+                          f'{group_type}: %{{x:.1f}}%<br>' +
+                          'Cumulative Revenue: %{y:.1f}%<br>' +
+                          '<extra></extra>'
         ))
         
-        # Add Pareto lines
-        insights_pareto_values = [int(x.strip()) for x in insights_pareto_lines.split(',') if x.strip().isdigit()]
-        for insights_line in insights_pareto_values:
-            insights_fig.add_hline(y=insights_line, line_dash="dash", line_color="red", 
-                                 annotation_text=f"{insights_line}%", yref='y2')
+        # Add dynamic reference lines based on user input (feat-insights branch logic)
+        line_colors = ['green', 'orange', 'red', 'purple', 'brown']
+        for i, line_value in enumerate(reference_lines):
+            color = line_colors[i % len(line_colors)]
+            insights_fig.add_hline(
+                y=line_value, 
+                line=dict(color=color, width=2, dash='dash'),
+                annotation=dict(
+                    text=f"{line_value}%",
+                    showarrow=False,
+                    yanchor="bottom"
+                )
+            )
         
         insights_fig.update_layout(
             template='plotly_white',
-            height=380,
-            margin=dict(t=20, b=40, l=40, r=40),
-            xaxis_title='Products (ranked by revenue)',
-            yaxis=dict(
-                title='Revenue ($)',
-                side='left'
+            height=420,
+            margin=dict(l=40, r=40, t=40, b=40),
+            xaxis=dict(
+                title=f'% of {group_type} (Ranked by Revenue)',
+                range=[0, 100],
+                ticksuffix='%'
             ),
-            yaxis2=dict(
-                title='Cumulative Percentage (%)',
-                side='right',
-                overlaying='y',
-                range=[0, 100]
+            yaxis=dict(
+                title='Cumulative % of Total Revenue',
+                range=[0, 100],
+                ticksuffix='%'
             ),
             legend=dict(
-                orientation="h",
-                yanchor="bottom",
+                orientation='h',
+                yanchor='bottom',
                 y=1.02,
-                xanchor="center",
+                xanchor='center',
                 x=0.5
-            )
+            ),
+            autosize=True
         )
         
         return insights_fig.to_json()
@@ -3911,73 +4014,104 @@ def insights_build_pareto_revenue_chart(insights_data, insights_pareto_lines):
         return None
 
 
-def insights_build_pareto_demand_chart(insights_data, insights_pareto_lines):
-    """Build Pareto demand analysis chart for insights"""
+def insights_build_pareto_demand_chart(insights_data, insights_pareto_lines, insights_group_variables=['product_id']):
+    """Build Pareto demand analysis chart using feat-insights branch logic"""
     import plotly.graph_objs as go
+    import json
     
     try:
         if insights_data.empty:
             return None
         
-        # Group by product and sum demand
-        insights_product_demand = insights_data.groupby('product_id', observed=True)['demand'].sum().sort_values(ascending=False)
+        # Prepare pareto data using feat-insights branch logic
+        pareto_data = insights_prepare_pareto_data(insights_data, insights_group_variables)
         
-        if insights_product_demand.empty:
+        if not pareto_data or 'demand_pareto' not in pareto_data:
+            return None
+            
+        demand_data = pareto_data['demand_pareto']
+        
+        # Ensure we have valid DataFrame with data
+        if not isinstance(demand_data, pd.DataFrame) or len(demand_data) == 0:
+            return None
+            
+        # Check if required columns exist
+        required_cols = ['product_pct', 'cumulative_demand_pct']
+        if not all(col in demand_data.columns for col in required_cols):
             return None
         
-        # Calculate cumulative percentage
-        insights_cumulative_pct = (insights_product_demand.cumsum() / insights_product_demand.sum() * 100)
+        # Parse pareto lines from string (feat-insights branch logic)
+        reference_lines = []
+        if insights_pareto_lines and insights_pareto_lines.strip():
+            try:
+                reference_lines = [float(x.strip()) for x in insights_pareto_lines.split(',') if x.strip()]
+                reference_lines = [x for x in reference_lines if 0 <= x <= 100]
+            except ValueError:
+                reference_lines = []
         
-        # Create Pareto chart
         insights_fig = go.Figure()
         
-        # Bar chart for demand
-        insights_fig.add_trace(go.Bar(
-            x=list(range(len(insights_product_demand))),
-            y=insights_product_demand.values,
-            name='Demand',
-            yaxis='y',
-            marker_color='#2a44d4'
-        ))
+        # Determine the grouping type for better labeling (feat-insights branch logic)
+        group_type = 'Products'  # Default
+        if 'group_label' in demand_data.columns and not demand_data.empty:
+            first_label = str(demand_data['group_label'].iloc[0])
+            if 'location_id:' in first_label:
+                group_type = 'Locations'
+            elif 'product_category:' in first_label or 'category:' in first_label:
+                group_type = 'Categories'
+            elif '|' in first_label:  # Multiple grouping variables
+                group_type = 'Groups'
         
-        # Line chart for cumulative percentage
+        # Main demand curve with enhanced hover information (feat-insights branch logic)
         insights_fig.add_trace(go.Scatter(
-            x=list(range(len(insights_cumulative_pct))),
-            y=insights_cumulative_pct.values,
-            mode='lines',
-            name='Cumulative %',
-            yaxis='y2',
-            line=dict(color='#3d315a', width=2)
+            x=demand_data['product_pct'].tolist(), 
+            y=demand_data['cumulative_demand_pct'].tolist(),
+            mode='lines+markers', 
+            name='Demand Curve',
+            line=dict(color='#2E86AB', width=3),
+            marker=dict(size=6, color='#2E86AB'),
+            hovertemplate=f'<b>Demand Pareto Analysis</b><br>' +
+                          f'{group_type}: %{{x:.1f}}%<br>' +
+                          'Cumulative Demand: %{y:.1f}%<br>' +
+                          '<extra></extra>'
         ))
         
-        # Add Pareto lines
-        insights_pareto_values = [int(x.strip()) for x in insights_pareto_lines.split(',') if x.strip().isdigit()]
-        for insights_line in insights_pareto_values:
-            insights_fig.add_hline(y=insights_line, line_dash="dash", line_color="red", 
-                                 annotation_text=f"{insights_line}%", yref='y2')
+        # Add dynamic reference lines based on user input (feat-insights branch logic)
+        line_colors = ['green', 'orange', 'red', 'purple', 'brown']
+        for i, line_value in enumerate(reference_lines):
+            color = line_colors[i % len(line_colors)]
+            insights_fig.add_hline(
+                y=line_value, 
+                line=dict(color=color, width=2, dash='dash'),
+                annotation=dict(
+                    text=f"{line_value}%",
+                    showarrow=False,
+                    yanchor="bottom"
+                )
+            )
         
         insights_fig.update_layout(
             template='plotly_white',
-            height=380,
-            margin=dict(t=20, b=40, l=40, r=40),
-            xaxis_title='Products (ranked by demand)',
-            yaxis=dict(
-                title='Demand',
-                side='left'
+            height=420,
+            margin=dict(l=40, r=40, t=40, b=40),
+            xaxis=dict(
+                title=f'% of {group_type} (Ranked by Demand)',
+                range=[0, 100],
+                ticksuffix='%'
             ),
-            yaxis2=dict(
-                title='Cumulative Percentage (%)',
-                side='right',
-                overlaying='y',
-                range=[0, 100]
+            yaxis=dict(
+                title='Cumulative % of Total Demand',
+                range=[0, 100],
+                ticksuffix='%'
             ),
             legend=dict(
-                orientation="h",
-                yanchor="bottom",
+                orientation='h',
+                yanchor='bottom',
                 y=1.02,
-                xanchor="center",
+                xanchor='center',
                 x=0.5
-            )
+            ),
+            autosize=True
         )
         
         return insights_fig.to_json()
@@ -3985,6 +4119,100 @@ def insights_build_pareto_demand_chart(insights_data, insights_pareto_lines):
     except Exception as insights_error:
         print(f"Error building Pareto demand chart for insights: {insights_error}")
         return None
+
+
+def insights_prepare_pareto_data(demand_data, group_variables, start_date=None, end_date=None):
+    """Prepare data for Pareto analysis using feat-insights branch logic"""
+    
+    # Note: demand_data is already filtered by apply_standard_filters() including date filtering
+    filtered_data = demand_data.copy()
+    
+    # Aggregate by selected group variables for Pareto analysis
+    # Ensure we have valid group variables that exist in the data
+    valid_group_vars = [var for var in group_variables if var in filtered_data.columns]
+    
+    if not valid_group_vars:
+        # Fallback to product_id if no valid group variables
+        valid_group_vars = ['product_id']
+    
+    print(f"📊 Pareto analysis grouping by: {valid_group_vars}")
+    
+    # Group by the selected variables
+    agg_dict = {'demand': 'sum'}
+    
+    # Add revenue aggregation only if revenue column exists
+    if 'revenue' in filtered_data.columns:
+        agg_dict['revenue'] = lambda x: x.fillna(0).sum()  # Handle NaN values in revenue
+    
+    group_summary = filtered_data.groupby(valid_group_vars, observed=True).agg(agg_dict).reset_index()
+    
+    # Add revenue column with zeros if it wasn't included in aggregation
+    if 'revenue' not in group_summary.columns:
+        group_summary['revenue'] = 0
+    
+    # For the charts, we need a single identifier column - create composite key if multiple group vars
+    if len(valid_group_vars) == 1:
+        group_summary['group_id'] = group_summary[valid_group_vars[0]].astype(str)
+        group_summary['group_label'] = group_summary[valid_group_vars[0]].astype(str)
+    else:
+        # Create composite identifier for multiple group variables
+        group_summary['group_id'] = group_summary[valid_group_vars].apply(
+            lambda row: '_'.join(row.astype(str)), axis=1
+        )
+        group_summary['group_label'] = group_summary[valid_group_vars].apply(
+            lambda row: ' | '.join([f"{col}:{val}" for col, val in zip(valid_group_vars, row.astype(str))]), axis=1
+        )
+    
+    # Check if we have any data
+    if group_summary.empty:
+        return {
+            'demand_pareto': pd.DataFrame(),
+            'revenue_pareto': pd.DataFrame()
+        }
+    
+    # Calculate percentages
+    total_demand = group_summary['demand'].sum()
+    total_revenue = group_summary['revenue'].sum()
+    
+    # Avoid division by zero
+    if total_demand > 0:
+        group_summary['demand_pct'] = (group_summary['demand'] / total_demand) * 100
+    else:
+        group_summary['demand_pct'] = 0
+        
+    if total_revenue > 0:
+        group_summary['revenue_pct'] = (group_summary['revenue'] / total_revenue) * 100
+    else:
+        group_summary['revenue_pct'] = 0
+    
+    # Sort by demand and revenue for Pareto analysis
+    demand_sorted = group_summary.sort_values('demand', ascending=False).reset_index(drop=True)
+    revenue_sorted = group_summary.sort_values('revenue', ascending=False).reset_index(drop=True)
+    
+    # Calculate cumulative percentages
+    demand_sorted['cumulative_demand_pct'] = demand_sorted['demand_pct'].cumsum()
+    revenue_sorted['cumulative_revenue_pct'] = revenue_sorted['revenue_pct'].cumsum()
+    
+    # Add group rank (number of groups) and percentage - use generic naming
+    demand_sorted['group_rank'] = range(1, len(demand_sorted) + 1)
+    revenue_sorted['group_rank'] = range(1, len(revenue_sorted) + 1)
+    
+    # Calculate percentage of groups (could be products, locations, etc.)
+    total_groups_demand = len(demand_sorted)
+    total_groups_revenue = len(revenue_sorted)
+    
+    # Use generic column names that work for any grouping
+    demand_sorted['group_pct'] = (demand_sorted['group_rank'] / total_groups_demand) * 100
+    revenue_sorted['group_pct'] = (revenue_sorted['group_rank'] / total_groups_revenue) * 100
+    
+    # For backward compatibility with existing chart code, also create product_pct column
+    demand_sorted['product_pct'] = demand_sorted['group_pct']
+    revenue_sorted['product_pct'] = revenue_sorted['group_pct']
+    
+    return {
+        'demand_pareto': demand_sorted,
+        'revenue_pareto': revenue_sorted
+    }
 
 
 def build_plotly_classification_chart(class_counts, total_products, revenue_by_type=None, show_values_with_percent=True):
@@ -4075,54 +4303,82 @@ def build_plotly_classification_chart(class_counts, total_products, revenue_by_t
         template='plotly_white',
         # xaxis_title='Demand Classification Type',
         yaxis_title='Percentage (%)',
-        height=900,  # Match the CSS height expectation
+        height=700,  # Match the CSS height expectation
         barmode='group',
         bargap=0.2,
         bargroupgap=0.1,
-        legend=dict(orientation='h', yanchor='bottom', y=-0.05, xanchor='center', x=0.5),  # Position legend below chart
+        legend=dict(orientation='h', yanchor='bottom', y=-0.08, xanchor='center', x=0.5),  # Position legend below chart
         xaxis=dict(tickangle=0),
         yaxis=dict(
             title='Percentage (%)',
             ticksuffix='%',
             range=[0, 100]
         ),
-        margin=dict(t=10, b=100, l=60, r=20),  # Consistent margins with frontend
+        margin=dict(t=80, b=80, l=80, r=80),  # Match customer-projects margins for proper text visibility
         autosize=True
     )
     
     return fig.to_json()
 
 
-def insights_calculate_metrics(insights_data, insights_product_master):
-    """Calculate KPI metrics for insights dashboard with comprehensive analysis"""
+def insights_calculate_metrics(insights_data, insights_product_master, insights_group_variables=['product_id'], insights_start_date=None, insights_end_date=None):
+    """Calculate KPI metrics for insights dashboard with comprehensive analysis using feat-insights branch logic"""
     try:
         insights_metrics = {}
         
+        # Start with a copy of the data and ensure date column is datetime
+        df = insights_data.copy()
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+        
+        # Apply date filtering if provided
+        if insights_start_date and insights_end_date:
+            df = df[(df['date'] >= pd.to_datetime(insights_start_date)) & (df['date'] <= pd.to_datetime(insights_end_date))]
+        
+        if df.empty:
+            return {
+                'total_unique_products': 0,
+                'total_skus': 0,
+                'total_demand': 0,
+                'total_revenue': 0,
+                'mean_margin_pct': 0,
+                'smooth_percentage': 0,
+                'current_inventory_holding': 0,
+                'avg_inventory_holding': 0,
+                'inventory_turnover_ratio': 0,
+                'service_level': 95.0,
+                'stockout_frequency': 5.0,
+                'availability_percentage': 95.0,
+                'skus_with_stock': 0,
+                'avg_missed_demand_per_period': 0,
+                'total_missed_revenue': 0,
+                'decapable_inventory_holding': 0,
+                'avg_inventory_coverage': 0
+            }
+        
         # Basic business metrics for insights
-        insights_metrics['total_unique_products'] = insights_data['product_id'].nunique()
-        insights_metrics['total_skus'] = len(insights_data.groupby(['product_id', 'location_id']))
-        insights_metrics['total_demand'] = insights_data['demand'].sum()
+        insights_metrics['total_unique_products'] = df['product_id'].nunique()
+        insights_metrics['total_skus'] = len(df.groupby(['product_id', 'location_id'])) if 'location_id' in df.columns else df['product_id'].nunique()
+        insights_metrics['total_demand'] = df['demand'].sum()
         
         # Calculate revenue for insights
-        if 'unit_price' in insights_data.columns:
-            insights_data['revenue'] = insights_data['demand'] * insights_data['unit_price']
-            insights_metrics['total_revenue'] = insights_data['revenue'].sum()
-        elif 'price' in insights_data.columns:
-            insights_data['revenue'] = insights_data['demand'] * insights_data['price'] 
-            insights_metrics['total_revenue'] = insights_data['revenue'].sum()
-        elif 'revenue' in insights_data.columns:
-            insights_metrics['total_revenue'] = insights_data['revenue'].sum()
+        if 'unit_price' in df.columns:
+            df['revenue'] = df['demand'] * df['unit_price']
+            insights_metrics['total_revenue'] = df['revenue'].sum()
+        elif 'price' in df.columns:
+            df['revenue'] = df['demand'] * df['price'] 
+            insights_metrics['total_revenue'] = df['revenue'].sum()
+        elif 'revenue' in df.columns:
+            insights_metrics['total_revenue'] = df['revenue'].sum()
         else:
             insights_metrics['total_revenue'] = 0
         
-        # Calculate mean margin percentage for insights (weighted by revenue like customer-projects)
-        if 'margin_pct' in insights_data.columns and 'revenue' in insights_data.columns:
-            # Calculate weighted average margin by product (weighted by revenue)
+        # Calculate mean margin percentage for insights (weighted by revenue)
+        if 'margin_pct' in df.columns and 'revenue' in df.columns:
             insights_product_margins = []
-            for insights_product_id in insights_data['product_id'].unique():
-                insights_product_data = insights_data[insights_data['product_id'] == insights_product_id]
+            for insights_product_id in df['product_id'].unique():
+                insights_product_data = df[df['product_id'] == insights_product_id]
                 if len(insights_product_data) > 0 and insights_product_data['revenue'].sum() > 0:
-                    # Weighted margin = sum(margin * revenue) / sum(revenue)
                     insights_weighted_margin = (insights_product_data['margin_pct'] * insights_product_data['revenue']).sum() / insights_product_data['revenue'].sum()
                     insights_product_margins.append(insights_weighted_margin)
             
@@ -4130,134 +4386,200 @@ def insights_calculate_metrics(insights_data, insights_product_master):
                 insights_metrics['mean_margin_pct'] = round(np.mean(insights_product_margins), 1)
             else:
                 insights_metrics['mean_margin_pct'] = 0.0
-        elif 'margin_pct' in insights_data.columns:
-            # Fallback to simple mean if no revenue data
-            insights_metrics['mean_margin_pct'] = insights_data['margin_pct'].mean()
+        elif 'margin_pct' in df.columns:
+            insights_metrics['mean_margin_pct'] = df['margin_pct'].mean()
         else:
-            # Cannot calculate margin without required data
             insights_metrics['mean_margin_pct'] = 'N/A - Missing cost/price data'
         
-        # Calculate smooth percentage for insights (from classification results - NOT implemented here)
-        # This will be calculated in insights_analysis_data using actual classification results
-        insights_metrics['smooth_percentage'] = 0  # Placeholder, calculated elsewhere
+        # Placeholder for smooth percentage (calculated elsewhere)
+        insights_metrics['smooth_percentage'] = 0
         
-        # Enhanced inventory metrics for insights
-        if 'stock_value' in insights_data.columns:
-            insights_current_holding = insights_data['stock_value'].iloc[-1] if not insights_data.empty else 0
-            insights_avg_holding = insights_data['stock_value'].mean()
-            # Handle NaN values
-            insights_metrics['current_inventory_holding'] = float(insights_current_holding) if not pd.isna(insights_current_holding) else 0
-            insights_metrics['avg_inventory_holding'] = float(insights_avg_holding) if not pd.isna(insights_avg_holding) else 0
+        # ADVANCED INVENTORY CALCULATIONS (from feat-insights branch)
+        # Find stock level column
+        stock_column = None
+        for col in ['stock_level', 'actual_inventory', 'inventory_on_hand', 'inventory_level']:
+            if col in df.columns:
+                stock_column = col
+                break
+        
+        if not stock_column:
+            print("Warning: No stock level column found in insights data")
+            insights_metrics.update({
+                'current_inventory_holding': 0,
+                'avg_inventory_holding': 0,
+                'inventory_turnover_ratio': 0,
+                'service_level': 95.0,
+                'stockout_frequency': 5.0,
+                'availability_percentage': 95.0,
+                'skus_with_stock': 0
+            })
         else:
-            # Calculate from product master if available
-            if not insights_product_master.empty and 'inventory_cost' in insights_product_master.columns:
-                insights_merged = insights_data.merge(insights_product_master[['product_id', 'location_id', 'inventory_cost']], 
-                                                    on=['product_id', 'location_id'], how='left')
-                if 'stock_level' in insights_data.columns:
-                    insights_merged['stock_value'] = insights_merged['stock_level'] * insights_merged['inventory_cost']
-                    insights_current_holding = insights_merged['stock_value'].iloc[-1] if not insights_merged.empty else 0
-                    insights_avg_holding = insights_merged['stock_value'].mean()
-                    # Handle NaN values
-                    insights_metrics['current_inventory_holding'] = float(insights_current_holding) if not pd.isna(insights_current_holding) else 0
-                    insights_metrics['avg_inventory_holding'] = float(insights_avg_holding) if not pd.isna(insights_avg_holding) else 0
-                else:
-                    insights_metrics['current_inventory_holding'] = 0
-                    insights_metrics['avg_inventory_holding'] = 0
-            else:
-                insights_metrics['current_inventory_holding'] = 0
-                insights_metrics['avg_inventory_holding'] = 0
-        
-        # Calculate inventory coverage for insights
-        try:
-            insights_coverage = insights_calculate_inventory_coverage(insights_data)
-            insights_metrics['avg_inventory_coverage'] = insights_coverage
-        except:
-            insights_metrics['avg_inventory_coverage'] = 0
-        
-        # Calculate turnover ratio for insights
-        if insights_metrics['avg_inventory_holding'] > 0 and not pd.isna(insights_metrics['avg_inventory_holding']):
-            insights_turnover = insights_metrics['total_revenue'] / insights_metrics['avg_inventory_holding']
-            insights_metrics['inventory_turnover_ratio'] = float(insights_turnover) if not pd.isna(insights_turnover) else 0
-        else:
-            insights_metrics['inventory_turnover_ratio'] = 0
-        
-        # Enhanced service level and stockout metrics for insights
-        if 'stock_level' in insights_data.columns:
-            insights_stockout_periods = (insights_data['stock_level'] <= 0).sum()
-            insights_total_periods = len(insights_data)
+            # Group columns for SKU definition
+            group_cols = ['product_id']
+            if 'location_id' in insights_group_variables and 'location_id' in df.columns:
+                group_cols.append('location_id')
             
-            # Service level calculation - avoid division by zero
+            # 1. SKUs with Stock - Group by SKU definition, count non-zero stock sums
+            stock_summary = df.groupby(group_cols)[stock_column].apply(lambda x: x.fillna(0).sum()).reset_index()
+            stock_summary.columns = group_cols + [stock_column]
+            insights_metrics['skus_with_stock'] = int(len(stock_summary[stock_summary[stock_column] > 0]))
+            
+            # 2. Current Inventory Holding - Use last date logic from feat-insights
+            if insights_product_master is None or insights_product_master.empty:
+                insights_metrics['current_inventory_holding'] = 'ERROR - Product master data required'
+                insights_metrics['avg_inventory_holding'] = 'ERROR - Product master data required'
+                insights_metrics['inventory_turnover_ratio'] = 'ERROR - Product master data required'
+            elif 'inventory_cost' not in insights_product_master.columns:
+                insights_metrics['current_inventory_holding'] = 'ERROR - inventory_cost column required in product master'
+                insights_metrics['avg_inventory_holding'] = 'ERROR - inventory_cost column required in product master'
+                insights_metrics['inventory_turnover_ratio'] = 'ERROR - inventory_cost column required in product master'
+            else:
+                # Use end_date or last available date for current inventory
+                if insights_end_date:
+                    end_date_ts = pd.to_datetime(insights_end_date)
+                    filtered_df = df[df['date'] <= end_date_ts]
+                    if filtered_df.empty:
+                        filtered_df = df
+                else:
+                    filtered_df = df
+                
+                # Get latest stock data per SKU (most recent date)
+                latest_stock_data = (filtered_df
+                                   .sort_values('date')
+                                   .groupby(group_cols + ['date'])[stock_column]
+                                   .sum()
+                                   .reset_index()
+                                   .groupby(group_cols)
+                                   .last()
+                                   .reset_index())
+                
+                # Calculate current inventory holding using inventory_cost
+                current_inventory_holding = 0
+                for _, row in latest_stock_data.iterrows():
+                    stock_value = row[stock_column] if pd.notna(row[stock_column]) else 0
+                    product_id = row['product_id']
+                    
+                    # Get inventory_cost from product master
+                    product_cost_row = insights_product_master[insights_product_master['product_id'] == product_id]
+                    if not product_cost_row.empty:
+                        inventory_cost = product_cost_row['inventory_cost'].iloc[0]
+                        if pd.notna(inventory_cost) and inventory_cost != '':
+                            try:
+                                inventory_cost = float(inventory_cost)
+                                current_inventory_holding += stock_value * inventory_cost
+                            except (ValueError, TypeError):
+                                continue
+                
+                insights_metrics['current_inventory_holding'] = round(current_inventory_holding, 0)
+                
+                # 3. Average Inventory Holding - Time-weighted average per SKU
+                avg_stock_summary = (df
+                                   .groupby(group_cols + ['date'])[stock_column]
+                                   .sum()
+                                   .reset_index()
+                                   .groupby(group_cols)[stock_column]
+                                   .mean()
+                                   .reset_index())
+                
+                avg_inventory_holding = 0
+                for _, row in avg_stock_summary.iterrows():
+                    avg_stock_value = row[stock_column] if pd.notna(row[stock_column]) else 0
+                    product_id = row['product_id']
+                    
+                    product_cost_row = insights_product_master[insights_product_master['product_id'] == product_id]
+                    if not product_cost_row.empty:
+                        inventory_cost = product_cost_row['inventory_cost'].iloc[0]
+                        if pd.notna(inventory_cost) and inventory_cost != '':
+                            try:
+                                inventory_cost = float(inventory_cost)
+                                avg_inventory_holding += avg_stock_value * inventory_cost
+                            except (ValueError, TypeError):
+                                continue
+                
+                insights_metrics['avg_inventory_holding'] = round(avg_inventory_holding, 0)
+                
+                # 4. Inventory Turnover Ratio - COGS-based calculation from feat-insights
+                total_cogs = 0
+                if 'demand' in df.columns:
+                    for product_id in df['product_id'].unique():
+                        product_demand = df[df['product_id'] == product_id]['demand'].fillna(0).sum()
+                        
+                        product_cost_row = insights_product_master[insights_product_master['product_id'] == product_id]
+                        if not product_cost_row.empty:
+                            inventory_cost = product_cost_row['inventory_cost'].iloc[0]
+                            if pd.notna(inventory_cost) and inventory_cost != '':
+                                try:
+                                    inventory_cost = float(inventory_cost)
+                                    total_cogs += product_demand * inventory_cost
+                                except (ValueError, TypeError):
+                                    continue
+                
+                if total_cogs > 0 and avg_inventory_holding > 0:
+                    insights_metrics['inventory_turnover_ratio'] = round(total_cogs / avg_inventory_holding, 2)
+                elif total_cogs > 0:
+                    insights_metrics['inventory_turnover_ratio'] = f'N/A - {avg_inventory_holding}'
+                else:
+                    insights_metrics['inventory_turnover_ratio'] = 'N/A - No demand with valid cost data'
+            
+            # Service level and stockout metrics
+            insights_stockout_periods = (df[stock_column] <= 0).sum()
+            insights_total_periods = len(df)
+            
             if insights_total_periods > 0:
                 insights_metrics['service_level'] = ((insights_total_periods - insights_stockout_periods) / insights_total_periods) * 100
                 insights_metrics['stockout_frequency'] = (insights_stockout_periods / insights_total_periods) * 100
-                
-                # Availability percentage
-                insights_available_periods = (insights_data['stock_level'] > 0).sum()
+                insights_available_periods = (df[stock_column] > 0).sum()
                 insights_metrics['availability_percentage'] = (insights_available_periods / insights_total_periods) * 100
             else:
                 insights_metrics['service_level'] = 95.0
-                insights_metrics['stockout_frequency'] = 0
+                insights_metrics['stockout_frequency'] = 5.0
                 insights_metrics['availability_percentage'] = 95.0
-            
-            # SKUs with stock
-            if 'location_id' in insights_data.columns:
-                insights_current_stock = insights_data.groupby(['product_id', 'location_id'])['stock_level'].last()
-                insights_metrics['skus_with_stock'] = (insights_current_stock > 0).sum()
-            else:
-                insights_current_stock = insights_data.groupby('product_id')['stock_level'].last()
-                insights_metrics['skus_with_stock'] = (insights_current_stock > 0).sum()
-        else:
-            insights_metrics['service_level'] = 95.0  # Default assumption
-            insights_metrics['stockout_frequency'] = 5.0  # Default assumption
-            insights_metrics['availability_percentage'] = 95.0
-            insights_metrics['skus_with_stock'] = insights_metrics['total_skus']
         
-        # Missed demand and revenue calculations for insights
-        if 'missed_demand' in insights_data.columns:
-            insights_total_missed_demand = insights_data['missed_demand'].sum()
-            insights_total_periods = insights_data['date'].nunique() if 'date' in insights_data.columns else len(insights_data)
+        # Missed demand and revenue calculations
+        if 'missed_demand' in df.columns:
+            insights_total_missed_demand = df['missed_demand'].sum()
+            insights_total_periods = df['date'].nunique() if 'date' in df.columns else len(df)
             insights_metrics['avg_missed_demand_per_period'] = insights_total_missed_demand / insights_total_periods if insights_total_periods > 0 else 0
             
-            # Calculate missed revenue
-            if 'unit_price' in insights_data.columns:
-                insights_metrics['total_missed_revenue'] = (insights_data['missed_demand'] * insights_data['unit_price']).sum()
-            elif 'price' in insights_data.columns:
-                insights_metrics['total_missed_revenue'] = (insights_data['missed_demand'] * insights_data['price']).sum()
+            if 'unit_price' in df.columns:
+                insights_metrics['total_missed_revenue'] = (df['missed_demand'] * df['unit_price']).sum()
+            elif 'price' in df.columns:
+                insights_metrics['total_missed_revenue'] = (df['missed_demand'] * df['price']).sum()
             else:
                 insights_metrics['total_missed_revenue'] = 0
         else:
             insights_metrics['avg_missed_demand_per_period'] = 0
             insights_metrics['total_missed_revenue'] = 0
         
-        # Decapable inventory calculation for insights (simplified)
+        # Decapable inventory calculation
+        insights_metrics['decapable_inventory_holding'] = 0
         try:
-            if 'stock_level' in insights_data.columns and not insights_product_master.empty:
-                insights_merged_master = insights_data.merge(insights_product_master, on=['product_id', 'location_id'], how='left')
-                if 'inventory_cost' in insights_merged_master.columns:
-                    # Assume decapable if stock > 0 but demand = 0 for extended period
-                    insights_no_demand_products = insights_data.groupby(['product_id', 'location_id']).agg({
-                        'demand': 'sum',
-                        'stock_level': 'last'
-                    }).reset_index()
-                    insights_no_demand_products = insights_no_demand_products[
-                        (insights_no_demand_products['demand'] == 0) & (insights_no_demand_products['stock_level'] > 0)
-                    ]
-                    
-                    if len(insights_no_demand_products) > 0:
-                        insights_decapable_merged = insights_no_demand_products.merge(
-                            insights_product_master[['product_id', 'location_id', 'inventory_cost']], 
-                            on=['product_id', 'location_id'], how='left'
-                        )
-                        insights_decapable_merged['decapable_value'] = insights_decapable_merged['stock_level'] * insights_decapable_merged['inventory_cost']
-                        insights_metrics['decapable_inventory_holding'] = insights_decapable_merged['decapable_value'].sum()
-                    else:
-                        insights_metrics['decapable_inventory_holding'] = 0
-                else:
-                    insights_metrics['decapable_inventory_holding'] = 0
-            else:
-                insights_metrics['decapable_inventory_holding'] = 0
-        except:
+            if stock_column and not insights_product_master.empty and 'inventory_cost' in insights_product_master.columns:
+                insights_no_demand_products = df.groupby(['product_id', 'location_id'] if 'location_id' in df.columns else ['product_id']).agg({
+                    'demand': 'sum',
+                    stock_column: 'last'
+                }).reset_index()
+                insights_no_demand_products = insights_no_demand_products[
+                    (insights_no_demand_products['demand'] == 0) & (insights_no_demand_products[stock_column] > 0)
+                ]
+                
+                if len(insights_no_demand_products) > 0:
+                    merge_cols = ['product_id', 'location_id'] if 'location_id' in df.columns else ['product_id']
+                    insights_decapable_merged = insights_no_demand_products.merge(
+                        insights_product_master[merge_cols + ['inventory_cost']], 
+                        on=merge_cols, how='left'
+                    )
+                    insights_decapable_merged['decapable_value'] = insights_decapable_merged[stock_column] * insights_decapable_merged['inventory_cost']
+                    insights_metrics['decapable_inventory_holding'] = insights_decapable_merged['decapable_value'].sum()
+        except Exception as e:
+            print(f"Error calculating decapable inventory: {e}")
             insights_metrics['decapable_inventory_holding'] = 0
+        
+        # Inventory coverage
+        try:
+            insights_metrics['avg_inventory_coverage'] = insights_calculate_inventory_coverage(df)
+        except:
+            insights_metrics['avg_inventory_coverage'] = 0
         
         return insights_metrics
         
@@ -4265,7 +4587,25 @@ def insights_calculate_metrics(insights_data, insights_product_master):
         print(f"Error calculating insights metrics: {insights_error}")
         import traceback
         print(f"Insights metrics error traceback: {traceback.format_exc()}")
-        return {}
+        return {
+            'total_unique_products': 0,
+            'total_skus': 0,
+            'total_demand': 0,
+            'total_revenue': 0,
+            'mean_margin_pct': 0,
+            'smooth_percentage': 0,
+            'current_inventory_holding': 0,
+            'avg_inventory_holding': 0,
+            'inventory_turnover_ratio': 0,
+            'service_level': 95.0,
+            'stockout_frequency': 5.0,
+            'availability_percentage': 95.0,
+            'skus_with_stock': 0,
+            'avg_missed_demand_per_period': 0,
+            'total_missed_revenue': 0,
+            'decapable_inventory_holding': 0,
+            'avg_inventory_coverage': 0
+        }
 
 
 def insights_calculate_inventory_coverage(insights_data):
@@ -4679,7 +5019,7 @@ def insights_generate_charts(insights_data, insights_group_variables=['product_i
                 
                 insights_fig_class.update_layout(
                     title="Demand Classification Analysis<br><sub>Products classified by demand patterns</sub>",
-                    height=900,  # Match the CSS height expectation
+                    height=700,  # Match the CSS height expectation
                     xaxis_title="Mean Interdemand Interval (days)",
                     yaxis_title="CV² (Coefficient of Variation Squared)",
                     template='plotly_white',
@@ -4700,7 +5040,7 @@ def insights_generate_charts(insights_data, insights_group_variables=['product_i
                 )
                 insights_fig_class.update_layout(
                     title="Demand Classification Analysis",
-                    height=900,  # Match the CSS height expectation
+                    height=700,  # Match the CSS height expectation
                     template='plotly_white',
                     margin=dict(t=40, b=60, l=60, r=20),
                     autosize=True
@@ -4719,7 +5059,7 @@ def insights_generate_charts(insights_data, insights_group_variables=['product_i
             )
             insights_fig_class.update_layout(
                 title="Demand Classification Analysis", 
-                height=900,  # Match the CSS height expectation
+                height=700,  # Match the CSS height expectation
                 template='plotly_white',
                 margin=dict(t=40, b=60, l=60, r=20),
                 autosize=True
