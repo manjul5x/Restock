@@ -419,15 +419,21 @@ def convert_numpy_types(obj):
     if isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
+        # Handle NaN values
+        if np.isnan(obj):
+            return None
         return float(obj)
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, pd.Timestamp):
         return obj.strftime("%Y-%m-%d")
+    elif pd.isna(obj):  # Handle pandas NaN/None values
+        return None
     elif isinstance(obj, list):
         return [convert_numpy_types(item) for item in obj]
     elif isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
+    else:
         return obj
 
 
@@ -2123,6 +2129,164 @@ def insights():
     return render_template("insights.html")
 
 
+@app.route("/product_selection")
+def product_selection():
+    """Product selection page for filtering analysis"""
+    try:
+        # Load original product master
+        product_master = loader.load_product_master()
+        
+        # Load currently selected products if they exist
+        selected_products = []
+        try:
+            import os
+            selected_path = os.path.join(os.path.dirname(__file__), 'selected_master_table.csv')
+            if os.path.exists(selected_path):
+                selected_df = pd.read_csv(selected_path)
+                selected_products = selected_df['product_id'].unique().tolist()
+        except Exception as e:
+            print(f"No existing selected products file: {e}")
+        
+        # Get unique values for filters
+        locations = sorted(product_master["location_id"].dropna().unique().tolist()) if 'location_id' in product_master.columns else []
+        categories = sorted(product_master["product_category"].dropna().unique().tolist()) if 'product_category' in product_master.columns else []
+        all_products = product_master.to_dict('records')
+        
+        return render_template(
+            "product_selection.html",
+            locations=locations,
+            categories=categories,
+            all_products=all_products,
+            selected_products=selected_products,
+            total_products=len(product_master)
+        )
+        
+    except Exception as e:
+        return render_template(
+            "product_selection.html",
+            locations=[],
+            categories=[],
+            all_products=[],
+            selected_products=[],
+            total_products=0,
+            error=str(e)
+        )
+
+
+@app.route("/save_selected_products", methods=["POST"])
+def save_selected_products():
+    """Save selected products to CSV file"""
+    try:
+        import os
+        
+        # Get selected product IDs from form
+        selected_product_ids = request.form.getlist("selected_products")
+        
+        if not selected_product_ids:
+            return jsonify({
+                "success": False,
+                "error": "No products selected"
+            })
+        
+        # Load original product master
+        product_master = loader.load_product_master()
+        
+        # Filter to selected products only
+        selected_master = product_master[product_master['product_id'].isin(selected_product_ids)].copy()
+        
+        if selected_master.empty:
+            return jsonify({
+                "success": False,
+                "error": "No matching products found in master table"
+            })
+        
+        # Save to selected_master_table.csv
+        selected_path = os.path.join(os.path.dirname(__file__), 'selected_master_table.csv')
+        selected_master.to_csv(selected_path, index=False)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Successfully saved {len(selected_master)} products to selected master table",
+            "product_count": len(selected_master)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+
+@app.route("/get_product_master_data")
+def get_product_master_data():
+    """Get product master data for selection interface"""
+    try:
+        # Get filter parameters
+        location_filter = request.args.get('location', '')
+        category_filter = request.args.get('category', '')
+        search_term = request.args.get('search', '')
+        
+        # Load product master
+        product_master = loader.load_product_master()
+        
+        # Apply filters
+        filtered_data = product_master.copy()
+        
+        if location_filter and location_filter.strip():
+            filtered_data = filtered_data[filtered_data['location_id'] == location_filter]
+        
+        if category_filter and category_filter.strip():
+            filtered_data = filtered_data[filtered_data['product_category'] == category_filter]
+        
+        if search_term and search_term.strip():
+            filtered_data = filtered_data[
+                filtered_data['product_id'].str.contains(search_term, case=False, na=False)
+            ]
+        
+        # Convert to records for JSON response
+        products = filtered_data.to_dict('records')
+        
+        return jsonify({
+            "success": True,
+            "products": products,
+            "total_count": len(products)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "products": []
+        })
+
+
+@app.route("/clear_selected_products", methods=["POST"])
+def clear_selected_products():
+    """Clear all selected products"""
+    try:
+        import os
+        
+        selected_path = os.path.join(os.path.dirname(__file__), 'selected_master_table.csv')
+        
+        if os.path.exists(selected_path):
+            os.remove(selected_path)
+            return jsonify({
+                "success": True,
+                "message": "Selected products cleared successfully"
+            })
+        else:
+            return jsonify({
+                "success": True,
+                "message": "No selected products file to clear"
+            })
+            
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+
 @app.route("/get_demand_analysis_plot", methods=["POST"])
 def get_demand_analysis_plot():
     """Generate demand analysis chart showing actual demand, orders placed, and forecasted demand"""
@@ -2388,7 +2552,7 @@ def insights_apply_standard_filters(insights_data, insights_location_filter, ins
                     # Use category from demand data for insights
                     insights_filtered_data = insights_filtered_data[insights_filtered_data['product_category'].isin(insights_categories)]
                     print(f"🔽 After category filter (from demand data) for insights: {len(insights_filtered_data)} rows")
-                elif not insights_product_master.empty and 'product_category' in insights_product_master.columns:
+                elif len(insights_product_master) > 0 and 'product_category' in insights_product_master.columns:
                     # Use category from product master for insights
                     insights_category_products = insights_product_master[insights_product_master['product_category'].isin(insights_categories)]['product_id'].unique()
                     insights_filtered_data = insights_filtered_data[insights_filtered_data['product_id'].isin(insights_category_products)]
@@ -2654,7 +2818,7 @@ def get_demand_classification_plot():
                 if 'product_category' in filtered_data.columns:
                     filtered_data = filtered_data[filtered_data['product_category'].isin(categories)]
                     print(f"🔽 After category filter (from demand data): {len(filtered_data)} rows")
-                elif not product_master.empty and 'product_category' in product_master.columns:
+                elif len(product_master) > 0 and 'product_category' in product_master.columns:
                     category_products = product_master[product_master['product_category'].isin(categories)]['product_id'].unique()
                     filtered_data = filtered_data[filtered_data['product_id'].isin(category_products)]
                     print(f"🔽 After category filter (from master): {len(filtered_data)} rows")
@@ -2793,7 +2957,7 @@ def insights_filter_options():
         # Always get categories from product master table, not from demand data
         try:
             insights_product_master_for_filters = loader.load_product_master()
-            if not insights_product_master_for_filters.empty and "product_category" in insights_product_master_for_filters.columns:
+            if len(insights_product_master_for_filters) > 0 and "product_category" in insights_product_master_for_filters.columns:
                 insights_categories = sorted(insights_product_master_for_filters["product_category"].dropna().unique().tolist())
             else:
                 insights_categories = []
@@ -3047,7 +3211,7 @@ def insights_analysis_data():
         try:
             print(f"📊 Building COGS chart...")
             # Merge with product master to get inventory_cost for COGS calculation (feat-insights branch logic)
-            if not insights_product_master.empty and 'inventory_cost' in insights_product_master.columns:
+            if len(insights_product_master) > 0 and 'inventory_cost' in insights_product_master.columns:
                 merge_cols = ['product_id', 'location_id'] if 'location_id' in insights_filtered_data.columns else ['product_id']
                 master_cols = [col for col in merge_cols if col in insights_product_master.columns] + ['inventory_cost']
                 insights_data_with_costs = insights_filtered_data.merge(
@@ -3344,21 +3508,29 @@ def insights_product_analysis():
         # Calculate total revenue for insights
         insights_total_revenue = insights_product_summary['revenue'].sum() if 'revenue' in insights_product_summary.columns else 0
         
-        # Convert to list of products for insights
+        # Convert to list of products for insights - super simple approach
         insights_products_list = []
         for _, insights_product in insights_product_summary.iterrows():
             insights_products_list.append({
-                'product_id': insights_product['product_id'],
+                'product_id': str(insights_product['product_id']),
+                'location_id': '',  
+                'product_category': '',
                 'total_demand': float(insights_product['demand']) if pd.notna(insights_product['demand']) else 0,
                 'total_revenue': float(insights_product['revenue']) if 'revenue' in insights_product and pd.notna(insights_product['revenue']) else 0
             })
         
-        return jsonify({
+        # Clean the response data to ensure JSON compatibility
+        insights_response = {
             "success": True,
-            "total_revenue": float(insights_total_revenue),
+            "total_revenue": float(insights_total_revenue) if pd.notna(insights_total_revenue) else 0,
             "products": insights_products_list,
             "product_count": len(insights_products_list)
-        })
+        }
+        
+        # Convert any remaining numpy types to native Python types
+        insights_response = convert_numpy_types(insights_response)
+        
+        return jsonify(insights_response)
         
     except Exception as insights_error:
         import traceback
@@ -3652,7 +3824,7 @@ def insights_build_revenue_by_category_chart(insights_data, insights_product_mas
                 insights_category_revenue = None
         
         # Second try: Merge with product master to get categories
-        elif not insights_product_master.empty and 'product_category' in insights_product_master.columns:
+        elif len(insights_product_master) > 0 and 'product_category' in insights_product_master.columns:
             print(f"📊 Merging with product master for categories")
             try:
                 # Merge on both product_id and location_id if available
@@ -4425,7 +4597,7 @@ def insights_calculate_metrics(insights_data, insights_product_master, insights_
             insights_metrics['skus_with_stock'] = int(len(stock_summary[stock_summary[stock_column] > 0]))
             
             # 2. Current Inventory Holding - Use last date logic from feat-insights
-            if insights_product_master is None or insights_product_master.empty:
+            if insights_product_master is None or len(insights_product_master) == 0:
                 insights_metrics['current_inventory_holding'] = 'ERROR - Product master data required'
                 insights_metrics['avg_inventory_holding'] = 'ERROR - Product master data required'
                 insights_metrics['inventory_turnover_ratio'] = 'ERROR - Product master data required'
