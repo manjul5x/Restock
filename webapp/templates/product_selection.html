@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Selection - Restock Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .product-grid {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .product-card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .product-card.selected {
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .selection-summary {
+            position: sticky;
+            top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h2><i class="fas fa-cube"></i> Product Selection for Analysis</h2>
+                <p class="text-muted">Select products to include in your analysis. Only selected products will be used in insights and other analysis features.</p>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <strong>Error:</strong> {{ error }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+            <!-- Filter Section -->
+            <div class="col-md-8">
+                <div class="filter-section">
+                    <h5><i class="fas fa-filter"></i> Filters</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="locationFilter" class="form-label">Location</label>
+                            <select id="locationFilter" class="form-select">
+                                <option value="">All Locations</option>
+                                {% for location in locations %}
+                                <option value="{{ location }}">{{ location }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="categoryFilter" class="form-label">Category</label>
+                            <select id="categoryFilter" class="form-select">
+                                <option value="">All Categories</option>
+                                {% for category in categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="searchFilter" class="form-label">Search Product ID</label>
+                            <input type="text" id="searchFilter" class="form-control" placeholder="Enter product ID...">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button id="applyFilters" class="btn btn-primary">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product List -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Available Products</h6>
+                        <div>
+                            <button id="selectAll" class="btn btn-sm btn-outline-primary me-2">Select All</button>
+                            <button id="clearAll" class="btn btn-sm btn-outline-secondary">Clear All</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="productList" class="product-grid">
+                            <div class="text-center py-4">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading products...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selection Summary -->
+            <div class="col-md-4">
+                <div class="selection-summary">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-check-circle"></i> Selection Summary</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Selected Products:</strong>
+                                <span id="selectedCount" class="badge bg-primary">0</span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Total Available:</strong>
+                                <span id="totalCount" class="badge bg-secondary">{{ total_products }}</span>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button id="saveSelection" class="btn btn-success" disabled>
+                                    <i class="fas fa-save"></i> Save Selection
+                                </button>
+                                <button id="clearSelection" class="btn btn-warning">
+                                    <i class="fas fa-trash"></i> Clear Selection
+                                </button>
+                                <a href="/insights" class="btn btn-info">
+                                    <i class="fas fa-chart-line"></i> Go to Insights
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Currently Selected Products -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">Currently Selected</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="selectedProductsList" style="max-height: 200px; overflow-y: auto;">
+                                {% if selected_products %}
+                                    {% for product in selected_products %}
+                                    <span class="badge bg-light text-dark me-1 mb-1">{{ product }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-muted small">No products currently selected</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedProducts = new Set({{ selected_products | tojson }});
+        let allProducts = [];
+        let filteredProducts = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSelectedCount();
+            loadProducts();
+        });
+
+        // Load products with filters
+        function loadProducts() {
+            const location = document.getElementById('locationFilter').value;
+            const category = document.getElementById('categoryFilter').value;
+            const search = document.getElementById('searchFilter').value;
+
+            const params = new URLSearchParams();
+            if (location) params.append('location', location);
+            if (category) params.append('category', category);
+            if (search) params.append('search', search);
+
+            fetch(`/get_product_master_data?${params.toString()}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        filteredProducts = data.products;
+                        displayProducts(data.products);
+                        document.getElementById('totalCount').textContent = data.products.length;
+                    } else {
+                        console.error('Error loading products:', data.error);
+                        document.getElementById('productList').innerHTML = 
+                            `<div class="alert alert-danger">Error loading products: ${data.error}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('productList').innerHTML = 
+                        '<div class="alert alert-danger">Failed to load products</div>';
+                });
+        }
+
+        // Display products
+        function displayProducts(products) {
+            const productList = document.getElementById('productList');
+            
+            if (products.length === 0) {
+                productList.innerHTML = '<div class="alert alert-info">No products match the current filters.</div>';
+                return;
+            }
+
+            const html = products.map(product => {
+                const isSelected = selectedProducts.has(product.product_id);
+                const selectedClass = isSelected ? 'selected' : '';
+                
+                return `
+                    <div class="product-card ${selectedClass}" data-product-id="${product.product_id}">
+                        <div class="form-check">
+                            <input class="form-check-input product-checkbox" type="checkbox" 
+                                   value="${product.product_id}" ${isSelected ? 'checked' : ''}
+                                   id="product_${product.product_id}">
+                            <label class="form-check-label" for="product_${product.product_id}">
+                                <strong>${product.product_id}</strong>
+                                ${product.location_id ? ` - ${product.location_id}` : ''}
+                                ${product.product_category ? ` (${product.product_category})` : ''}
+                            </label>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            productList.innerHTML = html;
+
+            // Add event listeners
+            document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const productId = this.value;
+                    const productCard = this.closest('.product-card');
+                    
+                    if (this.checked) {
+                        selectedProducts.add(productId);
+                        productCard.classList.add('selected');
+                    } else {
+                        selectedProducts.delete(productId);
+                        productCard.classList.remove('selected');
+                    }
+                    
+                    updateSelectedCount();
+                    updateSelectedProductsList();
+                });
+            });
+        }
+
+        // Update selected count
+        function updateSelectedCount() {
+            const count = selectedProducts.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('saveSelection').disabled = count === 0;
+        }
+
+        // Update selected products list
+        function updateSelectedProductsList() {
+            const list = document.getElementById('selectedProductsList');
+            if (selectedProducts.size === 0) {
+                list.innerHTML = '<p class="text-muted small">No products currently selected</p>';
+            } else {
+                const badges = Array.from(selectedProducts).map(productId => 
+                    `<span class="badge bg-light text-dark me-1 mb-1">${productId}</span>`
+                ).join('');
+                list.innerHTML = badges;
+            }
+        }
+
+        // Event listeners
+        document.getElementById('applyFilters').addEventListener('click', loadProducts);
+        
+        document.getElementById('selectAll').addEventListener('click', function() {
+            filteredProducts.forEach(product => {
+                selectedProducts.add(product.product_id);
+            });
+            displayProducts(filteredProducts);
+            updateSelectedCount();
+            updateSelectedProductsList();
+        });
+
+        document.getElementById('clearAll').addEventListener('click', function() {
+            selectedProducts.clear();
+            displayProducts(filteredProducts);
+            updateSelectedCount();
+            updateSelectedProductsList();
+        });
+
+        document.getElementById('saveSelection').addEventListener('click', function() {
+            const formData = new FormData();
+            selectedProducts.forEach(productId => {
+                formData.append('selected_products', productId);
+            });
+
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            fetch('/save_selected_products', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Success: ${data.message}`);
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                alert('Error saving selection: ' + error);
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-save"></i> Save Selection';
+            });
+        });
+
+        document.getElementById('clearSelection').addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear all selected products?')) {
+                fetch('/clear_selected_products', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        selectedProducts.clear();
+                        displayProducts(filteredProducts);
+                        updateSelectedCount();
+                        updateSelectedProductsList();
+                        alert(data.message);
+                    } else {
+                        alert(`Error: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    alert('Error clearing selection: ' + error);
+                });
+            }
+        });
+
+        // Apply filters on Enter key
+        document.getElementById('searchFilter').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadProducts();
+            }
+        });
+    </script>
+</body>
+</html>
