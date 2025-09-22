@@ -1,4 +1,4 @@
-# Inventory Forecasting & Analysis System
+# Restock - Inventory Forecasting & Analysis System
 
 A comprehensive inventory forecasting and analysis system that provides end-to-end inventory optimization through forecasting, backtesting, safety stock calculation, and simulation.
 
@@ -20,31 +20,6 @@ The complete workflow runs all these analyses in sequence, providing comprehensi
 - UV package manager (recommended)
 - Git
 
-### Creating a Fork
-1. **Fork the Repository**
-   - Go to the original repository on GitHub
-   - Click the "Fork" button in the top right
-   - This creates your own copy of the repository
-
-2. **Clone Your Fork**
-   ```bash
-   # Clone your forked repository
-   git clone https://github.com/YOUR_USERNAME/Forecaster.git
-   cd Forecaster
-   
-   # Add the original repository as upstream (optional, for updates)
-   git remote add upstream https://github.com/ORIGINAL_OWNER/Forecaster.git
-   ```
-
-3. **Create a Development Branch**
-   ```bash
-   # Create and switch to a development branch
-   git checkout -b dev-your-name
-   
-   # Or use the existing dev branch
-   git checkout dev-samuel
-   ```
-
 ### Quick Setup
 ```bash
 # Run the setup script (installs uv, dependencies, and dev tools)
@@ -59,8 +34,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install dependencies
 uv sync
 
-# For development (optional)
-uv sync --extra dev
 ```
 
 ### Development Environment
@@ -84,6 +57,8 @@ Replace the example data files with your own:
 
 ### Demand Data Format (`customer_demand.csv`)
 Required columns:
+product_id,location_id,date,demand,unit_price,stock_level,incoming_inventory,product_category
+
 - `product_id` - Product identifier
 - `product_category` - Product category  
 - `location_id` - Location identifier
@@ -91,6 +66,7 @@ Required columns:
 - `demand` - Demand quantity (must be ≥ 0)
 - `stock_level` - Stock level at end of day (must be ≥ 0)
 - `incoming_inventory` - Incoming inventory (can be 0)
+- `unit_price` - unit price at date
 
 ### Product Master Format (`customer_product_master.csv`)
 Required columns:
@@ -110,6 +86,9 @@ Required columns:
 - `leadtime` - Lead time in demand frequency units
 - `inventory_cost` - Unit cost of inventory (default: 0.0)
 - `moq` - Minimum order quantity (default: 0)
+- `min_safety_stock` - Minimum safety stock level (cannot be negative, default: 0.0)
+- 'max_safety_stock' - Maximum safety stock level (cannot be negative, default: 0.0)
+- `sunset_date` - Date when product is sunset (YYYY-MM-DD format, empty string = not sunset)
 
 ## Data Validation
 
@@ -135,7 +114,7 @@ The system automatically validates your data before processing:
 - Validates cross-references between demand and product master
 
 Run validation independently:
-```bash
+```uv run
 python run_data_validation.py
 ```
 
@@ -155,7 +134,10 @@ Configure these settings for each product:
 **Safety Stock Settings**
 - `distribution`: Choose "kde" (default) or "normal"
 - `service_level`: Target service level (0.0 to 1.0, default: 0.95)
-- `ss_window_length`: Rolling window for error calculation (default: 180)
+- `ss_window_length`: Rolling window for error calculation (days) (default: 180)
+- `min_safety_stock`: Minimum safety stock level (cannot be negative, default: 0.0)
+- `max_safety_stock`: Maximum safety stock level
+- `sunset_date`: Date when product is sunset (YYYY-MM-DD format, empty string = not sunset)
 
 **Simulation Settings**
 - `leadtime`: Lead time in demand frequency units
@@ -175,7 +157,6 @@ Configure these system-wide settings:
 **Safety Stock Review Dates**
 - `safety_stock.review_dates`: List of dates when safety stocks are calculated
 - **What it does**: Safety stocks are calculated at each review date using forecast errors from the period leading up to that date
-- **Default**: 1st, 8th, 15th, and 22nd of each month in 2024
 - **Impact on Backtesting**: 
   - Analysis start date is automatically calculated based on the first review date and maximum safety stock window length
   - More review dates = more safety stock calculations but longer processing time
@@ -191,9 +172,20 @@ Configure these system-wide settings:
   - `true`: Orders are rounded up to meet MOQ (more realistic but may increase inventory)
   - `false`: Orders can be any positive quantity (more flexible but may not reflect real constraints)
 
+**Overstock Management**
+- `simulation.overstock_buffer_perc`: Buffer percentage for overstock detection (default: 20%)
+- `simulation.overstock_boundary_window`: Time window in days for overstock boundary calculation (default: 30 days)
+- `simulation.calc_metrics_after_lt`: Calculate metrics after lead time (default: true)
+
+**Memory Monitoring**
+I'm not sure if this is implemented correctly
+- `monitoring.track_memory`: Enable memory usage tracking (default: true)
+- `monitoring.alert_threshold_mb`: Memory alert threshold in MB (default: 400)
+- `monitoring.log_access`: Enable access logging (default: false)
+
 ### Running the Complete Workflow
 
-```bash
+```uv run
 # Run everything with default settings
 python run_complete_workflow.py
 
@@ -208,24 +200,61 @@ python run_complete_workflow.py \
 This runs:
 1. **Data Validation** - Ensures data quality
 2. **Backtesting** - Tests forecasting models historically
-3. **Safety Stock Calculation** - Optimizes inventory levels
+3. **Safety Stock Calculation** - Calculates safety stock levels for each review date
 4. **Inventory Simulation** - Simulates performance
 5. **Results Generation** - Creates output files
 
+### Running Individual Components
+
+You can also run individual components separately:
+
+```uv run
+# Data validation only
+python run_data_validation.py
+
+# New backtesting pipeline with advanced features
+python run_backtesting.py --analysis-start-date 2023-01-01 --analysis-end-date 2023-12-31
+
+# Safety stock calculation
+python run_safety_stock_calculation.py
+
+# Inventory simulation
+python run_simulation.py
+```
+
+#### Advanced Backtesting Features
+
+The new backtesting pipeline (`run_backtesting.py`) includes:
+
+**Chunked Persistence**
+- Saves results in chunks to prevent data loss during long runs
+- Automatic crash recovery and resume functionality
+- Configurable chunk sizes for memory optimization
+
+**Resume Capability**
+```uv run
+# Resume a previous run using the same run ID
+python run_backtesting.py --run-id 20250101_120000 --resume
+```
+
+**Flexible Configuration**
+```bash
+# Custom run ID for organization
+python run_backtesting.py --run-id my_analysis_2024 --analysis-start-date 2024-01-01
+
+# Adjust worker count for performance
+python run_backtesting.py --max-workers 16 --analysis-start-date 2024-01-01
+```
+
 ### Go to the Web App
 
-```bash
+```uv run
 python webapp/run.py
 ```
 
-Open `http://localhost:8080` to access the interactive interface.
+The web app will automatically find an available port and display the URL. Open the displayed URL to access the interactive interface.
 
 #### What to Look At
-
-**Forecast Visualization**
-- Historical vs. forecasted demand comparison
-- Multi-model performance analysis
-- Interactive filtering by product, location, method
 
 **Safety Stocks**
 - Dynamic safety stock level analysis
@@ -256,14 +285,36 @@ Open `http://localhost:8080` to access the interactive interface.
 5. **Review simulation results** - See how different ordering policies affect performance
 
 ## How It Actually Works
+
+1. **Data validation** The data validation model will check your demand and master table for valid input
+2. **Data prep** In the backtesting module, there is a prep input data step. This will add to the demand table columns that will be used for forecasting.
+These columnd are called regressors. The primary column is called outflow. Technically this isn't a regressor, but it is treated like one. This is the target
+variable for our forecasting. One adds a regressor by adding to the regressor config file and using the functions created. The output of this step is input_data_with_regressors.csv
+  2.1 **RP aggregation** our forecasting target for creating safety stocks is the sum of the demand over the upcoming risk period every day. As such, we model the input data to match
+  that. So outflow is converted using a rolling lead aggregator. 
+3. **Historic forecasts** The system then creates historic forecasts. This is currently called backtesting but should be renamed. The goal is to find out what forecast we would have 
+created for all the dates in the past. 
+  3.1 The first step is to determine which dates we need to create forecasts for. These are called analysis dates. they are programatically determined based on the review dates, safety stock window period, etc. 
+  3.2 The historic forecasts scale compute very quickly so we parrallelise it. Each task is created as all of the required forecasts for a specific product location combination. 
+  3.3 The forecasting engine is then called for each analysis date in that task. This engine can be used independently outside of the backtesting flow. 
+  3.4 The results of the forecasts are stored in chucks with persistence based on the variables in data_config. At the end of it all, it's pulled to gether into forecast_comparison.csv
+4. **Safety Stocks** safety stocks are recalculated for every review date for every product location combination.
+  4.1 Safety stocks are there to cover us for the variability in the supply chain. When unexpected things occur, we need extra buffer stock to protect us against running out of stock. The safety stock calculation is there to determine how much extra stock we need. 
+  4.2 If our forecast was 100% accurate, we would need to safety stock. Safety stock isn't determined on the volatility of our demand, but the volatility of the accuracy of our forecast. 
+  4.3 So we create the relevant data by creating the historic forecasts, and then calculating an error of how accurate our forecast was. This error forms a distribution. 
+  4.4 We use a KDE to model that distribution, and a CDF to determine the 95th percentile of that CDF. This is reflective of "95% of the time, our forecasts were at most X units under forecasting. Therefore if we hold X units extra stock, we should not run out of stock 95% of the time." 
+  4.5 It's important the the period of the error aligns with the period of demand you need to cover. Pre-aggregating demand to risk period solves for this. 
+  4.6 Because we are preaggregating demand, the days which are most recent cannot be used. the actual outflow point on those days is reflective of the sum of the demand from that day until one risk period after that day. This could potentially include data which is 'in the future' for that analysis date. SO the errors which are actually used for the distribution of the safety stock calculation are the safety_stock_window (set in the product master table) days ago (lets say 180) up until one risk period ago. If the risk period is 100 days, then it'll be the forecast errors for the analysis dates that are 180 days before the review date until 80 days before the review date that are used for the safety stock calculation. the last data point (80 days before) will be the forecast made on that day compared to the sum of the actual daily demand from that day up until one day before the review date. 
+5. **Simulation** The simulation is done by creating arrays, and stepping through those arrays. 
+  5.1 Find the arrays in line 237 of data loader. 
+  5.2 Best to just look at the code for this one. 
+
 ### How Forecasting and Backtesting Works
 
 #### Forecasting Process
 1. **Data Preparation**: Load and validate demand data
-2. **Parameter Optimization**: Each forecasting method optimizes its parameters using historical data
-3. **Model Fitting**: Fit the model to the training data
-4. **Forecast Generation**: Generate predictions for the specified horizon
-5. **Aggregation**: Convert daily forecasts to risk period aggregates
+2. **Model Fitting**: Fit the model to the training data
+3. **Forecast Generation**: Generate predictions for the specified horizon
 
 #### Backtesting Process
 1. **Historical Simulation**: For each analysis date, use only data available up to that date
@@ -317,10 +368,15 @@ Open `http://localhost:8080` to access the interactive interface.
 
 #### Safety Stock Formula
 ```
-Safety Stock = Error Percentile × Service Level Factor
+Safety Stock = min(max(Calculated Safety Stock, Minimum Safety Stock), Maximum Safety Stock)
 ```
 
-The system calculates safety stocks for each product-location-method combination at each review date.
+Where:
+- **Calculated Safety Stock** = 
+- **Minimum Safety Stock** = User-defined minimum level (cannot be negative)
+- **Maximum Safety Stock** = User-defined maximum level (empty = no maximum, cannot be negative)
+
+The system calculates safety stocks for each product-location-method combination at each review date, ensuring they never fall below the specified minimum or exceed the specified maximum.
 
 ### How Simulation Works
 
@@ -342,15 +398,6 @@ The system calculates safety stocks for each product-location-method combination
 - Order quantity = max(0, safety_stock + forecast - net_stock)
 - Most common in practice
 
-**Continuous Review Policy**
-- Places orders whenever stock falls below reorder point
-- Order quantity = max(0, order_up_to_level - net_stock)
-- More responsive but higher ordering costs
-
-**Min-Max Policy**
-- Places orders when stock falls below minimum level
-- Order quantity = max(0, maximum_level - net_stock)
-- Simple but may not be optimal
 
 #### MOQ Constraints
 - **Enabled**: Orders must meet minimum order quantity
@@ -361,12 +408,6 @@ The system calculates safety stocks for each product-location-method combination
 
 #### Pages and Features
 
-**Forecast Visualization**
-- Interactive demand charts
-- Multi-model comparison
-- Filtering by product, location, date range
-- Zoom and pan capabilities
-- Historical vs. forecasted demand comparison
 
 **Safety Stocks**
 - Safety stock level charts
@@ -389,19 +430,6 @@ The system calculates safety stocks for each product-location-method combination
 - Drill-down capabilities
 - Key metrics comparison
 
-**Seasonality Analysis** (Advanced)
-- Fourier term analysis for Prophet models
-- Seasonality strength assessment and visualization
-- Component optimization recommendations
-- Interactive seasonality charts with period detection
-- Automatic seasonality parameter tuning
-
-**Hyperparameter Analysis** (Advanced)
-- Parameter optimization testing with performance tracking
-- Performance comparison across multiple configurations
-- Best parameter identification with statistical validation
-- Optimization visualization with convergence analysis
-- Cached optimization results for faster subsequent runs
 
 #### Metrics Explained
 
@@ -509,37 +537,12 @@ safety_stock:
 
 ### How Parallel Processing Works
 
-#### Processing Modes
-- **Vectorized**: Process all dates for one product (for large datasets)
-- **Parallel**: Process individual tasks in parallel (for smaller datasets)
-- **Automatic Selection**: System chooses optimal mode based on data size and task count
-
 #### Worker Management
 - **ProcessPoolExecutor**: CPU-bound tasks
 - **ThreadPoolExecutor**: I/O-bound tasks
 - **Memory Safety**: Preloaded data for workers to avoid I/O bottlenecks
 - **Error Handling**: Graceful failure handling with task isolation
 - **Performance Optimization**: Automatic worker count adjustment based on system resources
-
-### How Parameter Optimization Works
-
-#### Method-Specific Optimization
-- **Prophet**: Seasonality analysis + parameter tuning
-  - Fourier term analysis for seasonality components
-  - Hyperparameter optimization for prior scales
-  - Holiday and special event detection
-  - Automatic fallback mechanisms for optimization failures
-- **Moving Average**: No optimization (uses window length)
-- **Parameter Caching**: Optimized parameters stored for reuse across runs
-
-#### Optimization Process
-1. **Data Preparation**: Prepare training data with validation
-2. **Parameter Search**: Try different parameter combinations with error handling
-3. **Model Evaluation**: Score each combination using backtesting
-4. **Best Selection**: Choose parameters with best performance
-5. **Caching**: Store optimized parameters for reuse across multiple runs
-6. **Validation**: Verify performance on holdout data
-7. **Fallback**: Use default parameters if optimization fails
 
 ### How Error Handling Works
 
@@ -557,26 +560,6 @@ safety_stock:
 - **User Feedback**: Clear error messages with actionable recommendations
 - **Task Isolation**: Individual task failures don't stop entire workflow
 
-### How Testing Works
-
-#### Test Structure
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: End-to-end workflow testing
-- **Performance Tests**: Speed and memory testing
-- **Data Tests**: Validation and processing tests
-
-#### Running Tests
-```bash
-# All tests
-make test
-
-# With coverage
-make test-cov
-
-# Specific categories
-uv run python -m pytest forecaster/tests/ -v
-```
-
 ### Output Files and Results
 
 #### Generated Files
@@ -584,8 +567,6 @@ The complete workflow generates several output files in the `output/` directory:
 
 **Backtesting Results**
 - `forecast_comparison.csv`: Historical forecast accuracy metrics
-- `forecast_visualization.csv`: Detailed forecast data for visualization
-- `optimized_parameters.csv`: Best parameters found for each product
 
 **Safety Stock Results**
 - `safety_stocks.csv`: Calculated safety stock levels for each review date
@@ -615,25 +596,6 @@ The complete workflow generates several output files in the `output/` directory:
 
 This standardized approach ensures consistency, maintainability, and reliability across the entire system.
 
-## Advanced Features
-
-### Parameter Optimization
-- **Caching**: Optimized parameters are cached for reuse across multiple runs
-- **Method-specific**: Each forecasting method has specialized optimization strategies
-- **Performance tracking**: Optimization results are logged and analyzed for improvement
-- **Fallback mechanisms**: Automatic fallback to default parameters if optimization fails
-
-### Parallel Processing Modes
-- **Vectorized**: Process all dates for one product (optimal for large datasets)
-- **Parallel**: Process individual tasks in parallel (optimal for smaller datasets)
-- **Automatic selection**: System chooses optimal mode based on data size and available resources
-- **Memory optimization**: Preloaded data for workers to avoid I/O bottlenecks
-
-### Advanced Outlier Detection
-- **Zero exclusion**: Automatically excludes zeros when calculating outlier thresholds
-- **Multiple methods**: IQR, Z-score, MAD, Rolling statistics, or no detection
-- **Configurable thresholds**: Per-product outlier sensitivity settings
-- **Statistical validation**: Ensures outlier detection doesn't remove valid data patterns
 
 ### Performance & Scalability
 
@@ -665,36 +627,6 @@ This standardized approach ensures consistency, maintainability, and reliability
 
 ## Configuration Reference
 
-### Product Master Configuration
-
-#### Required Columns
-```csv
-product_id,location_id,product_category,demand_frequency,risk_period,forecast_window_length,forecast_horizon,forecast_methods,outlier_method,outlier_threshold,distribution,service_level,ss_window_length,leadtime,inventory_cost,moq
-```
-
-#### Configuration Options
-
-**Forecasting Methods (`forecast_methods`)**
-- `"prophet"`: Facebook's forecasting model with seasonality detection
-- `"moving_average"`: Simple average-based forecasting
-- `"prophet,moving_average"`: Use both methods and compare results
-
-**Outlier Detection (`outlier_method`)**
-- `"iqr"`: Interquartile Range method (default)
-- `"zscore"`: Z-score method
-- `"mad"`: Median Absolute Deviation method
-- `"rolling"`: Rolling statistics method
-- `"no"`: No outlier detection (preserves all data)
-
-**Safety Stock Distribution (`distribution`)**
-- `"kde"`: Kernel Density Estimation (default, more accurate for non-normal distributions)
-- `"normal"`: Normal distribution assumption (faster calculation)
-
-**Service Level (`service_level`)**
-- Range: 0.0 to 1.0
-- Default: 0.95 (95% service level)
-- Higher values = more safety stock
-
 ### System Configuration (`data/config/data_config.yaml`)
 
 #### Data Paths
@@ -723,20 +655,28 @@ safety_stock:
 - **Backtesting Impact**: Analysis start date is automatically calculated based on the first review date and maximum safety stock window length from product master
 - **Simulation Impact**: Simulation uses safety stocks calculated at each review date, affecting order timing and quantities
 - More review dates = more frequent updates but longer processing
-- Default: 1st, 8th, 15th, and 22nd of each month
+- Default: 1st and 15th of each month from July 2024 to June 2025
 
-#### MOQ Constraints
+#### Simulation Configuration
 ```yaml
 simulation:
-  enable_moq: true          # Enable/disable Minimum Order Quantity constraints
+  enable_moq: true                    # Enable/disable Minimum Order Quantity constraints
+  overstock_buffer_perc: 20          # Buffer percentage for overstock detection
+  overstock_boundary_window: 30      # Time window in days for overstock boundary calculation
+  calc_metrics_after_lt: true        # Calculate metrics after lead time
+
+monitoring:
+  track_memory: true                 # Enable memory usage tracking
+  alert_threshold_mb: 400           # Memory alert threshold in MB
+  log_access: false                 # Enable access logging
 ```
 
-**What MOQ Does:**
-- When `true`: Orders must meet the minimum order quantity from product master
-- When `false`: Orders can be any positive quantity
-- **Impact on Simulation:**
-  - `true`: More realistic but may increase inventory levels
-  - `false`: More flexible but may not reflect real business constraints
+**What These Settings Do:**
+- **MOQ**: When `true`, orders must meet minimum order quantity from product master
+- **Overstock Buffer**: Percentage threshold for detecting overstock situations
+- **Overstock Boundary Window**: Days to look ahead for overstock boundary calculation
+- **Metrics After Lead Time**: Whether to calculate performance metrics after lead time periods
+- **Memory Monitoring**: Tracks memory usage and alerts when threshold is exceeded
 
 ### Advanced Configuration Examples
 
@@ -760,7 +700,7 @@ simulation:
 ```yaml
 processing:
   max_workers: 8        # Adjust based on CPU cores
-  batch_size: 10        # Larger = more memory, faster processing
+  batch_size: 10        # Larger = more memory, faster processing I don't think this is used
   vectorized_mode: true # Enable for large datasets
 ```
 
@@ -791,6 +731,12 @@ python run_complete_workflow.py \
 - `--safety-stock-enabled`: Enable/disable safety stock calculation (default: True)
 - `--simulation-enabled`: Enable/disable simulation (default: True)
 
+#### New Backtesting Pipeline Flags (`run_backtesting.py`)
+- `--run-id`: Custom run identifier for organization and resume functionality
+- `--resume`: Resume a previous run using the same run ID
+- `--demand-frequency`: Demand frequency (d/w/m, default: d)
+- `--profile`: Enable performance profiling
+
 ### Product Filtering
 
 To run analysis on only specific products:
@@ -802,11 +748,6 @@ To run analysis on only specific products:
    head -5 data/customer_data/customer_product_master.csv > subset.csv
    python run_complete_workflow.py --product-master-file subset.csv
    ```
-
-**Benefits:**
-- **Memory Reduction**: 76% reduction in memory usage for 5 vs 21 products
-- **Faster Processing**: Reduced validation, backtesting, and simulation time
-- **Focused Analysis**: Concentrate on specific product categories or locations
 
 ### Outlier Detection Details
 
@@ -834,10 +775,6 @@ demand_data = [0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 50, 60, 70, 80, 90, 
 - **Solution**: Reduce `batch_size` and `max_workers` in configuration
 - **Example**: `--batch-size 5 --max-workers 4`
 
-#### Slow Processing
-- **Symptom**: Workflow takes much longer than expected
-- **Solution**: Enable vectorized mode for large datasets
-- **Configuration**: Set `vectorized_mode: true` in processing settings
 
 #### Data Quality Issues
 - **Symptom**: Validation errors or poor forecast accuracy
@@ -848,71 +785,3 @@ demand_data = [0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 50, 60, 70, 80, 90, 
 - **Symptom**: Cannot access http://localhost:8080
 - **Solution**: Check if port 8080 is available, or change port in `webapp/run.py`
 - **Alternative**: Use `--port 8081` when starting the web app
-
-### Performance Tuning
-
-#### For Large Datasets (>1000 products)
-- **Use vectorized processing**: `--vectorized-mode true`
-- **Increase batch size**: `--batch-size 20`
-- **Optimize workers**: Set `max_workers` to 75% of CPU cores
-- **Enable caching**: Ensure output directory is writable
-
-#### For Limited Memory Systems
-- **Reduce batch size**: `--batch-size 5`
-- **Limit workers**: `--max-workers 2`
-- **Disable caching**: Set `cache_enabled: false` in config
-- **Process in chunks**: Use product filtering to process subsets
-
-#### For Fast Processing
-- **Increase workers**: Set `max_workers` to number of CPU cores
-- **Larger batches**: `--batch-size 20` or higher
-- **Disable logging**: `--log-level ERROR` for minimal output
-- **Use SSD storage**: Faster I/O for data loading
-
-### Debugging
-
-#### Enable Detailed Logging
-```bash
-python run_complete_workflow.py --log-level DEBUG
-```
-
-#### Check Data Quality
-```bash
-python run_data_validation.py --log-level INFO
-```
-
-#### Test Individual Components
-```bash
-# Test backtesting only
-python run_unified_backtest.py --analysis-start-date 2024-01-01 --analysis-end-date 2024-01-31
-
-# Test safety stock calculation only
-python run_safety_stock_calculation.py
-
-# Test simulation only
-python run_simulation.py
-```
-
-#### Monitor System Resources
-- **Memory usage**: Monitor with `htop` or `top`
-- **CPU usage**: Check for bottlenecks with `iostat`
-- **Disk I/O**: Monitor with `iotop` for data loading issues
-
-### Getting Help
-
-#### Check Logs
-- **Workflow logs**: `output/logs/workflow.log`
-- **Validation logs**: `output/logs/validation.log`
-- **Backtesting logs**: `output/logs/backtesting.log`
-
-#### Common Error Messages
-- **"No data found"**: Check file paths and data format
-- **"Insufficient data"**: Ensure minimum data requirements are met
-- **"Memory error"**: Reduce batch size and workers
-- **"Validation failed"**: Fix data quality issues before proceeding
-
-#### Performance Benchmarks
-- **Small dataset** (<100 products): 5-15 minutes
-- **Medium dataset** (100-500 products): 15-60 minutes
-- **Large dataset** (>500 products): 1-4 hours
-- **Very large dataset** (>1000 products): 4+ hours (consider subsetting)
