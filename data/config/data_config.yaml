@@ -1,0 +1,82 @@
+storage:
+  type: "snowflake"  # Using Snowflake database for data access
+
+# Database-specific configurations
+snowflake:
+  account: "nnb42337.us-east-1"
+  user: "manjul"
+  password: "aRjKMX3p48_Rw&4"
+  role: "ACCOUNTADMIN"
+  warehouse: "COMPUTE_WH"
+  database: "RAWDATA_DB"
+  schema: "RESTOCK"
+
+cache:
+  enabled: true
+  ttl_seconds: 3600
+  max_size_mb: 500
+  check_file_changes: false
+# Snowflake table names (used when storage type is snowflake)
+snowflake_tables:
+  # Input tables (read from)
+  outflow: "OUTFLOW_BHASIN"
+  product_master: "PRODUCT_MASTER_BHASIN"
+  
+  # Output tables (write to)
+  safety_stocks: "SAFETY_STOCKS_RESULTS"
+  forecast_comparison: "FORECAST_COMPARISON_RESULTS"
+  simulation_results: "SIMULATION_RESULTS"
+  forecast_visualization: "FORECAST_VISUALIZATION_DATA"
+  input_data_with_regressors: "INPUT_DATA_WITH_REGRESSORS"
+
+paths:
+  base_dir: "data/customer_data"
+  outflow: "customer_demand.csv"
+  product_master: "customer_product_master.csv"
+  output_dir: "output"
+  output_files:
+    safety_stocks: "safety_stock_results.csv"
+    forecast_comparison: "forecast_comparison.csv"
+    simulation_results: "simulation_results.csv"
+    forecast_visualization: "forecast_visualization_data.csv"
+    input_data_with_regressors: "input_data_with_regressors.csv"
+  input_files:
+    prophet_parameters: "data/config/prophet_parameters.json"
+    india_holidays: "data/holidays/india_holidays.csv"
+    regressor_config: "data/config/regressor_config.yaml"
+    input_data_with_regressors: "output/backtesting/input_data_with_regressors.csv"
+safety_stock:
+  review_dates:
+    - "2024-07-01"
+    - "2024-07-15"
+    - "2024-08-01"
+    - "2024-08-15"
+    - "2024-09-01"
+    - "2024-09-15"
+    - "2024-10-01"
+    - "2024-10-15"
+    - "2024-11-01"
+    - "2024-11-15"
+    - "2024-12-01"
+    - "2024-12-15"
+    - "2025-01-01"
+    - "2025-01-15"
+    - "2025-02-01"
+    - "2025-02-15"
+    - "2025-03-01"
+    - "2025-03-15"
+    - "2025-04-01"
+    - "2025-04-15"
+    - "2025-05-01"
+    - "2025-05-15"
+    - "2025-06-01"
+    - "2025-06-15"
+simulation:
+  enable_moq: true  # Enable MOQ (Minimum Order Quantity) constraints
+  overstock_buffer_perc: 20
+  overstock_boundary_window: 30 # this is in days
+  calc_metrics_after_lt: true
+monitoring:
+  log_access: false
+  track_memory: true
+  alert_threshold_mb: 400

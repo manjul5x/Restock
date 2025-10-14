@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+.env
+*.pyc
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Project specific
+output/
+plots/
+data/customer_data/
+*.png
+test_*.html
+debug_*.py
+test_*.py
+demo_*.py
+*.log
+*.tmp
+*.bak
+*~
+
+# Keep webapp files
+!webapp/templates/*.html
+!webapp/static/css/*.css
+!webapp/static/js/*.js
+!webapp/static/img/*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 

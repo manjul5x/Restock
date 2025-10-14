@@ -1,0 +1,85 @@
+holiday,ds,lower_window,upper_window,location,source
+republic_day,2022-01-26,0,0,all,Fixed national holiday
+independence_day,2022-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2022-10-02,0,0,all,Fixed national holiday
+christmas,2022-12-25,0,0,all,Fixed national holiday
+republic_day,2023-01-26,0,0,all,Fixed national holiday
+independence_day,2023-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2023-10-02,0,0,all,Fixed national holiday
+christmas,2023-12-25,0,0,all,Fixed national holiday
+republic_day,2024-01-26,0,0,all,Fixed national holiday
+independence_day,2024-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2024-10-02,0,0,all,Fixed national holiday
+christmas,2024-12-25,0,0,all,Fixed national holiday
+republic_day,2025-01-26,0,0,all,Fixed national holiday
+independence_day,2025-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2025-10-02,0,0,all,Fixed national holiday
+christmas,2025-12-25,0,0,all,Fixed national holiday
+republic_day,2026-01-26,0,0,all,Fixed national holiday
+independence_day,2026-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2026-10-02,0,0,all,Fixed national holiday
+christmas,2026-12-25,0,0,all,Fixed national holiday
+republic_day,2027-01-26,0,0,all,Fixed national holiday
+independence_day,2027-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2027-10-02,0,0,all,Fixed national holiday
+christmas,2027-12-25,0,0,all,Fixed national holiday
+republic_day,2028-01-26,0,0,all,Fixed national holiday
+independence_day,2028-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2028-10-02,0,0,all,Fixed national holiday
+christmas,2028-12-25,0,0,all,Fixed national holiday
+republic_day,2029-01-26,0,0,all,Fixed national holiday
+independence_day,2029-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2029-10-02,0,0,all,Fixed national holiday
+christmas,2029-12-25,0,0,all,Fixed national holiday
+republic_day,2030-01-26,0,0,all,Fixed national holiday
+independence_day,2030-08-15,0,0,all,Fixed national holiday
+gandhi_jayanti,2030-10-02,0,0,all,Fixed national holiday
+christmas,2030-12-25,0,0,all,Fixed national holiday
+holi,2022-03-18,-1,1,all,timeanddate/officeholidays
+eid_al_fitr,2022-05-03,-1,1,all,timeanddate/officeholidays
+eid_al_adha,2022-07-10,0,1,all,timeanddate/officeholidays
+good_friday,2022-04-15,0,0,all,timeanddate/officeholidays
+dussehra_vijaya_dashami,2022-10-05,0,0,all,timeanddate/officeholidays
+diwali_deepavali,2022-10-24,-7,2,all,india.gov.in/timeanddate
+guru_nanak_jayanti,2022-11-08,0,0,all,timeanddate/officeholidays
+buddha_purnima,2022-05-16,0,0,all,officeholidays
+mahavir_jayanti,2022-04-14,0,0,all,officeholidays
+ram_navami,2022-04-10,0,0,all,officeholidays
+janmashtami,2022-08-19,0,0,all,officeholidays
+raksha_bandhan,2022-08-11,0,0,all,officeholidays
+holi,2023-03-08,-1,1,all,timeanddate/officeholidays
+eid_al_fitr,2023-04-22,-1,1,all,timeanddate/officeholidays
+eid_al_adha,2023-06-29,0,1,all,timeanddate/officeholidays
+good_friday,2023-04-07,0,0,all,timeanddate/officeholidays
+dussehra_vijaya_dashami,2023-10-24,0,0,all,timeanddate/officeholidays
+diwali_deepavali,2023-11-12,-7,2,all,officeholidays/timeanddate
+guru_nanak_jayanti,2023-11-27,0,0,all,timeanddate/officeholidays
+buddha_purnima,2023-05-05,0,0,all,officeholidays
+mahavir_jayanti,2023-04-04,0,0,all,officeholidays
+ram_navami,2023-03-30,0,0,all,officeholidays
+janmashtami,2023-09-07,0,0,all,officeholidays
+raksha_bandhan,2023-08-30,0,0,all,officeholidays
+holi,2024-03-25,-1,1,all,timeanddate/officeholidays
+eid_al_fitr,2024-04-10,-1,1,all,timeanddate/officeholidays
+eid_al_adha,2024-06-17,0,1,all,timeanddate/officeholidays
+good_friday,2024-03-29,0,0,all,timeanddate/officeholidays
+dussehra_vijaya_dashami,2024-10-12,0,0,all,timeanddate/officeholidays
+diwali_deepavali,2024-11-01,-7,2,all,timeanddate
+guru_nanak_jayanti,2024-11-15,0,0,all,timeanddate/officeholidays
+buddha_purnima,2024-05-23,0,0,all,officeholidays
+mahavir_jayanti,2024-04-21,0,0,all,officeholidays
+ram_navami,2024-04-17,0,0,all,officeholidays
+janmashtami,2024-08-26,0,0,all,officeholidays
+raksha_bandhan,2024-08-19,0,0,all,officeholidays
+holi,2025-03-14,-1,1,all,timeanddate/ToI
+eid_al_fitr,2025-03-31,-1,1,all,ToI/timeanddate
+eid_al_adha,2025-06-07,0,1,all,timeanddate/officeholidays
+good_friday,2025-04-18,0,0,all,timeanddate
+dussehra_vijaya_dashami,2025-10-02,0,0,all,timeanddate
+diwali_deepavali,2025-10-21,-7,2,all,officeholidays/timeanddate
+guru_nanak_jayanti,2025-11-05,0,0,all,timeanddate
+buddha_purnima,2025-05-12,0,0,all,officeholidays
+mahavir_jayanti,2025-04-06,0,0,all,officeholidays
+ram_navami,2025-04-06,0,0,all,officeholidays
+janmashtami,2025-08-16,0,0,all,EconomicTimes
+raksha_bandhan,2025-08-09,0,0,all,officeholidays

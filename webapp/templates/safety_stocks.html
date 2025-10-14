@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Safety Stock Visualization{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Safety Stock Visualization</h1>
+        
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% else %}
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Filter Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="safetyStockForm">
+                            <div class="mb-3">
+                                <label for="product" class="form-label">Product:</label>
+                                <select class="form-select" id="product" name="product" required>
+                                    <option value="">Select Product</option>
+                                    {% for product in products %}
+                                    <option value="{{ product }}" {% if product == default_product %}selected{% endif %}>{{ product }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="location" class="form-label">Location:</label>
+                                <select class="form-select" id="location" name="location" required>
+                                    <option value="">Select Location</option>
+                                    {% for location in locations %}
+                                    <option value="{{ location }}" {% if location == default_location %}selected{% endif %}>{{ location }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="review_date" class="form-label">Review Date:</label>
+                                <select class="form-select" id="review_date" name="review_date" required>
+                                    <option value="">Select Review Date</option>
+                                    {% for date in review_dates %}
+                                    <option value="{{ date }}" {% if date == default_review_date %}selected{% endif %}>{{ date }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="forecast_method" class="form-label">Forecast Method:</label>
+                                <select class="form-select" id="forecast_method" name="forecast_method">
+                                    <option value="All" {% if default_forecast_method == "All Methods" %}selected{% endif %}>All Methods</option>
+                                    {% for method in forecast_methods %}
+                                    <option value="{{ method }}" {% if method == default_forecast_method %}selected{% endif %}>{{ method }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Generate Plot</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating safety stock distribution plot...</p>
+                </div>
+                
+                <div id="plotContainer" style="display: none;">
+                    <div class="plot-container">
+                        <img id="plotImage" class="plot-image" alt="Safety Stock Distribution">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="stats-card">
+                                <h6>Safety Stock Value</h6>
+                                <p class="h4 text-primary" id="safetyStockValue">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="stats-card">
+                                <h6>Error Count</h6>
+                                <p class="h4 text-info" id="errorCount">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Distribution Type</h6>
+                                <p class="h6 text-secondary" id="distributionType">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Service Level</h6>
+                                <p class="h6 text-secondary" id="serviceLevel">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Mean Error</h6>
+                                <p class="h6 text-secondary" id="meanError">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="stats-card">
+                                <h6>Standard Deviation</h6>
+                                <p class="h6 text-secondary" id="stdError">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.getElementById('safetyStockForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    // Show loading
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('plotContainer').style.display = 'none';
+    
+    fetch('/get_safety_stock_plot', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+            return;
+        }
+        
+        // Display plot
+        document.getElementById('plotImage').src = 'data:image/png;base64,' + data.plot_url;
+        document.getElementById('safetyStockValue').textContent = data.safety_stock_value.toFixed(2);
+        document.getElementById('errorCount').textContent = data.error_count;
+        document.getElementById('distributionType').textContent = data.distribution_type;
+        document.getElementById('serviceLevel').textContent = (data.service_level * 100).toFixed(1) + '%';
+        document.getElementById('meanError').textContent = data.mean_error.toFixed(2);
+        document.getElementById('stdError').textContent = data.std_error.toFixed(2);
+        
+        // Hide loading and show results
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('plotContainer').style.display = 'block';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error generating plot');
+        document.getElementById('loading').style.display = 'none';
+    });
+});
+</script>
+{% endblock %} 

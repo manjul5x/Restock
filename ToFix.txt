@@ -1,0 +1,5 @@
+- fix the review data calculation. Auto calculate in unified backtester, no defaults in backtester config, 
+    complete workflow passes none by default but can overwrite so you don't auto calculate in backtester
+
+
+- Validation needs to catch and error for only one entry per prodcut location date 

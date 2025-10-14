@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}Demand Visualization Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 40px;
+    }
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+    .error-message {
+        display: none;
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 20px 0;
+    }
+    .form-check-input:checked {
+        background-color: #667eea;
+        border-color: #667eea;
+    }
+    .multi-select {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="header mb-4">
+    <h1><i class="fas fa-chart-line"></i> Demand Visualization Dashboard</h1>
+    <p class="text-muted">Explore demand patterns with interactive filtering and time aggregation</p>
+</div>
+
+<!-- Data Summary -->
+<div class="row mb-4" id="data-summary">
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="stats-number" id="total-records">-</div>
+                <div class="stats-label">Total Records</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="stats-number" id="total-demand">-</div>
+                <div class="stats-label">Total Demand</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="stats-number" id="avg-demand">-</div>
+                <div class="stats-label">Avg Demand</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="stats-number" id="unique-products">-</div>
+                <div class="stats-label">Products</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="stats-number" id="unique-locations">-</div>
+                <div class="stats-label">Locations</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <div class="stats-number" id="unique-categories">-</div>
+                <div class="stats-label">Categories</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Visualization Controls -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs"></i> Visualization Controls</h5>
+            </div>
+            <div class="card-body">
+                <form id="visualization-form">
+                    <div class="row">
+                        <!-- Plot Type -->
+                        <div class="col-md-3">
+                            <label class="form-label">Plot Type</label>
+                            <select class="form-select" id="plot-type" name="plot_type">
+                                <option value="demand_trend">Demand Trend</option>
+                                <option value="demand_decomposition">Demand Decomposition</option>
+                                <option value="category_comparison">Category Comparison</option>
+                                <option value="location_comparison">Location Comparison</option>
+                            </select>
+                        </div>
+
+                        <!-- Time Aggregation -->
+                        <div class="col-md-3">
+                            <label class="form-label">Time Aggregation</label>
+                            <select class="form-select" id="time-aggregation" name="time_aggregation">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="risk_period">Risk Period</option>
+                            </select>
+                        </div>
+
+                        <!-- Date Range -->
+                        <div class="col-md-3">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="start-date" name="start_date">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="end-date" name="end_date">
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <!-- Locations -->
+                        <div class="col-md-4">
+                            <label class="form-label">Locations</label>
+                            <div class="multi-select">
+                                {% for location in locations %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="locations" value="{{ location }}" id="location-{{ location }}">
+                                    <label class="form-check-label" for="location-{{ location }}">
+                                        {{ location }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Categories -->
+                        <div class="col-md-4">
+                            <label class="form-label">Categories</label>
+                            <div class="multi-select">
+                                {% for category in categories %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="categories" value="{{ category }}" id="category-{{ category }}">
+                                    <label class="form-check-label" for="category-{{ category }}">
+                                        {{ category }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Products -->
+                        <div class="col-md-4">
+                            <label class="form-label">Products</label>
+                            <div class="multi-select">
+                                {% for product in products %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="products" value="{{ product }}" id="product-{{ product }}">
+                                    <label class="form-check-label" for="product-{{ product }}">
+                                        {{ product }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-chart-line"></i> Generate Plot
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div class="loading" id="loading">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-3">Generating visualization...</p>
+</div>
+
+<!-- Error Message -->
+<div class="error-message" id="error-message">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span id="error-text"></span>
+</div>
+
+<!-- Plot Container -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-area"></i> Visualization</h5>
+            </div>
+            <div class="card-body">
+                <div id="plot-container" style="min-height: 400px;">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-chart-line fa-3x mb-3"></i>
+                        <p>Select parameters and click "Generate Plot" to create a visualization</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Load data summary on page load
+    loadDataSummary();
+    
+    // Handle form submission
+    $('#visualization-form').on('submit', function(e) {
+        e.preventDefault();
+        generatePlot();
+    });
+    
+    // Set default date range dynamically based on data
+    setDefaultDateRange();
+});
+
+function loadDataSummary() {
+    $.get('/get_data_summary')
+        .done(function(data) {
+            $('#total-records').text(data.total_records);
+            $('#total-demand').text(data.total_demand);
+            $('#avg-demand').text(data.avg_demand);
+            $('#unique-products').text(data.unique_products);
+            $('#unique-locations').text(data.unique_locations);
+            $('#unique-categories').text(data.unique_categories);
+        })
+        .fail(function() {
+            console.error('Failed to load data summary');
+        });
+}
+
+function setDefaultDateRange() {
+    $.get('/get_date_range')
+        .done(function(data) {
+            if (data.start_date && data.end_date) {
+                $('#start-date').val(data.start_date);
+                $('#end-date').val(data.end_date);
+            }
+        })
+        .fail(function() {
+            console.error('Failed to load date range, using fallback');
+            // Fallback to a reasonable default if the endpoint fails
+            const today = new Date();
+            const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
+            $('#start-date').val(sixMonthsAgo.toISOString().split('T')[0]);
+            $('#end-date').val(today.toISOString().split('T')[0]);
+        });
+}
+
+function generatePlot() {
+    const formData = new FormData($('#visualization-form')[0]);
+    
+    $('#loading').show();
+    $('#error-message').hide();
+    $('#plot-container').html('<div class="text-center"><div class="spinner-border text-primary" role="status"></div></div>');
+    
+    $.ajax({
+        url: '/generate_plot',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            $('#loading').hide();
+            if (response.plot_url) {
+                // Display the base64 image
+                const img = $('<img>', {
+                    src: 'data:image/png;base64,' + response.plot_url,
+                    class: 'img-fluid',
+                    style: 'max-width: 100%; height: auto;'
+                });
+                $('#plot-container').html(img);
+            } else {
+                showError(response.error || 'Failed to generate plot');
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#loading').hide();
+            showError('Failed to generate plot: ' + error);
+        }
+    });
+}
+
+function showError(message) {
+    $('#error-text').text(message);
+    $('#error-message').show();
+    $('#plot-container').html('<div class="text-center text-muted py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><p>Error occurred while generating plot</p></div>');
+}
+</script>
+{% endblock %} 

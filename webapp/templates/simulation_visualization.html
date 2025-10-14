@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Simulation Visualization{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Inventory Simulation Visualization</h1>
+        
+        <!-- Info Cards -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="info-card">
+                    <h4><i class="fas fa-info-circle"></i> About Inventory Simulation</h4>
+                    <ul>
+                        <li><strong>Simulated Stock on Hand:</strong> Blue line showing what inventory would be if following our recommendations</li>
+                        <li><strong>Actual Demand:</strong> Orange dashed line showing actual customer demand</li>
+                        <li><strong>Safety Stock:</strong> Red dotted line showing recommended safety stock levels</li>
+                        <li><strong>Actual Inventory:</strong> Light blue shaded area showing total inventory including on-order</li>
+                        <li><strong>Orders Placed:</strong> Cyan bars showing when orders would be placed</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-card">
+                    <h4><i class="fas fa-chart-line"></i> About Demand Analysis</h4>
+                    <ul>
+                        <li><strong>Actual Daily Demand:</strong> Blue bars showing actual customer demand over time</li>
+                        <li><strong>Orders Placed:</strong> Red bars showing when orders were placed in the simulation</li>
+                        <li><strong>First Risk Period Forecast:</strong> Green line showing forecasted demand for the first risk period on each analysis date</li>
+                        <li><strong>First Risk Period Actual:</strong> Orange dashed line showing actual demand for the first risk period on each analysis date</li>
+                        <li><strong>Data Coverage:</strong> Shows all available forecast data, not limited to simulation period</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% else %}
+        
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Filter Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="simulationForm">
+                            <div class="mb-3">
+                                <label for="products" class="form-label">Products:</label>
+                                <select class="form-select" id="products" name="products" multiple>
+                                    {% for product in products %}
+                                    <option value="{{ product }}" {% if product == default_product %}selected{% endif %}>{{ product }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="locations" class="form-label">Locations:</label>
+                                <select class="form-select" id="locations" name="locations" multiple>
+                                    {% for location in locations %}
+                                    <option value="{{ location }}" {% if location == default_location %}selected{% endif %}>{{ location }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="forecast_methods" class="form-label">Forecast Methods:</label>
+                                <select class="form-select" id="forecast_methods" name="forecast_methods" multiple>
+                                    {% for method in forecast_methods %}
+                                    <option value="{{ method }}" {% if method == default_forecast_method %}selected{% endif %}>{{ method }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="display_mode" class="form-label">Display Mode:</label>
+                                <select class="form-select" id="display_mode" name="display_mode">
+                                    <option value="units">Units</option>
+                                    <option value="cost">Monetary Value</option>
+                                </select>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Generate Both Graphs</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-9">
+                <!-- Loading for both plots -->
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Generating inventory simulation and demand analysis charts...</p>
+                </div>
+                
+                <!-- Inventory Plot Container -->
+                <div id="plotContainer" style="display: none;">
+                    <h4 class="mb-3">Inventory Simulation</h4>
+                    <div class="plot-container">
+                        <img id="plotImage" class="plot-image" alt="Inventory Simulation">
+                    </div>
+                </div>
+                
+                <!-- Demand Analysis Plot Container -->
+                <div id="demandPlotContainer" style="display: none;">
+                    <h4 class="mb-3">Demand Analysis</h4>
+                    <div class="plot-container">
+                        <img id="demandPlotImage" class="plot-image" alt="Demand Analysis">
+                    </div>
+                </div>
+
+                <!-- Stock Status Plot Container (only shown for all_all) -->
+                <div id="stockStatusPlotContainer" style="display: none;">
+                    <h4 class="mb-3">Stock Status Over Time</h4>
+                    <div class="plot-container">
+                        <img id="stockStatusPlotImage" class="plot-image" alt="Stock Status">
+                    </div>
+                </div>
+                
+                <!-- Statistics and Details Below Both Graphs -->
+                <div id="statsContainer" style="display: none;">
+                    <div class="row mt-4">
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Total Products</h6>
+                                <p class="h4 text-primary" id="totalProducts">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Avg Service Level</h6>
+                                <p class="h4 text-success" id="avgServiceLevel">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Avg Stockout Rate</h6>
+                                <p class="h4 text-danger" id="avgStockoutRate">-</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h6>Avg Inventory Turns</h6>
+                                <p class="h4 text-info" id="avgInventoryTurns">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.getElementById('simulationForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    // Show loading for both plots
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('plotContainer').style.display = 'none';
+    document.getElementById('demandPlotContainer').style.display = 'none';
+    document.getElementById('statsContainer').style.display = 'none';
+    
+    // Generate inventory plot first
+    fetch('/get_simulation_plot', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error generating inventory plot: ' + data.error);
+            document.getElementById('loading').style.display = 'none';
+            return;
+        }
+        
+        // Display inventory plot
+        document.getElementById('plotImage').src = 'data:image/png;base64,' + data.plot_url;
+        
+        // Show inventory plot
+        document.getElementById('plotContainer').style.display = 'block';
+        
+        // Now generate demand analysis plot
+        return fetch('/get_demand_analysis_plot', {
+            method: 'POST',
+            body: formData
+        });
+    })
+    .then(response => {
+        if (!response) return; // If previous step failed
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.error) {
+            alert('Error generating demand analysis plot: ' + data.error);
+            document.getElementById('loading').style.display = 'none';
+            return;
+        }
+        
+        if (data) {
+            // Display demand analysis plot
+            document.getElementById('demandPlotImage').src = 'data:image/png;base64,' + data.plot_url;
+            
+            // Show demand analysis plot
+            document.getElementById('demandPlotContainer').style.display = 'block';
+
+            // Check if we should show stock status plot (all_all selected)
+            const selectedProducts = Array.from(document.getElementById('products').selectedOptions).map(opt => opt.value);
+            const selectedLocations = Array.from(document.getElementById('locations').selectedOptions).map(opt => opt.value);
+            
+            if (selectedProducts.includes('all') && selectedLocations.includes('all')) {
+                // Generate stock status plot
+                return fetch('/get_stock_status_plot', {
+                    method: 'POST',
+                    body: formData
+                });
+            }
+        }
+    })
+    .then(response => {
+        if (!response) return; // If previous step failed
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.error) {
+            console.warn('Error generating stock status plot:', data.error);
+            return;
+        }
+        
+        if (data) {
+            // Display stock status plot
+            document.getElementById('stockStatusPlotImage').src = 'data:image/png;base64,' + data.plot_url;
+            
+            // Show stock status plot
+            document.getElementById('stockStatusPlotContainer').style.display = 'block';
+        }
+        
+        // Update statistics
+        fetch('/get_simulation_plot', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.summary_stats) {
+                document.getElementById('totalProducts').textContent = data.summary_stats.total_products;
+                document.getElementById('avgServiceLevel').textContent = (data.summary_stats.avg_service_level * 100).toFixed(1) + '%';
+                document.getElementById('avgStockoutRate').textContent = (data.summary_stats.avg_stockout_rate * 100).toFixed(1) + '%';
+                document.getElementById('avgInventoryTurns').textContent = data.summary_stats.avg_inventory_turns.toFixed(1);
+                
+                // Show stats container
+                document.getElementById('statsContainer').style.display = 'block';
+            }
+        });
+        
+        // Hide loading
+        document.getElementById('loading').style.display = 'none';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error generating plots');
+        document.getElementById('loading').style.display = 'none';
+    });
+});
+</script>
+{% endblock %} 

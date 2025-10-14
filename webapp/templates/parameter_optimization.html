@@ -1,0 +1,2623 @@
+{% extends "base.html" %}
+
+{% block title %}Parameter Optimization - Forecaster{% endblock %}
+
+{% block extra_css %}
+<style>
+    .accordion-button:not(.collapsed) {
+        background-color: #e7f3ff;
+        color: #0c63e4;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0a58ca;
+    }
+    
+    .btn-success {
+        background-color: #198754;
+        border-color: #198754;
+    }
+    
+    .btn-success:hover {
+        background-color: #157347;
+        border-color: #146c43;
+    }
+    
+    .holiday-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .holiday-item input[type="checkbox"] {
+        margin-right: 0.5rem;
+    }
+    
+    .custom-seasonality-item {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .regressor-item {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .results-container {
+        margin-top: 2rem;
+        padding: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background-color: #f8f9fa;
+    }
+    
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 2rem;
+    }
+    
+    .error-message {
+        color: #dc3545;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .success-message {
+        color: #155724;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Searchable dropdown styling */
+    .searchable-input {
+        position: relative;
+    }
+    
+    .searchable-input input[list] {
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .searchable-input input[list]:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        transform: translateY(-1px);
+    }
+    
+    .searchable-input input[list]:disabled {
+        background-color: #e9ecef;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    .searchable-input input[list]:disabled::placeholder {
+        color: #6c757d;
+    }
+    
+    .searchable-input input[list]:hover:not(:disabled) {
+        border-color: #86b7fe;
+    }
+    
+    /* Add a subtle arrow indicator for the datalist */
+    .searchable-input::after {
+        content: '▼';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        pointer-events: none;
+        font-size: 12px;
+        transition: color 0.2s ease-in-out;
+    }
+    
+    .searchable-input input[list]:focus + ::after {
+        color: #0d6efd;
+    }
+    
+    .searchable-input input[list]:disabled + ::after {
+        color: #adb5bd;
+    }
+    
+    .form-check-input {
+        margin-right: 0.5rem;
+    }
+    
+    .form-check-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-sliders-h me-2"></i>
+            Forecast Parameter Optimization
+        </h1>
+        <p class="lead">Optimize Prophet forecasting parameters for specific product-location combinations.</p>
+        
+        {% if error %}
+        <div class="error-message">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {{ error }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Product/Location Selection -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    Product & Location Selection
+                </h5>
+            </div>
+            <div class="card-body">
+
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="productSelect" class="form-label">Product</label>
+                        <div class="searchable-input">
+                            <input class="form-control" list="productList" id="productSelect" placeholder="Type to search or select a product..." required>
+                            <datalist id="productList">
+                                <option value="">Select a product...</option>
+                                {% for product in product_locations | sort(attribute='product_id') %}
+                                <option value="{{ product.product_id }}">{{ product.product_id }}</option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="locationSelect" class="form-label">Location</label>
+                        <div class="searchable-input">
+                            <input class="form-control" list="locationList" id="locationSelect" placeholder="Type to search or select a location..." required disabled>
+                            <datalist id="locationList">
+                                <option value="">Select a location...</option>
+                            </datalist>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Parameter Configuration -->
+<div class="row">
+    <div class="col-12">
+        <div class="accordion" id="parameterAccordion">
+            
+            <!-- Regressors Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="regressorsHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#regressorsCollapse">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Regressors
+                    </button>
+                </h2>
+                <div id="regressorsCollapse" class="accordion-collapse collapse" data-bs-parent="#parameterAccordion">
+                    <div class="accordion-body">
+                        <div id="regressorsContainer">
+                            <!-- Regressors will be loaded dynamically -->
+                            <div class="text-center text-muted">
+                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                Loading regressors...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Seasonality Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="seasonalityHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#seasonalityCollapse">
+                        <i class="fas fa-chart-wave me-2"></i>
+                        Seasonality
+                    </button>
+                </h2>
+                <div id="seasonalityCollapse" class="accordion-collapse collapse" data-bs-parent="#parameterAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Built-in Seasonalities</h6>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="yearlySeasonality" checked>
+                                    <label class="form-check-label" for="yearlySeasonality">
+                                        Yearly Seasonality
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="weeklySeasonality" checked>
+                                    <label class="form-check-label" for="weeklySeasonality">
+                                        Weekly Seasonality
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="dailySeasonality">
+                                    <label class="form-check-label" for="dailySeasonality">
+                                        Daily Seasonality
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Global Settings</h6>
+                                <div class="mb-3">
+                                    <label for="seasonalityMode" class="form-label">Seasonality Mode</label>
+                                    <select class="form-select" id="seasonalityMode">
+                                        <option value="additive">Additive</option>
+                                        <option value="multiplicative">Multiplicative</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="seasonalityPriorScale" class="form-label">Seasonality Prior Scale</label>
+                                    <input type="number" class="form-control" id="seasonalityPriorScale" 
+                                           value="10.0" min="0.01" max="20.0" step="0.1">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <h6>Custom Seasonalities</h6>
+                                <div id="customSeasonalitiesContainer">
+                                    <!-- Custom seasonalities will be added here -->
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="addCustomSeasonality">
+                                    <i class="fas fa-plus me-1"></i>
+                                    Add Custom Seasonality
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Growth Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="growthHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#growthCollapse">
+                        <i class="fas fa-trending-up me-2"></i>
+                        Growth
+                    </button>
+                </h2>
+                <div id="growthCollapse" class="accordion-collapse collapse" data-bs-parent="#parameterAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="growthModel" class="form-label">Growth Model</label>
+                                <select class="form-select" id="growthModel">
+                                    <option value="linear">Linear</option>
+                                    <option value="logistic">Logistic</option>
+                                    <option value="flat">Flat</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="growthFloor" class="form-label">Growth Floor</label>
+                                <input type="number" class="form-control" id="growthFloor" value="0" step="0.1" disabled>
+                                <small class="form-text text-muted">Only available for Logistic growth model</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="growthCeiling" class="form-label">Growth Ceiling</label>
+                                <input type="text" class="form-control" id="growthCeiling" placeholder="None" disabled>
+                                <small class="form-text text-muted">Only available for Logistic growth model. Leave empty for None.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Holidays Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="holidaysHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#holidaysCollapse">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        Holidays
+                    </button>
+                </h2>
+                <div id="holidaysCollapse" class="accordion-collapse collapse" data-bs-parent="#parameterAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6>Select Holidays</h6>
+                                <div id="holidaysContainer" class="mb-3">
+                                    {% for holiday in unique_holidays %}
+                                    <div class="holiday-item">
+                                        <input type="checkbox" id="holiday_{{ loop.index }}" value="{{ holiday }}">
+                                        <label for="holiday_{{ loop.index }}">{{ holiday }}</label>
+                                        <i class="fas fa-question-circle ms-2 text-muted" 
+                                           title="Holiday dates will be loaded from data"></i>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="holidaysPriorScale" class="form-label">Holidays Prior Scale</label>
+                                <input type="number" class="form-control" id="holidaysPriorScale" 
+                                       value="2.0" min="0.01" max="20.0" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Changepoints Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="changepointsHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#changepointsCollapse">
+                        <i class="fas fa-random me-2"></i>
+                        Changepoints
+                    </button>
+                </h2>
+                <div id="changepointsCollapse" class="accordion-collapse collapse" data-bs-parent="#parameterAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="nChangepoints" class="form-label">Number of Changepoints</label>
+                                <input type="number" class="form-control" id="nChangepoints" 
+                                       value="5" min="5" max="50">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="changepointRange" class="form-label">Changepoint Range</label>
+                                <input type="number" class="form-control" id="changepointRange" 
+                                       value="0.8" min="0.1" max="1.0" step="0.1">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="changepointPriorScale" class="form-label">Changepoint Prior Scale</label>
+                                <input type="number" class="form-control" id="changepointPriorScale" 
+                                       value="0.05" min="0.001" max="0.5" step="0.001">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Date Range Section -->
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="dateRangeHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dateRangeCollapse">
+                        <i class="fas fa-calendar me-2"></i>
+                        Date Range
+                    </button>
+                </h2>
+                <div id="dateRangeCollapse" class="accordion-collapse collapse" data-bs-parent="#parameterAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="startDate" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="startDate" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="endDate" class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="endDate" required>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <div id="dateRangeInfo">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Select a product and location to see available date range
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <!-- Cross Validation Checkbox -->
+        <div class="form-check d-inline-block me-3">
+            <input class="form-check-input" type="checkbox" id="crossValidationCheckbox">
+            <label class="form-check-label" for="crossValidationCheckbox">
+                Cross Validation
+            </label>
+        </div>
+        
+        <button type="button" class="btn btn-primary btn-lg me-3" id="runForecast">
+            <i class="fas fa-play me-2"></i>
+            Run Forecast
+        </button>
+        <button type="button" class="btn btn-info btn-lg me-3" id="showConfiguration">
+            <i class="fas fa-code me-2"></i>
+            Show Configuration
+        </button>
+        <button type="button" class="btn btn-success btn-lg" id="saveConfiguration" disabled>
+            <i class="fas fa-save me-2"></i>
+            Save Configuration
+        </button>
+        <div id="saveSuccessMessage" class="d-inline-block ms-3" style="display: none;">
+            <span class="badge bg-success">
+                <i class="fas fa-check me-1"></i>Configuration Saved!
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Indicator -->
+<div class="loading" id="loadingIndicator">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-3">Running forecast with custom parameters...</p>
+</div>
+
+<!-- Results Container -->
+<div class="results-container" id="resultsContainer" style="display: none;">
+    <div class="row">
+        <div class="col-12">
+            <h4><i class="fas fa-chart-bar me-2"></i>Forecast Results</h4>
+            <div id="resultsSummary" class="mb-3">
+                <!-- Summary information will be populated here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actual vs Forecasted Chart -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-line-chart me-2"></i>
+                        Actual vs Forecasted Values
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary" onclick="exportChart('forecastChart', 'forecast')">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="toggleChartFullscreen('forecastChart')">
+                            <i class="fas fa-expand me-1"></i>Fullscreen
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="forecastChart" style="height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Component Decomposition -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-puzzle-piece me-2"></i>
+                        Component Decomposition
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Component Navigation -->
+                    <ul class="nav nav-pills mb-3" id="componentTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="trend-tab" data-bs-toggle="pill" data-bs-target="#trend" type="button" role="tab">
+                                <i class="fas fa-chart-line me-1"></i>Trend
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="seasonality-tab" data-bs-toggle="pill" data-bs-target="#seasonality" type="button" role="tab">
+                                <i class="fas fa-chart-wave me-1"></i>Seasonality
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="regressors-tab" data-bs-toggle="pill" data-bs-target="#regressors" type="button" role="tab">
+                                <i class="fas fa-sliders-h me-1"></i>Regressors
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="holidays-tab" data-bs-toggle="pill" data-bs-target="#holidays" type="button" role="tab">
+                                <i class="fas fa-calendar-alt me-1"></i>Holidays
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Component Content -->
+                    <div class="tab-content" id="componentTabContent">
+                        <div class="tab-pane fade show active" id="trend" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">Trend Component</h6>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportChart('trendChart', 'trend')">
+                                    <i class="fas fa-download me-1"></i>Export
+                                </button>
+                            </div>
+                            <div id="trendChart" style="height: 450px;"></div>
+                        </div>
+                        <div class="tab-pane fade" id="seasonality" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">Seasonality Components</h6>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportChart('seasonalityChart', 'seasonality')">
+                                    <i class="fas fa-download me-1"></i>Export
+                                </button>
+                            </div>
+                            <div id="seasonalityChart" style="height: 450px;"></div>
+                        </div>
+                        <div class="tab-pane fade" id="regressors" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">Regressor Effects</h6>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportChart('regressorsChart', 'regressors')">
+                                    <i class="fas fa-download me-1"></i>Export
+                                </button>
+                            </div>
+                            <div id="regressorsChart" style="height: 450px;"></div>
+                        </div>
+                        <div class="tab-pane fade" id="holidays" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">Holiday Effects</h6>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportChart('holidaysChart', 'holidays')">
+                                    <i class="fas fa-download me-1"></i>Export
+                                </button>
+                            </div>
+                            <div id="holidaysChart" style="height: 450px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Messages Container -->
+<div id="messagesContainer"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global variables
+    let currentConfiguration = {};
+    let forecastResults = null;
+    
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+        initializePage();
+        setupEventListeners();
+        loadRegressors();
+        setDefaultDates();
+        
+        // Initialize location options if a product is already selected
+        const productSelect = document.getElementById('productSelect');
+        if (productSelect.value) {
+            updateLocationOptions();
+        }
+        
+        // Initial form validation
+        validateForm();
+    });
+    
+    function initializePage() {
+        // Set default values based on configurable_variables.md
+        document.getElementById('seasonalityPriorScale').value = '10.0';
+        document.getElementById('holidaysPriorScale').value = '2.0';
+        document.getElementById('changepointPriorScale').value = '0.05';
+        document.getElementById('nChangepoints').value = '5';
+        document.getElementById('changepointRange').value = '0.8';
+        
+        // Initialize growth inputs state
+        updateGrowthInputs();
+    }
+    
+    function setupEventListeners() {
+        // Product/Location selection
+        document.getElementById('productSelect').addEventListener('input', function(e) {
+            updateLocationOptions();
+            filterProductOptions(e.target.value);
+        });
+        document.getElementById('productSelect').addEventListener('blur', validateProductInput);
+        document.getElementById('locationSelect').addEventListener('input', function(e) {
+            updateDateRange();
+            validateForm();
+            filterLocationOptions(e.target.value);
+        });
+        document.getElementById('locationSelect').addEventListener('blur', validateLocationInput);
+        
+        // Date validation
+        document.getElementById('startDate').addEventListener('change', validateDates);
+        document.getElementById('endDate').addEventListener('change', validateDates);
+        
+        // Action buttons
+        document.getElementById('runForecast').addEventListener('click', runForecast);
+        document.getElementById('showConfiguration').addEventListener('click', showConfiguration);
+        document.getElementById('saveConfiguration').addEventListener('click', saveConfiguration);
+        
+        // Custom seasonality
+        document.getElementById('addCustomSeasonality').addEventListener('click', addCustomSeasonality);
+        
+        // Form validation
+        setupFormValidation();
+    }
+    
+    function updateLocationOptions() {
+        const productSelect = document.getElementById('productSelect');
+        const locationSelect = document.getElementById('locationSelect');
+        const locationList = document.getElementById('locationList');
+        const selectedProduct = productSelect.value;
+        
+        // Clear location options and disable location select
+        locationList.innerHTML = '<option value="">Select a location...</option>';
+        locationSelect.value = '';
+        locationSelect.disabled = true;
+        
+        if (selectedProduct) {
+            // Filter locations for selected product and sort alphabetically
+            const productLocations = {{ product_locations | tojson }};
+            const locations = productLocations
+                .filter(item => item.product_id === selectedProduct)
+                .map(item => item.location_id)
+                .sort();
+            
+            // Populate location datalist
+            locations.forEach(location => {
+                const option = document.createElement('option');
+                option.value = location;
+                option.textContent = location;
+                locationList.appendChild(option);
+            });
+            
+            // Enable location select
+            locationSelect.disabled = false;
+        }
+        
+        validateForm();
+    }
+    
+    function validateProductInput() {
+        const productSelect = document.getElementById('productSelect');
+        const productList = document.getElementById('productList');
+        const selectedProduct = productSelect.value;
+        
+        // Get all valid product options
+        const validProducts = Array.from(productList.options).map(option => option.value);
+        
+        if (selectedProduct && !validProducts.includes(selectedProduct)) {
+            // Invalid product entered
+            productSelect.classList.add('is-invalid');
+            showFieldError(productSelect, 'Please select a valid product from the list');
+            return false;
+        } else {
+            productSelect.classList.remove('is-invalid');
+            clearFieldError(productSelect);
+            return true;
+        }
+    }
+    
+    function validateLocationInput() {
+        const locationSelect = document.getElementById('locationSelect');
+        const locationList = document.getElementById('locationList');
+        const selectedLocation = locationSelect.value;
+        
+        // Get all valid location options
+        const validLocations = Array.from(locationList.options).map(option => option.value);
+        
+        if (selectedLocation && !validLocations.includes(selectedLocation)) {
+            // Invalid location entered
+            locationSelect.classList.add('is-invalid');
+            showFieldError(locationSelect, 'Please select a valid location from the list');
+            return false;
+        } else {
+            locationSelect.classList.remove('is-invalid');
+            clearFieldError(locationSelect);
+            return true;
+        }
+    }
+    
+    function filterProductOptions(searchTerm) {
+        const productList = document.getElementById('productList');
+        const productSelect = document.getElementById('productSelect');
+        
+        // Get all product options
+        const allProducts = {{ product_locations | tojson }};
+        const uniqueProducts = [...new Set(allProducts.map(item => item.product_id))].sort();
+        
+        // Clear current options
+        productList.innerHTML = '<option value="">Select a product...</option>';
+        
+        // If search term is empty, show all products
+        if (!searchTerm || searchTerm.trim() === '') {
+            uniqueProducts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product;
+                option.textContent = product;
+                productList.appendChild(option);
+            });
+            return;
+        }
+        
+        // Filter and add matching products
+        uniqueProducts.forEach(product => {
+            if (product.toLowerCase().includes(searchTerm.toLowerCase())) {
+                const option = document.createElement('option');
+                option.value = product;
+                option.textContent = product;
+                productList.appendChild(option);
+            }
+        });
+    }
+    
+    function filterLocationOptions(searchTerm) {
+        const locationList = document.getElementById('locationList');
+        const locationSelect = document.getElementById('locationSelect');
+        const productSelect = document.getElementById('productSelect');
+        const selectedProduct = productSelect.value;
+        
+        if (!selectedProduct) return;
+        
+        // Get locations for selected product
+        const productLocations = {{ product_locations | tojson }};
+        const locations = productLocations
+            .filter(item => item.product_id === selectedProduct)
+            .map(item => item.location_id)
+            .sort();
+        
+        // Clear current options
+        locationList.innerHTML = '<option value="">Select a location...</option>';
+        
+        // If search term is empty, show all locations for the selected product
+        if (!searchTerm || searchTerm.trim() === '') {
+            locations.forEach(location => {
+                const option = document.createElement('option');
+                option.value = location;
+                option.textContent = location;
+                locationList.appendChild(option);
+            });
+            return;
+        }
+        
+        // Filter and add matching locations
+        locations.forEach(location => {
+            if (location.toLowerCase().includes(searchTerm.toLowerCase())) {
+                const option = document.createElement('option');
+                option.value = location;
+                option.textContent = location;
+                locationList.appendChild(option);
+            }
+        });
+    }
+    
+    function loadRegressors() {
+        const regressorsContainer = document.getElementById('regressorsContainer');
+        const regressorConfig = {{ regressor_config | tojson }};
+        
+        if (!regressorConfig || Object.keys(regressorConfig).length === 0) {
+            regressorsContainer.innerHTML = '<p class="text-muted">No regressors configured</p>';
+            return;
+        }
+        
+        let html = '';
+        Object.entries(regressorConfig).forEach(([name, config]) => {
+            // Exclude outflow - it's the target variable, not a regressor for Prophet
+            if (config.enabled && name !== 'outflow') {
+                // Handle both single column names and arrays of column names
+                const columnNames = Array.isArray(config.column_name) ? config.column_name : [config.column_name];
+                
+                columnNames.forEach((columnName, index) => {
+                    const uniqueId = `${name}_${columnName}`;
+                    const isFirstColumn = index === 0;
+                    
+                    html += `
+                        <div class="regressor-item" data-column-name="${columnName}">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input regressor-checkbox" type="checkbox" 
+                                               id="regressor_${uniqueId}" value="${columnName}">
+                                        <label class="form-check-label" for="regressor_${uniqueId}">
+                                            <strong>${columnName}</strong>
+                                            ${isFirstColumn ? `<br><small class="text-muted">${config.description || ''}</small>` : ''}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Prior Scale</label>
+                                    <input type="number" class="form-control regressor-prior-scale" 
+                                           value="3.0" min="0.01" max="20.0" step="0.1">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Standardize</label>
+                                    <select class="form-select regressor-standardize">
+                                        <option value="auto">Auto</option>
+                                        <option value="true">True</option>
+                                        <option value="false">False</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Mode</label>
+                                    <select class="form-select regressor-mode">
+                                        <option value="additive">Additive</option>
+                                        <option value="multiplicative">Multiplicative</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        });
+        
+        regressorsContainer.innerHTML = html;
+    }
+    
+    function addCustomSeasonality() {
+        const container = document.getElementById('customSeasonalitiesContainer');
+        const seasonalityId = Date.now();
+        
+        const html = `
+            <div class="custom-seasonality-item" id="seasonality_${seasonalityId}">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control custom-seasonality-name" 
+                               placeholder="e.g., monthly" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Period (days)</label>
+                        <input type="number" class="form-control custom-seasonality-period" 
+                               value="30" min="2" max="365" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Fourier Order</label>
+                        <input type="number" class="form-control custom-seasonality-fourier" 
+                               value="7" min="1" max="15" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Mode</label>
+                        <select class="form-control custom-seasonality-mode">
+                            <option value="additive">Additive</option>
+                            <option value="multiplicative">Multiplicative</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Prior Scale</label>
+                        <input type="number" class="form-control custom-seasonality-prior-scale" 
+                               value="10.0" min="0.01" max="20.0" step="0.1">
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                onclick="removeCustomSeasonality(${seasonalityId})">
+                            <i class="fas fa-trash me-1"></i>
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', html);
+    }
+    
+    function removeCustomSeasonality(id) {
+        const element = document.getElementById(`seasonality_${id}`);
+        if (element) {
+            element.remove();
+        }
+    }
+    
+    function setDefaultDates() {
+        // This will be set dynamically when product-location is selected
+        // based on the available data range (risk period after first outflow data to last date with outflow data)
+        document.getElementById('startDate').value = '';
+        document.getElementById('endDate').value = '';
+    }
+    
+    async function updateDateRange() {
+        const productId = document.getElementById('productSelect').value;
+        const locationId = document.getElementById('locationSelect').value;
+        
+        if (!productId || !locationId) {
+            return;
+        }
+        
+        try {
+            // Get available date range for this product-location
+            const response = await fetch('/api/get_optimization_date_range', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    location_id: locationId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const startDate = document.getElementById('startDate');
+                const endDate = document.getElementById('endDate');
+                
+                startDate.min = result.start_date;
+                startDate.max = result.end_date;
+                endDate.min = result.start_date;
+                endDate.max = result.end_date;
+                
+                // Set default values
+                startDate.value = result.start_date;
+                endDate.value = result.end_date;
+                
+                // Update date range info
+                updateDateRangeInfo(result.start_date, result.end_date);
+                
+                // Re-validate form
+                validateForm();
+            } else {
+                showMessage(`Failed to get date range: ${result.error}`, 'error');
+            }
+            
+        } catch (error) {
+            showMessage(`Error getting date range: ${error.message}`, 'error');
+        }
+    }
+    
+    function updateDateRangeInfo(startDate, endDate) {
+        const infoContainer = document.getElementById('dateRangeInfo');
+        if (infoContainer) {
+            infoContainer.innerHTML = `
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Available range: ${startDate} to ${endDate} (risk period after first outflow data to last date with outflow data)
+                </small>
+            `;
+        }
+    }
+    
+    function validateForm() {
+        let isValid = true;
+        
+        // Basic required field validation
+        const product = document.getElementById('productSelect').value;
+        const location = document.getElementById('locationSelect').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        if (!product) {
+            showFieldError(document.getElementById('productSelect'), 'Please select a product');
+            isValid = false;
+        } else {
+            // Validate product input
+            if (!validateProductInput()) {
+                isValid = false;
+            }
+        }
+        
+        if (!location) {
+            showFieldError(document.getElementById('locationSelect'), 'Please select a location');
+            isValid = false;
+        } else {
+            // Validate location input
+            if (!validateLocationInput()) {
+                isValid = false;
+            }
+        }
+        
+        if (!startDate) {
+            showFieldError(document.getElementById('startDate'), 'Please select a start date');
+            isValid = false;
+        }
+        
+        if (!endDate) {
+            showFieldError(document.getElementById('endDate'), 'Please select an end date');
+            isValid = false;
+        }
+        
+        // Validate all numeric inputs (excluding growth ceiling which is now text)
+        const numericInputs = document.querySelectorAll('input[type="number"]');
+        numericInputs.forEach(input => {
+            if (!validateNumericInput(input)) {
+                isValid = false;
+            }
+        });
+        
+        // Validate all select inputs
+        const selectInputs = document.querySelectorAll('select');
+        selectInputs.forEach(select => {
+            if (!validateSelectInput(select)) {
+                isValid = false;
+            }
+        });
+        
+        // Validate date range
+        if (startDate && endDate) {
+            if (!validateDates()) {
+                isValid = false;
+            }
+        }
+        
+        // Update button state
+        document.getElementById('runForecast').disabled = !isValid;
+        
+        return isValid;
+    }
+    
+    function validateDates() {
+        const startDate = new Date(document.getElementById('startDate').value);
+        const endDate = new Date(document.getElementById('endDate').value);
+        
+        if (startDate >= endDate) {
+            showMessage('Start date must be before end date', 'error');
+            document.getElementById('runForecast').disabled = true;
+            return false;
+        }
+        
+        document.getElementById('runForecast').disabled = false;
+        return true;
+    }
+    
+    function setupFormValidation() {
+        // Add real-time validation for numeric inputs
+        const numericInputs = document.querySelectorAll('input[type="number"]');
+        numericInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                validateNumericInput(this);
+            });
+            
+            input.addEventListener('blur', function() {
+                validateNumericInput(this);
+            });
+        });
+        
+        // Add validation for select inputs
+        const selectInputs = document.querySelectorAll('select');
+        selectInputs.forEach(select => {
+            select.addEventListener('change', function() {
+                validateSelectInput(this);
+            });
+        });
+        
+        // Add validation for checkboxes
+        const checkboxInputs = document.querySelectorAll('input[type="checkbox"]');
+        checkboxInputs.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                validateCheckboxInput(this);
+            });
+        });
+        
+        // Add growth model change listener for floor/ceiling inputs
+        const growthModelSelect = document.getElementById('growthModel');
+        if (growthModelSelect) {
+            growthModelSelect.addEventListener('change', function() {
+                updateGrowthInputs();
+            });
+        }
+    }
+    
+    function updateGrowthInputs() {
+        const growthModel = document.getElementById('growthModel').value;
+        const growthFloor = document.getElementById('growthFloor');
+        const growthCeiling = document.getElementById('growthCeiling');
+        
+        if (growthModel === 'logistic') {
+            growthFloor.disabled = false;
+            growthCeiling.disabled = false;
+            growthFloor.parentNode.querySelector('.form-text').style.display = 'block';
+            growthCeiling.parentNode.querySelector('.form-text').style.display = 'block';
+        } else {
+            growthFloor.disabled = true;
+            growthCeiling.disabled = true;
+            growthFloor.parentNode.querySelector('.form-text').style.display = 'none';
+            growthCeiling.parentNode.querySelector('.form-text').style.display = 'none';
+        }
+    }
+    
+    function validateNumericInput(input) {
+        const value = parseFloat(input.value);
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        
+        if (isNaN(value)) {
+            input.classList.add('is-invalid');
+            showFieldError(input, 'Please enter a valid number');
+            return false;
+        }
+        
+        if (value < min || value > max) {
+            input.classList.add('is-invalid');
+            showFieldError(input, `Value must be between ${min} and ${max}`);
+            return false;
+        }
+        
+        input.classList.remove('is-invalid');
+        clearFieldError(input);
+        return true;
+    }
+    
+    function validateSelectInput(select) {
+        if (!select.value) {
+            select.classList.add('is-invalid');
+            showFieldError(select, 'Please select an option');
+            return false;
+        }
+        
+        select.classList.remove('is-invalid');
+        clearFieldError(select);
+        return true;
+    }
+    
+    function validateCheckboxInput(checkbox) {
+        // For checkboxes, we just need to ensure they're properly handled
+        // Most validation will be done at form submission
+        return true;
+    }
+    
+    function showFieldError(input, message) {
+        // Remove existing error message
+        clearFieldError(input);
+        
+        // Create error message element
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'invalid-feedback';
+        errorDiv.textContent = message;
+        
+        // Insert after the input
+        input.parentNode.appendChild(errorDiv);
+    }
+    
+    function clearFieldError(input) {
+        const errorDiv = input.parentNode.querySelector('.invalid-feedback');
+        if (errorDiv) {
+            errorDiv.remove();
+        }
+    }
+    
+    function collectConfiguration() {
+        const config = {};
+        
+        // Cross Validation is included for running but will be removed before saving
+        config.cross_validation = document.getElementById('crossValidationCheckbox').checked;
+        
+        // Regressors
+        const enabledRegressors = {};
+        document.querySelectorAll('.regressor-checkbox:checked').forEach(checkbox => {
+            const columnName = checkbox.value;
+            const regressorItem = checkbox.closest('.regressor-item');
+            
+            // Each column is a separate regressor at the top level
+            enabledRegressors[columnName] = {
+                prior_scale: parseFloat(regressorItem.querySelector('.regressor-prior-scale').value),
+                standardize: regressorItem.querySelector('.regressor-standardize').value,
+                mode: regressorItem.querySelector('.regressor-mode').value
+            };
+        });
+        
+        if (Object.keys(enabledRegressors).length > 0) {
+            config.regressors = enabledRegressors;
+        }
+        
+        // Seasonality
+        config.yearly_seasonality = document.getElementById('yearlySeasonality').checked;
+        config.weekly_seasonality = document.getElementById('weeklySeasonality').checked;
+        config.daily_seasonality = document.getElementById('dailySeasonality').checked;
+        config.seasonality_mode = document.getElementById('seasonalityMode').value;
+        config.seasonality_prior_scale = parseFloat(document.getElementById('seasonalityPriorScale').value);
+        
+        // Custom seasonalities
+        const customSeasonalities = {};
+        document.querySelectorAll('.custom-seasonality-item').forEach(item => {
+            const name = item.querySelector('.custom-seasonality-name').value;
+            if (name) {
+                customSeasonalities[name] = {
+                    period: parseInt(item.querySelector('.custom-seasonality-period').value),
+                    fourier_order: parseInt(item.querySelector('.custom-seasonality-fourier').value),
+                    mode: item.querySelector('.custom-seasonality-mode').value,
+                    prior_scale: parseFloat(item.querySelector('.custom-seasonality-prior-scale').value)
+                };
+            }
+        });
+        
+        if (Object.keys(customSeasonalities).length > 0) {
+            config.custom_seasonalities = customSeasonalities;
+        }
+        
+        // Growth
+        config.growth = document.getElementById('growthModel').value;
+        config.growth_floor = parseFloat(document.getElementById('growthFloor').value);
+        
+        const growthCeiling = document.getElementById('growthCeiling').value;
+        config.growth_ceiling = growthCeiling && growthCeiling.trim() !== '' ? parseFloat(growthCeiling) : null;
+        
+        // Holidays
+        const selectedHolidays = [];
+        document.querySelectorAll('.holiday-item input[type="checkbox"]:checked').forEach(checkbox => {
+            selectedHolidays.push(checkbox.value);
+        });
+        
+        if (selectedHolidays.length > 0) {
+            config.selected_holidays = selectedHolidays;
+            config.holidays_prior_scale = parseFloat(document.getElementById('holidaysPriorScale').value);
+        }
+        
+        // Changepoints
+        config.n_changepoints = parseInt(document.getElementById('nChangepoints').value);
+        config.changepoint_range = parseFloat(document.getElementById('changepointRange').value);
+        config.changepoint_prior_scale = parseFloat(document.getElementById('changepointPriorScale').value);
+        
+        return config;
+    }
+    
+    function showConfiguration() {
+        const configuration = collectConfiguration();
+        const jsonString = JSON.stringify(configuration, null, 2);
+        
+        // Create modal to display JSON
+        const modalHtml = `
+            <div class="modal fade" id="configurationModal" tabindex="-1" aria-labelledby="configurationModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="configurationModalLabel">
+                                <i class="fas fa-code me-2"></i>Current Configuration
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyConfigurationToClipboard()">
+                                    <i class="fas fa-copy me-1"></i>Copy to Clipboard
+                                </button>
+                            </div>
+                            <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;"><code>${jsonString}</code></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('configurationModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('configurationModal'));
+        modal.show();
+    }
+    
+    function copyConfigurationToClipboard() {
+        const configuration = collectConfiguration();
+        const jsonString = JSON.stringify(configuration, null, 2);
+        
+        navigator.clipboard.writeText(jsonString).then(() => {
+            showMessage('Configuration copied to clipboard!', 'success');
+        }).catch(() => {
+            showMessage('Failed to copy to clipboard', 'error');
+        });
+    }
+    
+    async function runForecast() {
+        if (!validateForm()) {
+            showMessage('Please fill in all required fields correctly', 'error');
+            return;
+        }
+        
+        // Get configuration for running (includes cross validation)
+        const configuration = collectConfiguration();
+        // Get configuration for saving (excludes cross validation)
+        const saveConfiguration = {...configuration};
+        delete saveConfiguration.cross_validation;
+        currentConfiguration = saveConfiguration;
+        
+        const productId = document.getElementById('productSelect').value;
+        const locationId = document.getElementById('locationSelect').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        // Show loading with progress steps
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadingText = loadingIndicator.querySelector('p');
+        loadingIndicator.style.display = 'block';
+        document.getElementById('runForecast').disabled = true;
+        
+        try {
+            // Step 1: Creating task
+            loadingText.textContent = 'Creating optimization task...';
+            
+            // Step 2: Running forecast
+            loadingText.textContent = 'Running forecast with custom parameters...';
+            
+            const response = await fetch('/api/run_forecast', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    location_id: locationId,
+                    start_date: startDate,
+                    end_date: endDate,
+                    configuration: configuration
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                forecastResults = result;
+                displayResults(result);
+                document.getElementById('saveConfiguration').disabled = false;
+                showMessage('Forecast completed successfully!', 'success');
+                
+                // Log success details
+                console.log('Forecast Results:', result);
+                console.log('Configuration Used:', configuration);
+            } else {
+                showMessage(`Forecast failed: ${result.error}`, 'error');
+                console.error('Forecast Error:', result.error);
+            }
+            
+        } catch (error) {
+            console.error('Forecast Execution Error:', error);
+            showMessage(`Error running forecast: ${error.message}`, 'error');
+        } finally {
+            loadingIndicator.style.display = 'none';
+            document.getElementById('runForecast').disabled = false;
+        }
+    }
+    
+    function displayResults(results) {
+        const container = document.getElementById('resultsContainer');
+        container.style.display = 'block';
+        
+
+        
+        // Display results summary
+        displayResultsSummary(results);
+        
+        // Create forecast chart
+        createForecastChart(results.plotting_data, results);
+        
+
+        
+        // Create component charts
+        createComponentCharts(results.plotting_data);
+        
+        // Scroll to results
+        container.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function displayResultsSummary(results) {
+        const summaryContainer = document.getElementById('resultsSummary');
+        const plottingData = results.plotting_data || [];
+        
+        // Calculate summary statistics
+        const totalPoints = plottingData.length;
+        const historicalData = plottingData.filter(d => d.y !== null && d.y !== undefined && (d.yhat === null || d.yhat === undefined));
+        const forecastData = plottingData.filter(d => d.yhat !== null && d.yhat !== undefined);
+        const actualValues = plottingData.filter(d => d.y !== null && d.y !== undefined);
+        const forecastValues = plottingData.filter(d => d.yhat !== null && d.yhat !== undefined);
+        
+        let avgError = 0;
+        let avgAbsError = 0;
+        if (actualValues.length > 0 && forecastValues.length > 0) {
+            const errors = plottingData
+                .filter(d => d.y !== null && d.yhat !== null && d.yhat !== undefined)
+                .map(d => (d.y - d.yhat));
+            
+            if (errors.length > 0) {
+                avgError = errors.reduce((sum, err) => sum + err, 0) / errors.length;
+                avgAbsError = errors.reduce((sum, err) => sum + Math.abs(err), 0) / errors.length;
+            }
+        }
+        
+        const dateRange = results.date_range || {};
+        const historicalContext = results.historical_context || {};
+        
+        summaryContainer.innerHTML = `
+            <div class="row">
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Forecast Range</h6>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    ${dateRange.start || 'N/A'} to ${dateRange.end || 'N/A'}
+                                </small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Historical Data</h6>
+                            <p class="card-text">
+                                <strong>${historicalData.length}</strong>
+                                <small class="text-muted">data points</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Forecast Data</h6>
+                            <p class="card-text">
+                                <strong>${forecastData.length}</strong>
+                                <small class="text-muted">data points</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Avg Error</h6>
+                            <p class="card-text">
+                                <strong>${avgError.toFixed(2)}</strong>
+                                <small class="text-muted">demand units</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Avg Abs Error</h6>
+                            <p class="card-text">
+                                <strong>${avgAbsError.toFixed(2)}</strong>
+                                <small class="text-muted">demand units</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Total Points</h6>
+                            <p class="card-text">
+                                <strong>${totalPoints}</strong>
+                                <small class="text-muted">total periods</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function createForecastChart(forecastData, results) {
+        try {
+            if (!forecastData || forecastData.length === 0) {
+                document.getElementById('forecastChart').innerHTML = '<p class="text-muted text-center">No forecast data available</p>';
+                return;
+            }
+            
+            // Convert ds (datetime) to date-only strings for x-axis
+            const dates = forecastData.map(d => new Date(d.ds).toISOString().split('T')[0]);
+            
+            // Filter out null/undefined values for cleaner visualization
+            const historicalData = forecastData.filter(d => d.y !== null && d.y !== undefined && (d.yhat === null || d.yhat === undefined));
+            const actualData = forecastData.filter(d => d.y !== null && d.y !== undefined && d.yhat !== null && d.yhat !== undefined);
+            const forecastDataFiltered = forecastData.filter(d => d.yhat !== null && d.yhat !== undefined);
+            
+            const traces = [];
+            
+            // Historical actual demand trace (if we have historical data)
+            if (historicalData.length > 0) {
+                traces.push({
+                    x: historicalData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: historicalData.map(d => d.y),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Historical Actual Demand',
+                    line: { color: '#2ca02c', width: 2 },
+                    marker: { size: 4, symbol: 'circle' },
+                    hovertemplate: '<b>Historical Actual Demand</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Value: %{y:.2f}<br>' +
+                                 '<extra></extra>'
+                });
+            }
+            
+            // Actual demand trace for forecast period (only if we have actual data)
+            if (actualData.length > 0) {
+                traces.push({
+                    x: actualData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: actualData.map(d => d.y),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Actual Demand (Forecast Period)',
+                    line: { color: '#1f77b4', width: 3 },
+                    marker: { size: 6, symbol: 'circle' },
+                    hovertemplate: '<b>Actual Demand (Forecast Period)</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Value: %{y:.2f}<br>' +
+                                 '<extra></extra>'
+                });
+            }
+            
+            // Forecast demand trace
+            if (forecastDataFiltered.length > 0) {
+                traces.push({
+                    x: forecastDataFiltered.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: forecastDataFiltered.map(d => d.yhat),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Forecasted Demand',
+                    line: { color: '#ff7f0e', dash: 'dash', width: 3 },
+                    marker: { size: 6, symbol: 'diamond' },
+                    hovertemplate: '<b>Forecasted Demand</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Value: %{y:.2f}<br>' +
+                                 '<extra></extra>'
+                });
+            }
+            
+            // Add error bars if we have both actual and forecast data (only for forecast period)
+            const errorData = forecastData.filter(d => 
+                d.y !== null && d.y !== undefined &&
+                d.yhat !== null && d.yhat !== undefined
+            );
+            
+            if (errorData.length > 0) {
+                traces.push({
+                    x: errorData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: errorData.map(d => (d.y - d.yhat)),
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Forecast Error',
+                    line: { color: '#d62728', width: 1, dash: 'dot' },
+                    yaxis: 'y2',
+                    hovertemplate: '<b>Forecast Error</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Error: %{y:.2f}<br>' +
+                                 '<extra></extra>'
+                });
+            }
+            
+            // Calculate optimal Y-axis ranges for better chart fitting
+            const allYValues = [
+                ...historicalData.map(d => d.y), 
+                ...actualData.map(d => d.y), 
+                ...forecastDataFiltered.map(d => d.yhat)
+            ].filter(v => v !== null && v !== undefined);
+            const allErrorValues = errorData.map(d => (d.y - d.yhat)).filter(v => v !== null && v !== undefined);
+            
+            const yMin = Math.min(...allYValues);
+            const yMax = Math.max(...allYValues);
+            const yPadding = (yMax - yMin) * 0.1; // 10% padding
+            
+            // Ensure we have a valid Y range for the vertical line
+            const finalYMin = yMin - yPadding;
+            const finalYMax = yMax + yPadding;
+            
+            // Add vertical line at context boundary (start_date - risk_period)
+            // Get the risk period info from the results
+            const riskPeriodInfo = results?.risk_period_info;
+            console.log('Risk period info:', riskPeriodInfo);
+            console.log('Results object:', results);
+            
+            if (riskPeriodInfo && riskPeriodInfo.context_boundary_date) {
+                console.log('Adding vertical line at:', riskPeriodInfo.context_boundary_date);
+                traces.push({
+                    x: [riskPeriodInfo.context_boundary_date, riskPeriodInfo.context_boundary_date],
+                    y: [finalYMin, finalYMax], // Use the calculated Y-axis range
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Context Boundary',
+                    line: { 
+                        color: '#2ca02c', 
+                        width: 2, 
+                        dash: 'dot'
+                    },
+                    showlegend: true,
+                    hovertemplate: '<b>Context Boundary</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Historical data ends here<br>' +
+                                 '<extra></extra>'
+                });
+                console.log('Vertical line trace added:', traces[traces.length - 1]);
+            } else if (riskPeriodInfo && riskPeriodInfo.forecast_start_date) {
+                // Fallback: if no context boundary, show line at forecast start date
+                console.log('Adding fallback vertical line at forecast start date:', riskPeriodInfo.forecast_start_date);
+                traces.push({
+                    x: [riskPeriodInfo.forecast_start_date, riskPeriodInfo.forecast_start_date],
+                    y: [finalYMin, finalYMax],
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Forecast Start',
+                    line: { 
+                        color: '#2ca02c', 
+                        width: 2, 
+                        dash: 'dot'
+                    },
+                    showlegend: true,
+                    hovertemplate: '<b>Forecast Start</b><br>' +
+                                 'Date: %{x}<br>' +
+                                 'Forecast period begins here<br>' +
+                                 '<extra></extra>'
+                });
+            } else {
+                console.log('No risk period info or context boundary date available');
+            }
+            
+            const errorMin = Math.min(...allErrorValues);
+            const errorMax = Math.max(...allErrorValues);
+            const errorPadding = (errorMax - errorMin) * 0.1; // 10% padding
+            
+            // Calculate optimal number of X-axis ticks based on data length
+            const dataLength = forecastData.length;
+            const optimalXTicks = Math.min(Math.max(5, Math.floor(dataLength / 50)), 15); // Between 5 and 15 ticks
+            
+            const layout = {
+                title: {
+                    text: 'Historical Context & Forecast Results',
+                    font: { size: 18, color: '#2c3e50' },
+                    x: 0.5
+                },
+                annotations: [
+                    {
+                        text: `Historical: ${historicalData.length > 0 ? historicalData.length + ' data points' : 'None'} | Forecast: ${forecastDataFiltered.length} periods`,
+                        showarrow: false,
+                        xref: 'paper',
+                        yref: 'paper',
+                        x: 0.5,
+                        y: -0.15,
+                        font: { size: 12, color: '#666' }
+                    }
+                ],
+                xaxis: { 
+                    title: { text: 'Date', font: { size: 14 } },
+                    showgrid: true,
+                    gridcolor: '#ecf0f1',
+                    gridwidth: 1,
+                    autorange: true,
+                    nticks: optimalXTicks,  // Dynamic tick calculation
+                    tickangle: -45,  // Angle labels to prevent overlap
+                    tickmode: 'auto',
+                    tickfont: { size: 10 }  // Smaller font for dates
+                },
+                yaxis: { 
+                    title: { text: 'Demand', font: { size: 14 } },
+                    showgrid: true,
+                    gridcolor: '#ecf0f1',
+                    gridwidth: 1,
+                    range: [finalYMin, finalYMax],
+                    rangemode: 'tozero'
+                },
+                yaxis2: {
+                    title: { text: 'Error', font: { size: 12, color: '#d62728' } },
+                    overlaying: 'y',
+                    side: 'right',
+                    showgrid: false,
+                    range: [errorMin - errorPadding, errorMax + errorPadding],
+                    rangemode: 'tozero'
+                },
+                hovermode: 'x unified',
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                margin: { l: 80, r: 80, t: 80, b: 80 },  // Increased bottom margin for angled labels
+                showlegend: true,
+                legend: { 
+                    x: 0.02, 
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#ddd',
+                    borderwidth: 1
+                },
+                autosize: true,
+                height: 500
+            };
+            
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
+                displaylogo: false,
+                toImageButtonOptions: {
+                    format: 'png',
+                    filename: 'forecast_chart',
+                    height: 500,
+                    width: 1000,
+                    scale: 1
+                }
+            };
+            
+            Plotly.newPlot('forecastChart', traces, layout, config);
+            
+        } catch (error) {
+            console.error('Error creating forecast chart:', error);
+            document.getElementById('forecastChart').innerHTML = '<p class="text-danger text-center">Error creating chart: ' + error.message + '</p>';
+        }
+    }
+    
+    function createComponentCharts(componentsData) {
+        if (!componentsData || componentsData.length === 0) {
+            ['trendChart', 'seasonalityChart', 'regressorsChart', 'holidaysChart'].forEach(chartId => {
+                document.getElementById(chartId).innerHTML = '<p class="text-muted text-center">No component data available</p>';
+            });
+            return;
+        }
+        
+        // Create trend chart
+        createTrendChart(componentsData);
+        
+        // Create seasonality chart
+        createSeasonalityChart(componentsData);
+        
+        // Create regressors chart
+        createRegressorsChart(componentsData);
+        
+        // Create holidays chart
+        createHolidaysChart(componentsData);
+    }
+    
+    function createTrendChart(componentsData) {
+        try {
+            const trendData = componentsData.filter(d => d.trend !== null && d.trend !== undefined);
+            
+            if (trendData.length === 0) {
+                document.getElementById('trendChart').innerHTML = '<p class="text-muted text-center">No trend data available</p>';
+                return;
+            }
+            
+            const trace = {
+                x: trendData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                y: trendData.map(d => d.trend),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Trend',
+                line: { color: '#2ca02c', width: 3 },
+                hovertemplate: '<b>Trend</b><br>' +
+                             'Date: %{x}<br>' +
+                             'Value: %{y:.2f}<br>' +
+                             '<extra></extra>'
+            };
+            
+            // Calculate optimal Y-axis range for trend chart
+            const trendValues = trendData.map(d => d.trend).filter(v => v !== null && v !== undefined);
+            const trendMin = Math.min(...trendValues);
+            const trendMax = Math.max(...trendValues);
+            const trendPadding = (trendMax - trendMin) * 0.1; // 10% padding
+            
+            const layout = {
+                title: {
+                    text: 'Trend Component',
+                    font: { size: 16, color: '#2c3e50' }
+                },
+                xaxis: { 
+                    title: { text: 'Date', font: { size: 12 } },
+                    showgrid: true,
+                    gridcolor: '#ecf0f1',
+                    autorange: true,
+                    nticks: 8,  // Limit number of tick marks
+                    tickangle: -45,  // Angle labels to prevent overlap
+                    tickmode: 'auto',
+                    tickfont: { size: 9 }  // Smaller font for dates
+                },
+                yaxis: { 
+                    title: { text: 'Trend Value', font: { size: 12 } },
+                    showgrid: true,
+                    gridcolor: '#ecf0f1',
+                    range: [trendMin - trendPadding, trendMax + trendPadding],
+                    rangemode: 'tozero'
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                margin: { l: 60, r: 30, t: 50, b: 70 },  // Increased bottom margin for angled labels
+                showlegend: false,
+                autosize: true,
+                height: 450
+            };
+            
+            const config = getChartConfig('trend_component');
+            Plotly.newPlot('trendChart', [trace], layout, config);
+            
+        } catch (error) {
+            console.error('Error creating trend chart:', error);
+            document.getElementById('trendChart').innerHTML = '<p class="text-danger text-center">Error creating trend chart</p>';
+        }
+    }
+    
+    function createSeasonalityChart(componentsData) {
+        try {
+            const container = document.getElementById('seasonalityChart');
+            const colors = ['#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
+            let colorIndex = 0;
+            let chartsCreated = 0;
+            
+            // Debug: Log the data structure
+            console.log('createSeasonalityChart called with data keys:', Object.keys(componentsData[0] || {}));
+            
+            // Clear container
+            container.innerHTML = '';
+            
+            // Helper function to create a seasonality chart
+            function createSeasonalitySubChart(data, seasonalityType, xAxisType, xAxisTitle, xAxisRange) {
+                const chartId = `seasonality_${seasonalityType}_${Date.now()}_${Math.random()}`;
+                const chartDiv = document.createElement('div');
+                chartDiv.id = chartId;
+                chartDiv.style.height = '300px';
+                chartDiv.style.marginBottom = '30px';
+                chartDiv.style.border = '1px solid #e0e0e0';
+                chartDiv.style.borderRadius = '8px';
+                chartDiv.style.padding = '15px';
+                
+                container.appendChild(chartDiv);
+                
+                // Create x-axis values based on seasonality type
+                let xValues, xAxisConfig;
+                
+                if (xAxisType === 'weekly') {
+                    xValues = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    xAxisConfig = {
+                        type: 'category',
+                        title: { text: 'Day of Week', font: { size: 12 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1'
+                    };
+                } else if (xAxisType === 'yearly') {
+                    xValues = Array.from({length: 365}, (_, i) => {
+                        const date = new Date(2024, 0, 1 + i);
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    });
+                    xAxisConfig = {
+                        type: 'category',
+                        title: { text: 'Day of Year', font: { size: 12 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1',
+                        nticks: 12,
+                        tickangle: -45
+                    };
+                } else if (xAxisType === 'daily') {
+                    xValues = Array.from({length: 24}, (_, i) => `${i}:00`);
+                    xAxisConfig = {
+                        type: 'category',
+                        title: { text: 'Hour of Day', font: { size: 12 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1'
+                    };
+                } else {
+                    // Custom seasonality
+                    const period = xAxisRange;
+                    xValues = Array.from({length: period}, (_, i) => `Day ${i + 1}`);
+                    xAxisConfig = {
+                        type: 'category',
+                        title: { text: `Day of ${period}-Day Period`, font: { size: 12 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1',
+                        nticks: Math.min(period, 20),
+                        tickangle: -45
+                    };
+                }
+                
+                // Sample the data to get one complete cycle
+                const sampleSize = Math.min(data.length, xAxisRange || 365);
+                const sampledData = data.slice(0, sampleSize);
+                
+                // Create the chart
+                const trace = {
+                    x: xValues,
+                    y: sampledData.map(d => d[seasonalityType] || 0),
+                    type: 'bar',
+                    name: seasonalityType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                    marker: { 
+                        color: colors[colorIndex % colors.length],
+                        line: { color: '#333', width: 1 }
+                    }
+                };
+                
+                const layout = {
+                    title: {
+                        text: `${seasonalityType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} Seasonality`,
+                        font: { size: 14, color: '#2c3e50' }
+                    },
+                    xaxis: xAxisConfig,
+                    yaxis: { 
+                        title: { text: 'Seasonal Effect', font: { size: 12 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1'
+                    },
+                    plot_bgcolor: 'white',
+                    paper_bgcolor: 'white',
+                    margin: { l: 60, r: 30, t: 50, b: 70 },
+                    showlegend: false,
+                    height: 300
+                };
+                
+                const config = getChartConfig(`seasonality_${seasonalityType}`);
+                Plotly.newPlot(chartId, [trace], layout, config);
+                chartsCreated++;
+                colorIndex++;
+            }
+            
+            // Create yearly seasonality chart if available
+            if (componentsData.some(d => d.yearly !== null && d.yearly !== undefined)) {
+                const yearlyData = componentsData.filter(d => d.yearly !== null && d.yearly !== undefined);
+                createSeasonalitySubChart(yearlyData, 'yearly', 'yearly', 'Day of Year', 365);
+            }
+            
+            // Create weekly seasonality chart if available
+            if (componentsData.some(d => d.weekly !== null && d.weekly !== undefined)) {
+                const weeklyData = componentsData.filter(d => d.weekly !== null && d.weekly !== undefined);
+                createSeasonalitySubChart(weeklyData, 'weekly', 'weekly', 'Day of Week', 7);
+            }
+            
+            // Create daily seasonality chart if available
+            if (componentsData.some(d => d.daily !== null && d.daily !== undefined)) {
+                const dailyData = componentsData.filter(d => d.daily !== null && d.daily !== undefined);
+                createSeasonalitySubChart(dailyData, 'daily', 'daily', 'Hour of Day', 24);
+            }
+            
+            // Create custom seasonality charts (dynamic detection)
+            // Get the configuration to identify custom seasonalities
+            const configuration = collectConfiguration();
+            const customSeasonalities = configuration.custom_seasonalities || {};
+            
+            const sampleRow = componentsData[0] || {};
+            Object.keys(sampleRow).forEach(key => {
+                // Only process keys that are explicitly seasonality-related
+                if (['yearly', 'weekly', 'daily'].includes(key)) {
+                    // These are handled separately above
+                    return;
+                }
+                
+                // Check if this key matches a custom seasonality name from the configuration
+                if (customSeasonalities.hasOwnProperty(key)) {
+                    const customSeasonality = customSeasonalities[key];
+                    const period = customSeasonality.period;
+                    
+                    const customData = componentsData.filter(d => d[key] !== null && d[key] !== undefined);
+                    
+                    if (customData.length > 0) {
+                        createSeasonalitySubChart(customData, key, 'custom', `Day of ${period}-Day Period`, period);
+                    }
+                }
+            });
+            
+            if (chartsCreated === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No seasonality data available</p>';
+                return;
+            }
+            
+            // Add spacing between charts
+            container.style.paddingBottom = '20px';
+            
+        } catch (error) {
+            console.error('Error creating seasonality chart:', error);
+            document.getElementById('seasonalityChart').innerHTML = '<p class="text-danger text-center">Error creating seasonality chart</p>';
+        }
+    }
+    
+    function createRegressorsChart(componentsData) {
+        try {
+            const container = document.getElementById('regressorsChart');
+            container.innerHTML = '';
+            
+            // Get the configuration to identify enabled regressors
+            const configuration = collectConfiguration();
+            const enabledRegressors = configuration.regressors || {};
+            
+            if (Object.keys(enabledRegressors).length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No regressors configured</p>';
+                return;
+            }
+            
+            const colors = ['#9467bd', '#17becf', '#bcbd22', '#ff7f0e', '#1f77b4'];
+            let colorIndex = 0;
+            
+            // Separate binary and continuous regressors
+            const binaryRegressors = [];
+            const continuousRegressors = [];
+            
+            console.log('Enabled regressors:', enabledRegressors);
+            console.log('Components data sample:', componentsData.slice(0, 3));
+            
+            Object.keys(enabledRegressors).forEach(regressorName => {
+                // Check if regressor data exists
+                if (!componentsData.some(d => d[regressorName] !== null && d[regressorName] !== undefined)) {
+                    console.log(`Skipping ${regressorName}: no data available`);
+                    return; // Skip if no data for this regressor
+                }
+                
+                // Check if this is a binary regressor by looking at the raw values
+                const rawRegressorName = `${regressorName}_raw`;
+                const rawRegressorValues = componentsData.map(d => d[rawRegressorName]).filter(v => v !== null && v !== undefined);
+                const uniqueRawValues = [...new Set(rawRegressorValues)];
+                
+                console.log(`${regressorName}: raw values = [${uniqueRawValues.join(', ')}], count = ${uniqueRawValues.length}`);
+                
+                if (uniqueRawValues.length <= 2 && uniqueRawValues.every(v => v === 0 || v === 1)) {
+                    // Binary regressor - add to table
+                    console.log(`${regressorName} → BINARY (adding to table)`);
+                    binaryRegressors.push(regressorName);
+                } else {
+                    // Continuous regressor - add to charts
+                    console.log(`${regressorName} → CONTINUOUS (adding to charts)`);
+                    continuousRegressors.push(regressorName);
+                }
+            });
+            
+            console.log('Binary regressors:', binaryRegressors);
+            console.log('Continuous regressors:', continuousRegressors);
+            
+            // Debug: Show what raw columns are available
+            const sampleRow = componentsData[0] || {};
+            const rawColumns = Object.keys(sampleRow).filter(key => key.endsWith('_raw'));
+            console.log('Available raw columns:', rawColumns);
+            
+            // Create binary regressors table
+            console.log('Creating binary regressors table...');
+            if (binaryRegressors.length > 0) {
+                console.log(`Creating table for ${binaryRegressors.length} binary regressors`);
+                const tableContainer = document.createElement('div');
+                tableContainer.className = 'mb-4';
+                tableContainer.style.border = '1px solid #e9ecef';
+                tableContainer.style.borderRadius = '8px';
+                tableContainer.style.padding = '20px';
+                tableContainer.style.backgroundColor = '#f8f9fa';
+                
+                const tableTitle = document.createElement('h5');
+                tableTitle.textContent = 'Binary Regressor Effects';
+                tableTitle.style.marginBottom = '15px';
+                tableTitle.style.color = '#2c3e50';
+                tableContainer.appendChild(tableTitle);
+                
+                const table = document.createElement('table');
+                table.className = 'table table-striped table-hover';
+                table.style.marginBottom = '0';
+                
+                const tableHead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                headerRow.innerHTML = `
+                    <th style="background-color: #e9ecef; border: none;">Regressor</th>
+                    <th style="background-color: #e9ecef; border: none;">Effect</th>
+                `;
+                tableHead.appendChild(headerRow);
+                table.appendChild(tableHead);
+                
+                const tableBody = document.createElement('tbody');
+                binaryRegressors.forEach(regressorName => {
+                    // Calculate average effect for binary regressor
+                    const effects = componentsData
+                        .map(d => d[regressorName])
+                        .filter(effect => effect !== null && effect !== undefined);
+                    
+                    const avgEffect = effects.length > 0 ? effects.reduce((a, b) => a + b, 0) / effects.length : 0;
+                    
+                    console.log(`${regressorName}: effects = [${effects.slice(0, 5).join(', ')}...], avg = ${avgEffect}`);
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="font-weight: 500; color: #495057;">${regressorName}</td>
+                        <td style="font-weight: 600; color: ${avgEffect >= 0 ? '#28a745' : '#dc3545'};">
+                            ${avgEffect >= 0 ? '+' : ''}${avgEffect.toFixed(2)}
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                
+                table.appendChild(tableBody);
+                tableContainer.appendChild(table);
+                container.appendChild(tableContainer);
+                console.log('Binary regressors table added to container');
+            } else {
+                console.log('No binary regressors to display');
+            }
+            
+            // Create charts for continuous regressors
+            console.log(`Creating charts for ${continuousRegressors.length} continuous regressors`);
+            continuousRegressors.forEach(regressorName => {
+                // Create row container
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'row mb-4';
+                rowDiv.style.border = '1px solid #e9ecef';
+                rowDiv.style.borderRadius = '8px';
+                rowDiv.style.padding = '15px';
+                rowDiv.style.backgroundColor = '#f8f9fa';
+                
+                // Create left chart (regressor effect over time)
+                const leftChartDiv = document.createElement('div');
+                leftChartDiv.className = 'col-md-6';
+                leftChartDiv.id = `regressor_effect_${regressorName}`;
+                
+                // Create right chart (scatter plot vs raw value)
+                const rightChartDiv = document.createElement('div');
+                rightChartDiv.className = 'col-md-6';
+                rightChartDiv.id = `regressor_scatter_${regressorName}`;
+                
+                // Add charts to row
+                rowDiv.appendChild(leftChartDiv);
+                rowDiv.appendChild(rightChartDiv);
+                
+                // Add row to container
+                container.appendChild(rowDiv);
+                
+                // Create left chart: Regressor effect over time
+                const effectTrace = {
+                    x: componentsData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: componentsData.map(d => d[regressorName] || 0),
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: `${regressorName} Effect`,
+                    line: { color: colors[colorIndex % colors.length], width: 2 },
+                    hovertemplate: `<b>${regressorName} Effect</b><br>Date: %{x}<br>Effect: %{y:.2f}<extra></extra>`
+                };
+                
+                const effectLayout = {
+                    title: {
+                        text: `${regressorName} Effect Over Time`,
+                        font: { size: 14, color: '#2c3e50' }
+                    },
+                    xaxis: { 
+                        title: { text: 'Date', font: { size: 11 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1',
+                        nticks: 8,
+                        tickangle: -45,
+                        tickmode: 'auto',
+                        tickfont: { size: 9 }
+                    },
+                    yaxis: { 
+                        title: { text: 'Effect', font: { size: 11 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1'
+                    },
+                    plot_bgcolor: 'white',
+                    paper_bgcolor: 'white',
+                    margin: { l: 50, r: 20, t: 40, b: 60 },
+                    showlegend: false,
+                    height: 300
+                };
+                
+                // Create right chart: Scatter plot vs raw regressor value
+                const rawRegressorName = `${regressorName}_raw`;
+                let scatterTrace;
+                
+                if (componentsData.some(d => d[rawRegressorName] !== null && d[rawRegressorName] !== undefined)) {
+                    // Raw regressor values exist
+                    scatterTrace = {
+                        x: componentsData.map(d => d[rawRegressorName] || 0),
+                        y: componentsData.map(d => d[regressorName] || 0),
+                        type: 'scatter',
+                        mode: 'markers',
+                        name: `${regressorName} vs Raw`,
+                        marker: { 
+                            color: colors[colorIndex % colors.length], 
+                            size: 6,
+                            opacity: 0.7
+                        },
+                        hovertemplate: `<b>${regressorName}</b><br>Raw Value: %{x:.2f}<br>Effect: %{y:.2f}<extra></extra>`
+                    };
+                    
+                    // Add trend line
+                    const xValues = componentsData.map(d => d[rawRegressorName] || 0).filter(x => x !== 0);
+                    const yValues = componentsData.map(d => d[regressorName] || 0).filter((y, i) => componentsData[i][rawRegressorName] !== 0);
+                    
+                    if (xValues.length > 1) {
+                        // Simple linear regression
+                        const n = xValues.length;
+                        const sumX = xValues.reduce((a, b) => a + b, 0);
+                        const sumY = yValues.reduce((a, b) => a + b, 0);
+                        const sumXY = xValues.reduce((sum, x, i) => sum + x * yValues[i], 0);
+                        const sumX2 = xValues.reduce((sum, x) => sum + x * x, 0);
+                        
+                        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                        const intercept = (sumY - slope * sumX) / n;
+                        
+                        const trendX = [Math.min(...xValues), Math.max(...xValues)];
+                        const trendY = trendX.map(x => slope * x + intercept);
+                        
+                        const trendTrace = {
+                            x: trendX,
+                            y: trendY,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'Trend Line',
+                            line: { 
+                                color: colors[colorIndex % colors.length], 
+                                width: 2,
+                                dash: 'dash'
+                            },
+                            showlegend: false
+                        };
+                        
+                        Plotly.newPlot(rightChartDiv.id, [scatterTrace, trendTrace], {
+                            ...effectLayout,
+                            title: { text: `${regressorName} Effect vs Raw Value`, font: { size: 14, color: '#2c3e50' } },
+                            xaxis: { title: { text: 'Raw Regressor Value', font: { size: 11 } } },
+                            yaxis: { title: { text: 'Effect', font: { size: 11 } } }
+                        }, getChartConfig(`regressor_scatter_${regressorName}`));
+                    } else {
+                        Plotly.newPlot(rightChartDiv.id, [scatterTrace], {
+                            ...effectLayout,
+                            title: { text: `${regressorName} Effect vs Raw Value`, font: { size: 14, color: '#2c3e50' } },
+                            xaxis: { title: { text: 'Raw Regressor Value', font: { size: 11 } } },
+                            yaxis: { title: { text: 'Effect', font: { size: 11 } } }
+                        }, getChartConfig(`regressor_scatter_${regressorName}`));
+                    }
+                } else {
+                    // No raw regressor values, show message
+                    rightChartDiv.innerHTML = '<p class="text-muted text-center">Raw regressor values not available</p>';
+                }
+                
+                // Plot left chart
+                Plotly.newPlot(leftChartDiv.id, [effectTrace], effectLayout, getChartConfig(`regressor_effect_${regressorName}`));
+                
+                colorIndex++;
+            });
+            
+            if (container.children.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No regressor data available</p>';
+            }
+            
+        } catch (error) {
+            console.error('Error creating regressors chart:', error);
+            document.getElementById('regressorsChart').innerHTML = '<p class="text-danger text-center">Error creating regressors chart</p>';
+        }
+    }
+    
+    function createHolidaysChart(componentsData) {
+        try {
+            const container = document.getElementById('holidaysChart');
+            container.innerHTML = '';
+            
+            // Get the configuration to identify selected holidays
+            const configuration = collectConfiguration();
+            const selectedHolidays = configuration.selected_holidays || [];
+            
+            if (selectedHolidays.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No holidays configured</p>';
+                return;
+            }
+            
+            const colors = ['#ff7f0e', '#1f77b4', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
+            let colorIndex = 0;
+            
+            // Create combined holidays chart at the top
+            const combinedHolidayData = componentsData.filter(d => d.holidays !== null && d.holidays !== undefined && d.holidays !== 0);
+            
+            if (combinedHolidayData.length > 0) {
+                const combinedContainer = document.createElement('div');
+                combinedContainer.className = 'mb-4';
+                combinedContainer.style.border = '1px solid #e9ecef';
+                combinedContainer.style.borderRadius = '8px';
+                combinedContainer.style.padding = '20px';
+                combinedContainer.style.backgroundColor = '#f8f9fa';
+                
+                const combinedTitle = document.createElement('h5');
+                combinedTitle.textContent = 'Combined Holiday Effects';
+                combinedTitle.style.marginBottom = '15px';
+                combinedTitle.style.color = '#2c3e50';
+                combinedContainer.appendChild(combinedTitle);
+                
+                const combinedChartDiv = document.createElement('div');
+                combinedChartDiv.id = 'combined_holidays_chart';
+                combinedChartDiv.style.height = '400px';
+                combinedContainer.appendChild(combinedChartDiv);
+                
+                container.appendChild(combinedContainer);
+                
+                // Create combined holidays trace
+                const combinedTrace = {
+                    x: combinedHolidayData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: combinedHolidayData.map(d => d.holidays),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Combined Holiday Effects',
+                    line: { color: '#ff7f0e', width: 2 },
+                    marker: { size: 6, symbol: 'star' },
+                    hovertemplate: '<b>Combined Holiday Effect</b><br>Date: %{x}<br>Effect: %{y:.2f}<extra></extra>'
+                };
+                
+                const combinedLayout = {
+                    title: {
+                        text: 'All Holiday Effects Combined',
+                        font: { size: 14, color: '#2c3e50' }
+                    },
+                    xaxis: { 
+                        title: { text: 'Date', font: { size: 11 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1',
+                        nticks: 8,
+                        tickangle: -45,
+                        tickmode: 'auto',
+                        tickfont: { size: 9 }
+                    },
+                    yaxis: { 
+                        title: { text: 'Holiday Effect', font: { size: 11 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1'
+                    },
+                    plot_bgcolor: 'white',
+                    paper_bgcolor: 'white',
+                    margin: { l: 60, r: 30, t: 50, b: 60 },
+                    showlegend: false,
+                    height: 350
+                };
+                
+                Plotly.newPlot(combinedChartDiv.id, [combinedTrace], combinedLayout, getChartConfig('combined_holidays'));
+            }
+            
+            // Create individual holiday charts
+            selectedHolidays.forEach(holidayName => {
+                // Check if this specific holiday column exists in the data
+                if (!componentsData.some(d => d[holidayName] !== null && d[holidayName] !== undefined)) {
+                    console.log(`Holiday column '${holidayName}' not found in data`);
+                    return; // Skip if no data for this holiday
+                }
+                
+                // Filter data for this specific holiday (non-zero values)
+                const holidayData = componentsData.filter(d => d[holidayName] !== null && d[holidayName] !== undefined && d[holidayName] !== 0);
+                
+                if (holidayData.length === 0) {
+                    console.log(`No non-zero data for holiday '${holidayName}'`);
+                    return; // Skip if no non-zero data
+                }
+                
+                // Create holiday container
+                const holidayContainer = document.createElement('div');
+                holidayContainer.className = 'mb-4';
+                holidayContainer.style.border = '1px solid #e9ecef';
+                holidayContainer.style.borderRadius = '8px';
+                holidayContainer.style.padding = '20px';
+                holidayContainer.style.backgroundColor = '#f8f9fa';
+                
+                const holidayTitle = document.createElement('h5');
+                holidayTitle.textContent = `${holidayName} Holiday Effect`;
+                holidayTitle.style.marginBottom = '15px';
+                holidayTitle.style.color = '#2c3e50';
+                holidayContainer.appendChild(holidayTitle);
+                
+                const holidayChartDiv = document.createElement('div');
+                holidayChartDiv.id = `holiday_${holidayName.replace(/\s+/g, '_')}`;
+                holidayChartDiv.style.height = '300px';
+                holidayContainer.appendChild(holidayChartDiv);
+                
+                container.appendChild(holidayContainer);
+                
+                // Create individual holiday trace using the specific holiday column
+                const holidayTrace = {
+                    x: holidayData.map(d => new Date(d.ds).toISOString().split('T')[0]),
+                    y: holidayData.map(d => d[holidayName]),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: `${holidayName} Effect`,
+                    line: { color: colors[colorIndex % colors.length], width: 2 },
+                    marker: { size: 6, symbol: 'star' },
+                    hovertemplate: `<b>${holidayName} Holiday Effect</b><br>Date: %{x}<br>Effect: %{y:.2f}<extra></extra>`
+                };
+                
+                const holidayLayout = {
+                    title: {
+                        text: `${holidayName} Holiday Effect Over Time`,
+                        font: { size: 14, color: '#2c3e50' }
+                    },
+                    xaxis: { 
+                        title: { text: 'Date', font: { size: 11 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1',
+                        nticks: 8,
+                        tickangle: -45,
+                        tickmode: 'auto',
+                        tickfont: { size: 9 }
+                    },
+                    yaxis: { 
+                        title: { text: 'Holiday Effect', font: { size: 11 } },
+                        showgrid: true,
+                        gridcolor: '#ecf0f1'
+                    },
+                    plot_bgcolor: 'white',
+                    paper_bgcolor: 'white',
+                    margin: { l: 60, r: 30, t: 50, b: 60 },
+                    showlegend: false,
+                    height: 250
+                };
+                
+                Plotly.newPlot(holidayChartDiv.id, [holidayTrace], holidayLayout, getChartConfig(`holiday_${holidayName}`));
+                
+                console.log(`Created chart for holiday '${holidayName}' with ${holidayData.length} data points`);
+                colorIndex++;
+            });
+            
+            if (container.children.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No holiday data available</p>';
+            }
+            
+        } catch (error) {
+            console.error('Error creating holidays chart:', error);
+            document.getElementById('holidaysChart').innerHTML = '<p class="text-danger text-center">Error creating holidays chart</p>';
+        }
+    }
+    
+    function getChartConfig(chartType) {
+        return {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d', 'autoScale2d'],
+            displaylogo: false,
+            toImageButtonOptions: {
+                format: 'png',
+                filename: chartType,
+                height: 350,
+                width: 800,
+                scale: 1
+            }
+        };
+    }
+    
+    async function saveConfiguration() {
+        if (!currentConfiguration || !forecastResults) {
+            showMessage('No configuration to save. Please run a forecast first.', 'error');
+            return;
+        }
+        
+        const productId = document.getElementById('productSelect').value;
+        const locationId = document.getElementById('locationSelect').value;
+        
+        try {
+            const response = await fetch('/api/save_configuration', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    location_id: locationId,
+                    configuration: currentConfiguration
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Show success message next to the button
+                showSaveSuccessMessage();
+                // Also show the general success message
+                showMessage(result.message, 'success');
+            } else {
+                showMessage(`Failed to save configuration: ${result.error}`, 'error');
+            }
+            
+        } catch (error) {
+            showMessage(`Error saving configuration: ${error.message}`, 'error');
+        }
+    }
+    
+    function showMessage(message, type) {
+        const container = document.getElementById('messagesContainer');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show`;
+        
+        messageDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        container.appendChild(messageDiv);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 5000);
+    }
+    
+    function showSaveSuccessMessage() {
+        const successMessage = document.getElementById('saveSuccessMessage');
+        successMessage.style.display = 'inline-block';
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            successMessage.style.display = 'none';
+        }, 3000);
+    }
+    
+    // Utility functions for chart management
+    function exportChart(chartId, chartName) {
+        try {
+            const chartElement = document.getElementById(chartId);
+            if (chartElement && chartElement.data) {
+                Plotly.downloadImage(chartId, {
+                    format: 'png',
+                    filename: `${chartName}_${new Date().toISOString().split('T')[0]}`,
+                    height: 600,
+                    width: 1000,
+                    scale: 2
+                });
+            } else {
+                showMessage('Chart not available for export', 'error');
+            }
+        } catch (error) {
+            console.error('Error exporting chart:', error);
+            showMessage('Failed to export chart', 'error');
+        }
+    }
+    
+    function toggleChartFullscreen(chartId) {
+        try {
+            const chartElement = document.getElementById(chartId);
+            if (chartElement) {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    chartElement.requestFullscreen().then(() => {
+                        // Resize chart after entering fullscreen
+                        setTimeout(() => {
+                            Plotly.Plots.resize(chartId);
+                        }, 100);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error toggling fullscreen:', error);
+            showMessage('Fullscreen not supported', 'error');
+        }
+    }
+    
+    // Handle fullscreen exit events
+    document.addEventListener('fullscreenchange', function() {
+        if (!document.fullscreenElement) {
+            // Resize charts when exiting fullscreen
+            ['forecastChart', 'trendChart', 'seasonalityChart', 'regressorsChart', 'holidaysChart'].forEach(chartId => {
+                const element = document.getElementById(chartId);
+                if (element && element.data) {
+                    setTimeout(() => {
+                        Plotly.Plots.resize(chartId);
+                    }, 100);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
