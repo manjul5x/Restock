@@ -33,11 +33,19 @@ except ImportError:
     from data.loader import DataLoader
     from data.input_data_prepper import InputDataPrepper
 
-from forecaster.validation.product_master_schema import ProductMasterSchema
+try:
+    from forecaster.validation.product_master_schema import ProductMasterSchema
+except ImportError:
+    # Schema module requires pydantic which may not be installed
+    ProductMasterSchema = None
 from forecaster.outlier.handler import OutlierHandler
 from forecaster.forecasting.engine import ForecastingEngine 
 from forecaster.utils.pipeline_decorators import pipeline_step
-from forecaster.validation.product_master_schema import ProductMasterSchema
+try:
+    from forecaster.validation.product_master_schema import ProductMasterSchema
+except ImportError:
+    # Schema module requires pydantic which may not be installed
+    ProductMasterSchema = None
 
 
 
@@ -165,11 +173,13 @@ class FullBacktestingPipeline:
         self.product_master_df = self.data_loader.load_product_master()
         self.logger.info(f"Loaded product master: {len(self.product_master_df)} records")
         
-        # Validate product master schema
-        # TODO: need to check what's going on here. Do we need to validate? Is it expensive?
-        ProductMasterSchema.validate_dataframe(self.product_master_df)
-        self.product_master_df = ProductMasterSchema.standardize_dataframe(self.product_master_df)
-        self.logger.info("Product master validated and standardized")
+        # Validate product master schema (if available)
+        if ProductMasterSchema is not None:
+            ProductMasterSchema.validate_dataframe(self.product_master_df)
+            self.product_master_df = ProductMasterSchema.standardize_dataframe(self.product_master_df)
+            self.logger.info("Product master validated and standardized")
+        else:
+            self.logger.info("Product master schema validation skipped - pydantic not available")
         
         # Load outflow data (restricted to products in product master)
         self.outflow_data = self.data_loader.load_outflow(product_master=self.product_master_df)

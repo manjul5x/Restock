@@ -8,7 +8,11 @@ from typing import Dict, List, Tuple, Optional
 from datetime import date
 from pathlib import Path
 from data.loader import DataLoader
-from ..validation import ProductMasterSchema
+try:
+    from ..validation import ProductMasterSchema
+except ImportError:
+    # Schema module requires pydantic which may not be installed
+    ProductMasterSchema = None
 
 class OutlierDetector:
     """Utilities for detecting outliers in demand data"""

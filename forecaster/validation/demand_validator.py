@@ -9,7 +9,11 @@ from typing import Dict, List, Tuple, Optional
 from datetime import date, timedelta
 from pathlib import Path
 from data.loader import DataLoader
-from .product_master_schema import ProductMasterSchema
+try:
+    from .product_master_schema import ProductMasterSchema
+except ImportError:
+    # Schema module requires pydantic which may not be installed
+    ProductMasterSchema = None
 
 class DemandValidator:
     """Utilities for validating demand data completeness and frequency"""

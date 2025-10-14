@@ -16,9 +16,23 @@ from .schema_validator import SchemaValidator
 from .completeness_validator import CompletenessValidator
 from .quality_validator import QualityValidator
 from .coverage_validator import CoverageValidator
-from .schema import DemandSchema, DemandRecord
-from .product_master_schema import ProductMasterSchema, ProductMasterRecord
-from .demand_validator import DemandValidator, validate_demand_completeness, generate_completeness_report
+
+# Make schema imports optional due to pydantic dependency
+try:
+    from .schema import DemandSchema, DemandRecord
+    from .product_master_schema import ProductMasterSchema, ProductMasterRecord
+    from .demand_validator import DemandValidator, validate_demand_completeness, generate_completeness_report
+    _SCHEMA_AVAILABLE = True
+except ImportError:
+    # Schema modules require pydantic which may not be installed
+    DemandSchema = None
+    DemandRecord = None
+    ProductMasterSchema = None
+    ProductMasterRecord = None
+    DemandValidator = None
+    validate_demand_completeness = None
+    generate_completeness_report = None
+    _SCHEMA_AVAILABLE = False
 
 __all__ = [
     'DataValidator',
@@ -29,12 +43,17 @@ __all__ = [
     'SchemaValidator',
     'CompletenessValidator',
     'QualityValidator',
-    'CoverageValidator',
-    'DemandSchema',
-    'DemandRecord',
-    'ProductMasterSchema',
-    'ProductMasterRecord',
-    'DemandValidator',
-    'validate_demand_completeness',
-    'generate_completeness_report'
-] 
+    'CoverageValidator'
+]
+
+# Add schema-related items only if available
+if _SCHEMA_AVAILABLE:
+    __all__.extend([
+        'DemandSchema',
+        'DemandRecord',
+        'ProductMasterSchema',
+        'ProductMasterRecord',
+        'DemandValidator',
+        'validate_demand_completeness',
+        'generate_completeness_report'
+    ]) 

@@ -116,7 +116,11 @@ def resolve_analysis_dates(args: argparse.Namespace) -> Tuple[date, date]:
         Tuple of (analysis_start_date, analysis_end_date)
     """
     from data.loader import DataLoader
-    from forecaster.validation.product_master_schema import ProductMasterSchema
+    try:
+        from forecaster.validation.product_master_schema import ProductMasterSchema
+    except ImportError:
+        # Schema module requires pydantic which may not be installed
+        ProductMasterSchema = None
     
     # If dates are provided, parse and return them
     if args.analysis_start_date and args.analysis_end_date:

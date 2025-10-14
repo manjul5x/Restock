@@ -162,17 +162,28 @@ class DataLoader:
             return df
         
         # Normal loading path
-        path = Path(self.config['paths']['base_dir']) / self.config['paths']['product_master']
-        cache_key = self._get_cache_key('product_master', columns=columns)
-        
-        # Check cache
-        if self._is_cache_valid(cache_key, path):
-            logger.debug(f"Cache hit for product_master")
-            return self._data_cache[cache_key].copy()
-        
-        # Load data
-        logger.info(f"Loading product master from {path}")
-        df = self.accessor.read_data(path, columns=columns)
+        if self.storage_type == 'snowflake':
+            # Use Snowflake table name
+            table_name = self.config.get('snowflake_tables', {}).get('product_master', 'PRODUCT_MASTER_BHASIN')
+            cache_key = self._get_cache_key('product_master', columns=columns)
+            logger.info(f"Loading product master from Snowflake table: {table_name}")
+            df = self.accessor.read_data(table_name, columns=columns)
+            
+            # Convert column names to lowercase for pipeline compatibility
+            df.columns = df.columns.str.lower()
+        else:
+            # Use file path for CSV
+            path = Path(self.config['paths']['base_dir']) / self.config['paths']['product_master']
+            cache_key = self._get_cache_key('product_master', columns=columns)
+            
+            # Check cache
+            if self._is_cache_valid(cache_key, path):
+                logger.debug(f"Cache hit for product_master")
+                return self._data_cache[cache_key].copy()
+            
+            # Load data
+            logger.info(f"Loading product master from {path}")
+            df = self.accessor.read_data(path, columns=columns)
         
         # Cache if enabled
         if self.cache_enabled:
@@ -211,19 +222,32 @@ class DataLoader:
             return df
         
         # Normal loading path
-        path = Path(self.config['paths']['base_dir']) / self.config['paths']['outflow']
-        cache_key = self._get_cache_key('outflow', 
-                                       product_master=product_master, 
-                                       columns=columns)
-        
-        # Check cache
-        if self._is_cache_valid(cache_key, path):
-            logger.debug(f"Cache hit for outflow")
-            return self._data_cache[cache_key].copy()
-        
-        # Load data
-        logger.info(f"Loading outflow data from {path}")
-        df = self.accessor.read_data(path, columns=columns)
+        if self.storage_type == 'snowflake':
+            # Use Snowflake table name
+            table_name = self.config.get('snowflake_tables', {}).get('outflow', 'OUTFLOW_BHASIN')
+            cache_key = self._get_cache_key('outflow', 
+                                           product_master=product_master, 
+                                           columns=columns)
+            logger.info(f"Loading outflow data from Snowflake table: {table_name}")
+            df = self.accessor.read_data(table_name, columns=columns)
+            
+            # Convert column names to lowercase for pipeline compatibility
+            df.columns = df.columns.str.lower()
+        else:
+            # Use file path for CSV
+            path = Path(self.config['paths']['base_dir']) / self.config['paths']['outflow']
+            cache_key = self._get_cache_key('outflow', 
+                                           product_master=product_master, 
+                                           columns=columns)
+            
+            # Check cache
+            if self._is_cache_valid(cache_key, path):
+                logger.debug(f"Cache hit for outflow")
+                return self._data_cache[cache_key].copy()
+            
+            # Load data
+            logger.info(f"Loading outflow data from {path}")
+            df = self.accessor.read_data(path, columns=columns)
         
         # Convert date column to datetime type if it exists (needed for regressor operations)
         if 'date' in df.columns:
@@ -253,15 +277,44 @@ class DataLoader:
             return base_path / f"{date}_{filename}"
         return base_path / filename
     
+    def _get_snowflake_output_table(self, category: str, filename: str) -> str:
+        """Get Snowflake table name for output based on category and filename"""
+        # Map category/filename combinations to Snowflake table names
+        table_mapping = {
+            ('safety_stocks', 'safety_stock_results.csv'): 'safety_stocks',
+            ('backtesting', 'forecast_comparison.csv'): 'forecast_comparison',
+            ('simulation', 'simulation_results.csv'): 'simulation_results',
+            ('backtesting', 'forecast_visualization_data.csv'): 'forecast_visualization',
+            ('backtesting', 'input_data_with_regressors.csv'): 'input_data_with_regressors'
+        }
+        
+        # Get table name from mapping
+        table_key = (category, filename)
+        if table_key in table_mapping:
+            table_name = table_mapping[table_key]
+            # Get actual table name from config
+            return self.config.get('snowflake_tables', {}).get(table_name, f"{table_name.upper()}_RESULTS")
+        else:
+            # Fallback: create table name from category and filename
+            safe_name = f"{category}_{filename.replace('.csv', '')}".upper()
+            return safe_name
+    
     def save_results(self, 
                     df: pd.DataFrame, 
                     category: str, 
                     filename: str,
                     date: Optional[str] = None) -> None:
         """Save results with safety checks"""
-        path = self.get_output_path(category, filename, date)
-        logger.info(f"Saving results to {path}")
-        self.accessor.write_data(df, path)
+        if self.storage_type == 'snowflake':
+            # Use Snowflake table name for output
+            table_name = self._get_snowflake_output_table(category, filename)
+            logger.info(f"Saving results to Snowflake table: {table_name}")
+            self.accessor.write_data(df, table_name, if_exists='replace')
+        else:
+            # Use file path for CSV
+            path = self.get_output_path(category, filename, date)
+            logger.info(f"Saving results to {path}")
+            self.accessor.write_data(df, path)
     
     def save_safety_stocks(self, df: pd.DataFrame) -> None:
         """Save safety stock results"""

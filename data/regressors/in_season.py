@@ -7,7 +7,11 @@ a binary flag indicating if the risk period midpoint falls within a season windo
 
 import pandas as pd
 import numpy as np
-from forecaster.validation.product_master_schema import ProductMasterSchema
+try:
+    from forecaster.validation.product_master_schema import ProductMasterSchema
+except ImportError:
+    # Schema module requires pydantic which may not be installed
+    ProductMasterSchema = None
 from typing import Optional, List
 from typeguard import typechecked
 

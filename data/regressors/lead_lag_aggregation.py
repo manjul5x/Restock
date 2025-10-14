@@ -8,7 +8,11 @@ and backward-looking (lag) windows.
 
 import pandas as pd
 import numpy as np
-from forecaster.validation.product_master_schema import ProductMasterSchema
+try:
+    from forecaster.validation.product_master_schema import ProductMasterSchema
+except ImportError:
+    # Schema module requires pydantic which may not be installed
+    ProductMasterSchema = None
 from typing import Union, List, Optional, Literal
 from typeguard import typechecked
 

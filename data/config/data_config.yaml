@@ -1,11 +1,34 @@
-
 storage:
-  type: "csv"
+  type: "snowflake"  # Using Snowflake database for data access
+
+# Database-specific configurations
+snowflake:
+  account: "nnb42337.us-east-1"
+  user: "manjul"
+  password: "aRjKMX3p48_Rw&4"
+  role: "ACCOUNTADMIN"
+  warehouse: "COMPUTE_WH"
+  database: "RAWDATA_DB"
+  schema: "RESTOCK"
+
 cache:
   enabled: true
   ttl_seconds: 3600
   max_size_mb: 500
   check_file_changes: false
+# Snowflake table names (used when storage type is snowflake)
+snowflake_tables:
+  # Input tables (read from)
+  outflow: "OUTFLOW_BHASIN"
+  product_master: "PRODUCT_MASTER_BHASIN"
+  
+  # Output tables (write to)
+  safety_stocks: "SAFETY_STOCKS_RESULTS"
+  forecast_comparison: "FORECAST_COMPARISON_RESULTS"
+  simulation_results: "SIMULATION_RESULTS"
+  forecast_visualization: "FORECAST_VISUALIZATION_DATA"
+  input_data_with_regressors: "INPUT_DATA_WITH_REGRESSORS"
+
 paths:
   base_dir: "data/customer_data"
   outflow: "customer_demand.csv"

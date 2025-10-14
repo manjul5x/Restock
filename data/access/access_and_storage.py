@@ -26,6 +26,6 @@ def get_accessor(storage_type: str, config: Dict[str, Any]) -> DataAccessor:
     if storage_type == 'csv':
         return CSVAccessor()
     elif storage_type == 'snowflake':
-        return SnowflakeAccessor(config.get('connection', {}))
+        return SnowflakeAccessor(config.get('snowflake', {}))
     else:
         raise DataAccessError(f"Unsupported storage type: {storage_type}") 

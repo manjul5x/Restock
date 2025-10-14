@@ -2,7 +2,11 @@
 Utility modules for the forecaster package.
 """
 
-from .visualization import DemandVisualizer
+try:
+    from .visualization import DemandVisualizer
+except ImportError:
+    # Visualization module requires matplotlib which may not be installed
+    DemandVisualizer = None
 from .logger import (
     ForecasterLogger, 
     get_logger, 
@@ -17,7 +21,6 @@ from .standardize import (
 )
 
 __all__ = [
-    'DemandVisualizer',
     'ForecasterLogger',
     'get_logger',
     'setup_logging',
@@ -31,3 +34,7 @@ __all__ = [
     'standardize_dataframe',
     'validate_and_clean'
 ]
+
+# Add DemandVisualizer only if available
+if DemandVisualizer is not None:
+    __all__.append('DemandVisualizer')
