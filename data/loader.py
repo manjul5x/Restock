@@ -285,7 +285,8 @@ class DataLoader:
             ('backtesting', 'forecast_comparison.csv'): 'forecast_comparison',
             ('simulation', 'simulation_results.csv'): 'simulation_results',
             ('backtesting', 'forecast_visualization_data.csv'): 'forecast_visualization',
-            ('backtesting', 'input_data_with_regressors.csv'): 'input_data_with_regressors'
+            ('backtesting', 'input_data_with_regressors.csv'): 'input_data_with_regressors',
+            ('future_predictions', 'future_predictions.csv'): 'future_predictions'
         }
         
         # Get table name from mapping
@@ -303,13 +304,14 @@ class DataLoader:
                     df: pd.DataFrame, 
                     category: str, 
                     filename: str,
-                    date: Optional[str] = None) -> None:
+                    date: Optional[str] = None,
+                    if_exists: str = 'replace') -> None:
         """Save results with safety checks"""
         if self.storage_type == 'snowflake':
             # Use Snowflake table name for output
             table_name = self._get_snowflake_output_table(category, filename)
-            logger.info(f"Saving results to Snowflake table: {table_name}")
-            self.accessor.write_data(df, table_name, if_exists='replace')
+            logger.info(f"Saving results to Snowflake table: {table_name} (mode: {if_exists})")
+            self.accessor.write_data(df, table_name, if_exists=if_exists)
         else:
             # Use file path for CSV
             path = self.get_output_path(category, filename, date)

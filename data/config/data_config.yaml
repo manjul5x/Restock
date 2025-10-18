@@ -21,13 +21,10 @@ snowflake_tables:
   # Input tables (read from)
   outflow: "OUTFLOW_BHASIN"
   product_master: "PRODUCT_MASTER_BHASIN"
+  processed_data: "PROCESSED_DATA_WITH_REGRESSORS"  # New processed data with regressor features
   
   # Output tables (write to)
-  safety_stocks: "SAFETY_STOCKS_RESULTS"
-  forecast_comparison: "FORECAST_COMPARISON_RESULTS"
-  simulation_results: "SIMULATION_RESULTS"
-  forecast_visualization: "FORECAST_VISUALIZATION_DATA"
-  input_data_with_regressors: "INPUT_DATA_WITH_REGRESSORS"
+  future_predictions: "FUTURE_PREDICTIONS_RESULTS"
 
 paths:
   base_dir: "data/customer_data"
