@@ -3,13 +3,13 @@ storage:
 
 # Database-specific configurations
 snowflake:
-  account: "nnb42337.us-east-1"
+  account: "da37542.uae-north.azure.snowflakecomputing.com"
   user: "manjul"
-  password: "aRjKMX3p48_Rw&4"
+  password: "tBdw7JvVDiuYw&7"
   role: "ACCOUNTADMIN"
   warehouse: "COMPUTE_WH"
-  database: "RAWDATA_DB"
-  schema: "RESTOCK"
+  database: "RESTOCK_DB"
+  schema: "TRANSFORMATION"
 
 cache:
   enabled: true
