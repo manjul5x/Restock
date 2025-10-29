@@ -1,33 +1,41 @@
+# Template configuration for company use
+# Copy this file to data_config.yaml and update with your company's Snowflake credentials
+
 storage:
-  type: "snowflake"  # Using Snowflake database for data access
+  type: "snowflake"  # Options: "csv" or "snowflake"
 
 # Database-specific configurations
 snowflake:
-  account: "da37542.uae-north.azure"
-  user: "manjul"
-  password: "tBdw7JvVDiuYw&7"
-  role: "ACCOUNTADMIN"
-  warehouse: "COMPUTE_WH"
-  database: "RESTOCK_DB"
-  schema: "TRANSFORMATION"
-  authenticator: "snowflake"
-  passcode: "458364"  # UPDATE THIS WITH YOUR FRESH MFA CODE
+  account: "YOUR_COMPANY_ACCOUNT.us-east-1"  # Replace with your Snowflake account
+  user: "YOUR_USERNAME"                      # Replace with your username
+  password: "YOUR_PASSWORD"                   # Replace with your password
+  role: "YOUR_ROLE"                          # Replace with your role (e.g., "ACCOUNTADMIN")
+  warehouse: "YOUR_WAREHOUSE"                 # Replace with your warehouse name
+  database: "YOUR_DATABASE"                   # Replace with your database name
+  schema: "YOUR_SCHEMA"                       # Replace with your schema name
 
+# Snowflake table mappings
+snowflake_tables:
+  # Input tables (read from)
+  outflow: "YOUR_OUTFLOW_TABLE"
+  product_master: "YOUR_PRODUCT_MASTER_TABLE"
+  
+  # Output tables (write to)
+  safety_stocks: "SAFETY_STOCKS_RESULTS"
+  forecast_comparison: "FORECAST_COMPARISON_RESULTS"
+  simulation_results: "SIMULATION_RESULTS"
+  forecast_visualization: "FORECAST_VISUALIZATION_DATA"
+  input_data_with_regressors: "INPUT_DATA_WITH_REGRESSORS"
+  future_predictions: "FUTURE_PREDICTIONS_RESULTS"
+
+# Cache configuration
 cache:
   enabled: true
   ttl_seconds: 3600
   max_size_mb: 500
   check_file_changes: false
-# Snowflake table names (used when storage type is snowflake)
-snowflake_tables:
-  # Input tables (read from)
-  outflow: "OUTFLOW_BHASIN"
-  product_master: "PRODUCT_MASTER_BHASIN"
-  processed_data: "PROCESSED_DATA_WITH_REGRESSORS"  # New processed data with regressor features
-  
-  # Output tables (write to)
-  future_predictions: "FUTURE_PREDICTIONS_RESULTS"
 
+# File paths (used when storage type is "csv")
 paths:
   base_dir: "data/customer_data"
   outflow: "customer_demand.csv"
@@ -44,6 +52,8 @@ paths:
     india_holidays: "data/holidays/india_holidays.csv"
     regressor_config: "data/config/regressor_config.yaml"
     input_data_with_regressors: "output/backtesting/input_data_with_regressors.csv"
+
+# Safety stock configuration
 safety_stock:
   review_dates:
     - "2024-07-01"
@@ -70,11 +80,15 @@ safety_stock:
     - "2025-05-15"
     - "2025-06-01"
     - "2025-06-15"
+
+# Simulation configuration
 simulation:
-  enable_moq: true  # Enable MOQ (Minimum Order Quantity) constraints
+  enable_moq: true
   overstock_buffer_perc: 20
-  overstock_boundary_window: 30 # this is in days
+  overstock_boundary_window: 30
   calc_metrics_after_lt: true
+
+# Monitoring configuration
 monitoring:
   log_access: false
   track_memory: true

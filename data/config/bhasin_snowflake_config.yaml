@@ -1,0 +1,16 @@
+# Bhasin Snowflake Configuration
+snowflake:
+  account: "FIVEX-CMP_BHASINTRADING_CAERHJ"
+  user: "lokesh"
+  role: "INGESTION_ROLE"
+  warehouse: "INGESTION_WH"
+  database: "RAWDATA_DB"
+  schema: "FOCUS"
+  private_key_file: "/Users/manjul/Desktop/restock/data/access/sql_connector/rsa_key.p8"
+  private_key_password: "70LuexqnPUJobF"
+
+# Data paths
+data_paths:
+  bhasin_raw: "data/raw/bhasin/drive-download-20251001T061244Z-1-001/"
+  bhasin_processed: "data/processed/bhasin/"
+

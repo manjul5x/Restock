@@ -11,7 +11,28 @@ try:
     from forecaster.validation.product_master_schema import ProductMasterSchema
 except ImportError:
     # Schema module requires pydantic which may not be installed
-    ProductMasterSchema = None
+    # Create a simple fallback class with the required method
+    class ProductMasterSchema:
+        @staticmethod
+        def get_risk_period_days(frequency: str, risk_period: int) -> int:
+            """
+            Convert frequency and risk period to total days
+            
+            Args:
+                frequency: 'd', 'w', or 'm'
+                risk_period: Integer multiple of frequency
+                
+            Returns:
+                Total days
+            """
+            if frequency == "d":
+                return risk_period
+            elif frequency == "w":
+                return risk_period * 7
+            elif frequency == "m":
+                return risk_period * 30
+            else:
+                raise ValueError(f"Unknown frequency: {frequency}")
 from typing import Optional, List
 from typeguard import typechecked
 

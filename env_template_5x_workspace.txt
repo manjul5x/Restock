@@ -1,0 +1,45 @@
+# 5X Workspace Environment Variables Template
+# Copy these to your 5X workspace environment variables
+
+# ===========================================
+# SNOWFLAKE CONNECTION SETTINGS
+# ===========================================
+FIVEX_SNOWFLAKE_ACCOUNT=da37542.uae-north.azure
+FIVEX_SNOWFLAKE_USER=manjul
+FIVEX_SNOWFLAKE_ROLE=ACCOUNTADMIN
+FIVEX_SNOWFLAKE_WAREHOUSE=COMPUTE_WH
+FIVEX_SNOWFLAKE_DATABASE=RESTOCK_DB
+
+# ===========================================
+# SCHEMA CONFIGURATION (MULTI-SCHEMA SETUP)
+# ===========================================
+# Read operations (input tables)
+FIVEX_SNOWFLAKE_READ_SCHEMA=STAGE
+
+# Write operations (output tables)  
+FIVEX_SNOWFLAKE_WRITE_SCHEMA=TRANSFORMATION
+
+# ===========================================
+# PRIVATE KEY AUTHENTICATION
+# ===========================================
+FIVEX_SNOWFLAKE_PRIVATE_KEY_FILE=/path/to/your/private_key.p8
+FIVEX_SNOWFLAKE_PRIVATE_KEY_FILE_PWD=your_passphrase_here
+
+# ===========================================
+# TABLE MAPPINGS (OPTIONAL - CAN BE HARDCODED)
+# ===========================================
+# Input tables (read from STAGE schema)
+FIVEX_SNOWFLAKE_OUTFLOW_TABLE=OUTFLOW_BHASIN
+FIVEX_SNOWFLAKE_PRODUCT_MASTER_TABLE=PRODUCT_MASTER_BHASIN
+
+# Output tables (write to TRANSFORMATION schema)
+FIVEX_SNOWFLAKE_PROCESSED_DATA_TABLE=PROCESSED_DATA_WITH_REGRESSORS
+FIVEX_SNOWFLAKE_FUTURE_PREDICTIONS_TABLE=FUTURE_PREDICTIONS_RESULTS
+
+# ===========================================
+# ADDITIONAL SCHEMAS (FOR FUTURE USE)
+# ===========================================
+# If you need more schemas later, add them here:
+# FIVEX_SNOWFLAKE_ANALYTICS_SCHEMA=ANALYTICS
+# FIVEX_SNOWFLAKE_ARCHIVE_SCHEMA=ARCHIVE
+# FIVEX_SNOWFLAKE_STAGING_SCHEMA=STAGING

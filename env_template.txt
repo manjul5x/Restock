@@ -1,0 +1,19 @@
+# 5X Workspace Environment Variables Template
+# Copy this to .env and fill in your actual values
+
+# Snowflake Configuration (for 5X workspace deployment)
+FIVEX_SNOWFLAKE_ACCOUNT=da37542.uae-north.azure
+FIVEX_SNOWFLAKE_USER=manjul
+FIVEX_SNOWFLAKE_ROLE=ACCOUNTADMIN
+FIVEX_SNOWFLAKE_WAREHOUSE=COMPUTE_WH
+FIVEX_SNOWFLAKE_DATABASE=RESTOCK_DB
+FIVEX_SNOWFLAKE_SCHEMA=TRANSFORMATION
+
+# Private Key Authentication (IDE-style)
+FIVEX_SNOWFLAKE_PRIVATE_KEY_FILE=/path/to/your/rsa_key.p8
+FIVEX_SNOWFLAKE_PRIVATE_KEY_FILE_PWD=your_key_passphrase
+
+# Optional: Environment-specific overrides
+# SNOWFLAKE_ENV=dev  # or prod
+# FIVEX_SNOWFLAKE_DEV_ACCOUNT=dev-account
+# FIVEX_SNOWFLAKE_PROD_ACCOUNT=prod-account
